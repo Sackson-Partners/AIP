@@ -87,7 +87,7 @@ jobs:
         with:
           resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ env.AZURE_CONTAINER_APP }}
-          imageToDeploy: ${{ env.DOCKER_IMAGE }}:sha-${{ github.sha }}
+          imageToDeploy: ${{ env.DOCKER_IMAGE }}:latest
       - name: Health check
         run: |
           sleep 30
