@@ -2,7 +2,7 @@
 import logging
 import os
 from sqlalchemy import create_engine, event
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 logger = logging.getLogger("aip.database")
 
@@ -32,7 +32,13 @@ if IS_SQLITE:
         cur.execute("PRAGMA foreign_keys=ON")
         cur.close()
 
+
+class Base(DeclarativeBase):
+    pass
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
 
 def get_db():
     db = SessionLocal()
