@@ -57,7 +57,7 @@ def _build_allowed_origins() -> list[str]:
         for o in prod_origins:
                     if o not in origins:
                                     origins.append(o)
-                        if not origins:
+            if not origins:
                                         origins = ["http://localhost:3000", "http://localhost:3001"]
                         return origins
             
