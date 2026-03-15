@@ -14,7 +14,11 @@ IS_SQLITE = DATABASE_URL.startswith("sqlite")
 logger.info("Database: %s", "SQLite" if IS_SQLITE else "PostgreSQL")
 
 if IS_SQLITE:
-    engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False}, pool_pre_ping=True)
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True,
+    )
 else:
     engine = create_engine(
         DATABASE_URL,
@@ -22,6 +26,7 @@ else:
         max_overflow=int(os.getenv("DB_MAX_OVERFLOW", "10")),
         pool_pre_ping=True,
         pool_recycle=1800,
+        connect_args={"connect_timeout": 10},
     )
 
 if IS_SQLITE:
@@ -35,6 +40,20 @@ if IS_SQLITE:
 
 class Base(DeclarativeBase):
     pass
+
+
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()    pass
 
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
