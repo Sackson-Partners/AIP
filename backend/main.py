@@ -37,13 +37,18 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("AIP API starting up")
-    try:
-        Base.metadata.create_all(bind=engine)
-        logger.info("Database tables created/verified")
-    except Exception as exc:
-        logger.warning(
-            "Database initialisation skipped – check DATABASE_URL: %s", exc
-        )
+    db_url = os.getenv("DATABASE_URL", "sqlite:///./aip.db")
+    if db_url.startswith("sqlite"):
+        # SQLite only: auto-create tables for local dev
+        try:
+            Base.metadata.create_all(bind=engine)
+            logger.info("Database tables created/verified")
+        except Exception as exc:
+            logger.warning(
+                "Database initialisation skipped – check DATABASE_URL: %s", exc
+            )
+    else:
+        logger.info("PostgreSQL mode: skipping create_all (managed by Supabase/Alembic)")
     yield
     logger.info("AIP API shutting down")
 
@@ -127,7 +132,6 @@ if _static_dir.exists():
 
 if __name__ == "__main__":
     import uvicorn
-
     uvicorn.run(
         "backend.main:app",
         host="0.0.0.0",
