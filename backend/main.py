@@ -25,35 +25,65 @@ from backend.routers.investors import router as investors_router
 from backend.routers.projects import router as projects_router
 from backend.routers.verifications import router as verifications_router
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+)
 logger = logging.getLogger("aip")
+
 limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("AIP API starting up")
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created/verified")
+    except Exception as exc:
+        logger.warning(
+            "Database initialisation skipped – check DATABASE_URL: %s", exc
+        )
     yield
     logger.info("AIP API shutting down")
 
 
 def _get_cors_origins():
-    env_origins = [o.strip() for o in os.getenv("ALLOWED_ORIGINS", "").split(",") if o.strip()]
+    env_origins = [
+        o.strip()
+        for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
+        if o.strip()
+    ]
     defaults = ["https://aip-plum.vercel.app", "http://localhost:3000"]
     return list(dict.fromkeys(env_origins + defaults))
 
 
-app = FastAPI(title="AIP API", description="Africa Infrastructure Projects", version="2.0.0", lifespan=lifespan)
+app = FastAPI(
+    title="AIP API",
+    description="Africa Infrastructure Projects",
+    version="2.0.0",
+    lifespan=lifespan,
+)
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-app.add_middleware(CORSMiddleware, allow_origins=_get_cors_origins(), allow_credentials=True, allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"], allow_headers=["*"])
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_get_cors_origins(),
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.exception("Unhandled error on %s %s", request.method, request.url)
-    return JSONResponse(status_code=500, content={"detail": "An unexpected error occurred."})
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred."},
+    )
 
 
 @app.get("/", tags=["Health"])
@@ -89,8 +119,18 @@ app.include_router(airtable_router)
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(_static_dir), html=True), name="frontend")
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(_static_dir), html=True),
+        name="frontend",
+    )
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=int(os.getenv("PORT", 8000)), reload=True)
+
+    uvicorn.run(
+        "backend.main:app",
+        host="0.0.0.0",
+        port=int(os.getenv("PORT", 8000)),
+        reload=True,
+    )
