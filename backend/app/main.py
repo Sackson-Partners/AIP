@@ -1,85 +1,136 @@
-"""AIP Platform - FastAPI Application Entry Point."""
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
+"""AIP Platform - FastAPI Backend (Africa Infrastructure Projects)"""
+import logging
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from app.core.config import settings
-from app.core.database import Base, engine
-from app.routers import (
-    auth_router,
-    users_router,
-    organizations_router,
-    projects_router,
-    documents_router,
-    verifications_router,
-    investors_router,
-    dealrooms_router,
+from fastapi import FastAPI, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
+
+from backend.database import engine
+from backend.models import Base
+from backend.routers.analytics import router as analytics_router
+from backend.routers.airtable import router as airtable_router
+from backend.routers.auth import router as auth_router
+from backend.routers.data_rooms import router as data_rooms_router
+from backend.routers.deal_rooms import router as deal_rooms_router
+from backend.routers.events import router as events_router
+from backend.routers.introductions import router as introductions_router
+from backend.routers.investors import router as investors_router
+from backend.routers.projects import router as projects_router
+from backend.routers.verifications import router as verifications_router
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
+logger = logging.getLogger("aip")
+
+limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan handler for startup/shutdown events."""
-    # Startup: Create database tables
-    Base.metadata.create_all(bind=engine)
+    logger.info("AIP API starting up")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("Database tables created/verified")
+    except Exception as exc:
+        logger.warning(
+            "Database initialisation skipped – check DATABASE_URL: %s", exc
+        )
     yield
-    # Shutdown: Cleanup if needed
-    pass
+    logger.info("AIP API shutting down")
 
 
-# Create FastAPI application
+def _get_cors_origins():
+    env_origins = [
+        o.strip()
+        for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
+        if o.strip()
+    ]
+    defaults = ["https://aip-plum.vercel.app", "http://localhost:3000"]
+    return list(dict.fromkeys(env_origins + defaults))
+
+
 app = FastAPI(
-    title=settings.APP_NAME,
-    description="African Infrastructure Projects Platform - Connecting projects with investors",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    title="AIP API",
+    description="Africa Infrastructure Projects",
+    version="2.0.0",
     lifespan=lifespan,
 )
 
-# Configure CORS
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=_get_cors_origins(),
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
-# Include routers
-app.include_router(auth_router)
-app.include_router(users_router)
-app.include_router(organizations_router)
-app.include_router(projects_router)
-app.include_router(documents_router)
-app.include_router(verifications_router)
-app.include_router(investors_router)
-app.include_router(dealrooms_router)
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    logger.exception("Unhandled error on %s %s", request.method, request.url)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "An unexpected error occurred."},
+    )
 
 
-@app.get("/")
+@app.get("/", tags=["Health"])
 def root():
-    """Root endpoint - health check."""
-    return {
-        "name": settings.APP_NAME,
-        "version": "1.0.0",
-        "status": "healthy",
-        "environment": settings.ENVIRONMENT,
-    }
+    return {"status": "AIP API is running", "version": "2.0.0"}
 
 
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 def health_check():
-    """Health check endpoint."""
-    return {"status": "healthy"}
+    return {"status": "healthy", "service": "aip-api"}
 
 
-# For running with uvicorn directly
+@app.get("/ping", tags=["Health"])
+def ping():
+    return {"pong": True}
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return Response(status_code=204)
+
+
+app.include_router(auth_router)
+app.include_router(projects_router)
+app.include_router(investors_router)
+app.include_router(introductions_router)
+app.include_router(data_rooms_router)
+app.include_router(deal_rooms_router)
+app.include_router(analytics_router)
+app.include_router(events_router)
+app.include_router(verifications_router)
+app.include_router(airtable_router)
+
+_static_dir = Path(__file__).parent / "static"
+if _static_dir.exists():
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(_static_dir), html=True),
+        name="frontend",
+    )
+
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(
-        "app.main:app",
+        "backend.main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=settings.is_development,
+        port=int(os.getenv("PORT", 8000)),
+        reload=True,
     )
