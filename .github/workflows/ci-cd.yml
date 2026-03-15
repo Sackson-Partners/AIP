@@ -67,6 +67,24 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
+      - name: Smoke-test image (SQLite)
+        run: |
+          docker pull ${{ env.DOCKER_IMAGE }}:latest
+          docker run -d --name smoke \
+            -p 8000:8000 \
+            -e DATABASE_URL=sqlite:///./smoke.db \
+            -e SECRET_KEY=smoke-ci-key \
+            ${{ env.DOCKER_IMAGE }}:latest
+          echo "=== Waiting 20s for startup ==="
+          sleep 20
+          echo "=== Container logs ==="
+          docker logs smoke 2>&1
+          echo "=== Health check ==="
+          curl -sf http://localhost:8000/health \
+            && echo "Smoke test PASSED" \
+            || { echo "SMOKE TEST FAILED"; docker logs smoke 2>&1; exit 1; }
+          docker stop smoke || true
+          docker rm smoke || true
 
   deploy:
     name: Deploy to Azure Container Apps
@@ -101,8 +119,10 @@ jobs:
           az containerapp logs show \
             --name ${{ env.AZURE_CONTAINER_APP }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
-            --tail 100 \
-            --format text 2>&1 || echo "Could not fetch logs"
+            --tail 200 \
+            --format text 2>&1 | tee /tmp/clogs.txt || echo "Could not fetch logs"
+          echo "=== ERROR / EXCEPTION lines ==="
+          grep -iE "(error|exception|traceback|critical)" /tmp/clogs.txt | head -30 || true
       - name: Health check
         run: |
           echo "Waiting 60s for container to start..."
