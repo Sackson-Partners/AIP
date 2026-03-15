@@ -123,10 +123,10 @@ jobs:
             --format text 2>&1 | tee /tmp/clogs.txt || echo "Could not fetch logs"
           echo "=== ERROR / EXCEPTION lines ==="
           grep -iE "(error|exception|traceback|critical)" /tmp/clogs.txt | head -30 || true
-      - name: Health check
+   - name: Health check
         run: |
-          echo "Waiting 60s for container to start..."
-          sleep 60
+          echo "Waiting 90s for Azure to route traffic to the new revision..."
+          sleep 90
           URL=$(az containerapp show \
             --name ${{ env.AZURE_CONTAINER_APP }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
@@ -134,9 +134,9 @@ jobs:
           echo "Checking health at: https://${URL}/health"
           curl -sf \
             --max-time 30 \
-            --retry 5 \
+            --retry 8 \
             --retry-delay 15 \
-            --retry-connrefused \
+            --retry-all-errors \
             "https://${URL}/health" \
             && echo "Health check passed!" \
             || (echo "Health check failed" && exit 1)
