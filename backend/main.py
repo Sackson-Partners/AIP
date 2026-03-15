@@ -39,16 +39,15 @@ async def lifespan(app: FastAPI):
     logger.info("AIP API starting up")
     db_url = os.getenv("DATABASE_URL", "sqlite:///./aip.db")
     if db_url.startswith("sqlite"):
-        # SQLite only: auto-create tables for local dev
+        # SQLite only: auto-create tables for local dev.
+        # Use checkfirst=True and swallow "already exists" from multi-worker race.
         try:
-            Base.metadata.create_all(bind=engine)
-            logger.info("Database tables created/verified")
-        except Exception as exc:
-            logger.warning(
-                "Database initialisation skipped – check DATABASE_URL: %s", exc
-            )
+            Base.metadata.create_all(bind=engine, checkfirst=True)
+            logger.info("SQLite tables created/verified")
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("DB init skipped (race or schema issue): %s", exc)
     else:
-        logger.info("PostgreSQL mode: skipping create_all (managed by Supabase/Alembic)")
+        logger.info("PostgreSQL: skipping create_all (managed by Supabase/Alembic)")
     yield
     logger.info("AIP API shutting down")
 
