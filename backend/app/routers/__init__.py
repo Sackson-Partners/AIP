@@ -7,6 +7,7 @@ from .documents import router as documents_router
 from .verifications import router as verifications_router
 from .investors import router as investors_router
 from .dealrooms import router as dealrooms_router
+from .events import router as events_router
 
 __all__ = [
     "auth_router",
@@ -17,4 +18,5 @@ __all__ = [
     "verifications_router",
     "investors_router",
     "dealrooms_router",
+    "events_router",
 ]

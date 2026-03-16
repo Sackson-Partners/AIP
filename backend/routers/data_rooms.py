@@ -28,7 +28,7 @@ router = APIRouter(prefix="/data-rooms", tags=["data-rooms"])
 
 class DataRoomCreate(BaseModel):
     project_id: int
-    name: str
+    name: Optional[str] = ""
     description: Optional[str] = None
     require_nda: bool = True
     require_verification: bool = False

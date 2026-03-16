@@ -27,18 +27,19 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_MINUTES: int = 1440
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000,https://aip-plum.vercel.app,https://aip-env-aip-sacksons-projects.vercel.app"
 
     # Supabase
     SUPABASE_URL: str = ""
     SUPABASE_ANON_KEY: str = ""
     SUPABASE_SERVICE_ROLE_KEY: str = ""
+    SUPABASE_JWT_SECRET: str = ""  # Legacy HS256 secret from Supabase JWT Keys settings
 
-    # Azure Storage (for file uploads)
+    # Azure Storage
     AZURE_STORAGE_CONNECTION_STRING: Optional[str] = None
     AZURE_STORAGE_CONTAINER_NAME: str = "aip-uploads"
 
-    # AWS S3 (legacy)
+    # AWS S3
     S3_BUCKET: str = ""
     S3_REGION: str = "us-east-1"
     S3_ACCESS_KEY: str = ""
@@ -50,6 +51,22 @@ class Settings(BaseSettings):
     CHAIN_ID: int = 137
     CONTRACT_ADDRESS: str = "0x0000000000000000000000000000000000000000"
     CHAIN_PRIVATE_KEY: str = ""
+
+    # Integrations (set to enable)
+    AIRTABLE_API_KEY: str = ""
+    AIRTABLE_BASE_ID: str = ""
+    MICROSOFT_TEAMS_CLIENT_ID: str = ""
+    MICROSOFT_TEAMS_CLIENT_SECRET: str = ""
+    MICROSOFT_TEAMS_TENANT_ID: str = ""
+    DOCUSIGN_INTEGRATION_KEY: str = ""
+    DOCUSIGN_ACCOUNT_ID: str = ""
+    DOCUSIGN_BASE_URL: str = "https://demo.docusign.net/restapi"
+    STRIPE_SECRET_KEY: str = ""
+    STRIPE_WEBHOOK_SECRET: str = ""
+    STRIPE_PUBLISHABLE_KEY: str = ""
+    CALENDLY_API_KEY: str = ""
+    ZOOM_API_KEY: str = ""
+    ZOOM_API_SECRET: str = ""
 
     @property
     def cors_origins_list(self) -> List[str]:
