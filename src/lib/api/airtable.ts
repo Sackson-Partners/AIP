@@ -1,69 +1,102 @@
+/**
+ * Airtable API client for AIP Platform frontend.
+ * Calls the FastAPI /airtable/* endpoints (not Airtable directly —
+ * the API key stays server-side).
+ */
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
 export interface AirtableProject {
-  id: string;
-    name: string;
-      description?: string;
-        location?: string;
-          status?: string;
-            sector?: string;
-              budget?: number;
-                startDate?: string;
-                  endDate?: string;
-                    images?: string[];
-                    }
+  record_id: string;
+  aip_project_id: string | null;
+  project_name: string | null;
+  country: string | null;
+  region_city: string | null;
+  sector: string | null;
+  project_type: string | null;
+  extra_fields: Record<string, unknown>;
+}
 
-                    export interface AirtableProjectsResponse {
-                      records: AirtableProject[];
-                        hasMore: boolean;
-                          offset?: string;
-                          }
+export interface AirtableProjectsResponse {
+  total: number;
+  cached: boolean;
+  projects: AirtableProject[];
+}
 
-                          export interface AirtableFilters {
-                            status?: string;
-                              sector?: string;
-                                minBudget?: number;
-                                  maxBudget?: number;
-                                    country?: string;
-                                    }
+export interface AirtableFilters {
+  country?: string;
+  sector?: string;
+  project_type?: string;
+  refresh?: boolean;
+}
 
-                                    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-                                    const CACHE_DURATION = 300; // 5 minutes
+// ---------------------------------------------------------------------------
+// API helpers
+// ---------------------------------------------------------------------------
+async function airtableGet<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_BASE}/airtable${path}`, {
+    headers: { "Content-Type": "application/json" },
+    next: { revalidate: 300 }, // Next.js 14 cache: 5 min
+  });
 
-                                    async function airtableGet<T>(path: string): Promise<T> {
-                                      const url = `${API_BASE_URL}${path}`;
-                                        const res = await fetch(url, {
-                                            headers: {
-                                                  'Content-Type': 'application/json',
-                                                      },
-                                                          next: { revalidate: CACHE_DURATION },
-                                                            });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ detail: res.statusText }));
+    throw new Error(error.detail ?? `Airtable API error: ${res.status}`);
+  }
 
-                                                              if (!res.ok) {
-                                                                  throw new Error(`Airtable API error: ${res.statusText}`);
-                                                                    }
+  return res.json() as Promise<T>;
+}
 
-                                                                      return res.json();
-                                                                      }
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
-                                                                      export async function getAirtableProjects(
-                                                                        filters?: AirtableFilters
-                                                                        ): Promise<AirtableProjectsResponse> {
-                                                                          const params = new URLSearchParams();
+/**
+ * Fetch all projects from Airtable (via backend cache).
+ * Optionally filter by country, sector, or project_type.
+ */
+export async function getAirtableProjects(
+  filters?: AirtableFilters
+): Promise<AirtableProjectsResponse> {
+  const params = new URLSearchParams();
+  if (filters?.country) params.set("country", filters.country);
+  if (filters?.sector) params.set("sector", filters.sector);
+  if (filters?.project_type) params.set("project_type", filters.project_type);
+  if (filters?.refresh) params.set("refresh", "true");
 
-                                                                              if (filters?.status) params.append('status', filters.status);
-                                                                                if (filters?.sector) params.append('sector', filters.sector);
-                                                                                  if (filters?.minBudget) params.append('min_budget', filters.minBudget.toString());
-                                                                                    if (filters?.maxBudget) params.append('max_budget', filters.maxBudget.toString());
-                                                                                      if (filters?.country) params.append('country', filters.country);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return airtableGet<AirtableProjectsResponse>(`/projects${qs}`);
+}
 
-                                                                                        const query = params.toString() ? `?${params.toString()}` : '';
-                                                                                          return airtableGet<AirtableProjectsResponse>(`/api/airtable/projects${query}`);
-                                                                                          }
+/**
+ * Fetch a single Airtable project by its record ID.
+ */
+export async function getAirtableProject(recordId: string): Promise<AirtableProject> {
+  return airtableGet<AirtableProject>(`/projects/${recordId}`);
+}
 
-                                                                                          export async function getAirtableProject(recordId: string): Promise<AirtableProject> {
-                                                                                            return airtableGet<AirtableProject>(`/api/airtable/projects/${recordId}`);
-                                                                                            }
+/**
+ * Search Airtable projects by name, project ID, or country.
+ */
+export async function searchAirtableProjects(
+  query: string
+): Promise<AirtableProjectsResponse> {
+  return airtableGet<AirtableProjectsResponse>(
+    `/projects/search/${encodeURIComponent(query)}`
+  );
+}
 
-                                                                                            export async function searchAirtableProjects(query: string): Promise<AirtableProjectsResponse> {
-                                                                                              const params = new URLSearchParams({ q: query });
-                                                                                                return airtableGet<AirtableProjectsResponse>(`/api/airtable/projects/search?${params.toString()}`);
-                                                                                                }
+/**
+ * Returns Airtable integration metadata (no secrets exposed).
+ */
+export async function getAirtableMeta(): Promise<{
+  configured: boolean;
+  base_id: string;
+  projects_table: string;
+  cache_ttl_seconds: number;
+}> {
+  return airtableGet("/meta");
+}

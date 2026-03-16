@@ -7,7 +7,7 @@ import { dataRoomsApi, projectsApi, DataRoom, Project } from '../../../lib/api';
 interface DataRoomFormData {
   project_id: number;
   name: string;
-  description?: string;
+  description?: string
   require_nda: boolean;
 }
 

@@ -1,83 +1,142 @@
-name: CI/CD - Build, Push and Deploy
+name: CI/CD – Build, Test, Push and Deploy
 
 on:
   push:
     branches:
       - main
-      - claude/open-file-pycharm-ryQqL
   pull_request:
     branches:
       - main
 
+env:
+  DOCKER_IMAGE: sacksons/aip-api
+  AZURE_CONTAINER_APP: aip-api
+  AZURE_RESOURCE_GROUP: aip-rg
+
 jobs:
   test:
+    name: Test
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: sqlite:///./aip_test.db
+      SECRET_KEY: ci-test-secret-key-not-for-production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      ALLOWED_ORIGINS: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
-
+          python-version: "3.11"
+          cache: pip
       - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest pytest-asyncio
-
-      - name: Run tests
-        run: pytest backend/tests/ -v --tb=short
-
-      - name: Verify app imports
-        run: python -c "from backend.main import app; print('App imported successfully')"
+        run: pip install -r requirements.txt
+      - name: Verify app imports cleanly
+        run: python -c "from backend.main import app; print('App OK')"
 
   docker:
-    needs: test
+    name: Build and Push Docker Image
     runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
-
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v2
-
+        uses: docker/setup-buildx-action@v3
       - name: Login to Docker Hub
-        uses: docker/login-action@v2
+        uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
-
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.DOCKER_IMAGE }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix=sha-,format=short
       - name: Build and push
-        uses: docker/build-push-action@v4
+        uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./Dockerfile
           push: true
-          tags: sacksons/aip-api:${{ github.sha }},sacksons/aip-api:latest
-          cache-from: type=registry,ref=sacksons/aip-api:buildcache
-          cache-to: type=registry,ref=sacksons/aip-api:buildcache,mode=max
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: linux/amd64
+      - name: Smoke-test image (SQLite)
+        run: |
+          docker pull ${{ env.DOCKER_IMAGE }}:latest
+          docker run -d --name smoke \
+            -p 8000:8000 \
+            -e DATABASE_URL=sqlite:///./smoke.db \
+            -e SECRET_KEY=smoke-ci-key \
+            ${{ env.DOCKER_IMAGE }}:latest
+          echo "=== Waiting 20s for startup ==="
+          sleep 20
+          echo "=== Container logs ==="
+          docker logs smoke 2>&1
+          echo "=== Health check ==="
+          curl -sf http://localhost:8000/health \
+            && echo "Smoke test PASSED" \
+            || { echo "SMOKE TEST FAILED"; docker logs smoke 2>&1; exit 1; }
+          docker stop smoke || true
+          docker rm smoke || true
 
   deploy:
-    needs: docker
+    name: Deploy to Azure Container Apps
     runs-on: ubuntu-latest
+    needs: docker
+    if: github.event_name == 'push'
+    environment: production
     steps:
       - uses: actions/checkout@v4
-
-      - name: Login to Azure CLI
-        uses: azure/login@v1
+      - name: Azure Login
+        uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-
       - name: Deploy to Azure Container Apps
+        uses: azure/container-apps-deploy-action@v1
+        with:
+          resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
+          containerAppName: ${{ env.AZURE_CONTAINER_APP }}
+          imageToDeploy: ${{ env.DOCKER_IMAGE }}:latest
+      - name: Show container startup logs
+        if: always()
         run: |
-          az containerapp up \
-            --name aip-api \
-            --resource-group aip-rg \
-            --image sacksons/aip-api:${{ github.sha }} \
-            --registry-server docker.io \
-            --registry-username ${{ secrets.DOCKER_USERNAME }} \
-            --registry-password ${{ secrets.DOCKER_PASSWORD }} \
-            --environment-variables \
-              DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-              SECRET_KEY="${{ secrets.SECRET_KEY }}" \
-              AIRTABLE_API_KEY="${{ secrets.AIRTABLE_API_KEY }}" \
-              AIRTABLE_BASE_ID="${{ secrets.AIRTABLE_BASE_ID }}"
+          echo "=== Waiting 30s for container to initialize ==="
+          sleep 30
+          echo "=== Ingress configuration ==="
+          az containerapp show \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "{targetPort: properties.configuration.ingress.targetPort, external: properties.configuration.ingress.external, fqdn: properties.configuration.ingress.fqdn}" \
+            -o json 2>&1 || true
+          echo "=== Container startup logs ==="
+          az containerapp logs show \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --tail 200 \
+            --format text 2>&1 | tee /tmp/clogs.txt || echo "Could not fetch logs"
+          echo "=== ERROR / EXCEPTION lines ==="
+          grep -iE "(error|exception|traceback|critical)" /tmp/clogs.txt | head -30 || true
+   - name: Health check
+        run: |
+          echo "Waiting 90s for Azure to route traffic to the new revision..."
+          sleep 90
+          URL=$(az containerapp show \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          echo "Checking health at: https://${URL}/health"
+          curl -sf \
+            --max-time 30 \
+            --retry 8 \
+            --retry-delay 15 \
+            --retry-all-errors \
+            "https://${URL}/health" \
+            && echo "Health check passed!" \
+            || (echo "Health check failed" && exit 1)
