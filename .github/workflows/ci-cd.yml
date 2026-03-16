@@ -2,82 +2,82 @@ name: CI/CD - Build, Push and Deploy
 
 on:
   push:
-      branches:
-            - main
-                  - claude/open-file-pycharm-ryQqL
-                    pull_request:
-                        branches:
-                              - main
+    branches:
+      - main
+      - claude/open-file-pycharm-ryQqL
+  pull_request:
+    branches:
+      - main
 
-                              jobs:
-                                test:
-                                    runs-on: ubuntu-latest
-                                        steps:
-                                              - uses: actions/checkout@v4
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
 
-                                                          - name: Set up Python
-                                                                  uses: actions/setup-python@v4
-                                                                          with:
-                                                                                    python-version: '3.11'
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
 
-                                                                                                - name: Install dependencies
-                                                                                                        run: |
-                                                                                                                  python -m pip install --upgrade pip
-                                                                                                                            pip install -r requirements.txt
-                                                                                                                                      pip install pytest pytest-asyncio
-                                                                                                                                            
-                                                                                                                                                  - name: Run tests
-                                                                                                                                                          run: pytest backend/tests/ -v --tb=short
-                                                                                                                                                                
-                                                                                                                                                                      - name: Verify app imports
-                                                                                                                                                                              run: python -c "from backend.main import app; print('App imported successfully')"
-                                                                                                                                                                              
-                                                                                                                                                                                docker:
-                                                                                                                                                                                    needs: test
-                                                                                                                                                                                        runs-on: ubuntu-latest
-                                                                                                                                                                                            steps:
-                                                                                                                                                                                                  - uses: actions/checkout@v4
-                                                                                                                                                                                                        
-                                                                                                                                                                                                              - name: Set up Docker Buildx
-                                                                                                                                                                                                                      uses: docker/setup-buildx-action@v2
-                                                                                                                                                                                                                            
-                                                                                                                                                                                                                                  - name: Login to Docker Hub
-                                                                                                                                                                                                                                          uses: docker/login-action@v2
-                                                                                                                                                                                                                                                  with:
-                                                                                                                                                                                                                                                            username: ${{ secrets.DOCKER_USERNAME }}
-                                                                                                                                                                                                                                                                      password: ${{ secrets.DOCKER_PASSWORD }}
-                                                                                                                                                                                                                                                                            
-                                                                                                                                                                                                                                                                                  - name: Build and push
-                                                                                                                                                                                                                                                                                          uses: docker/build-push-action@v4
-                                                                                                                                                                                                                                                                                                  with:
-                                                                                                                                                                                                                                                                                                            context: .
-                                                                                                                                                                                                                                                                                                                      push: true
-                                                                                                                                                                                                                                                                                                                                tags: sacksons/aip-api:${{ github.sha }},sacksons/aip-api:latest
-                                                                                                                                                                                                                                                                                                                                          cache-from: type=registry,ref=sacksons/aip-api:buildcache
-                                                                                                                                                                                                                                                                                                                                                    cache-to: type=registry,ref=sacksons/aip-api:buildcache,mode=max
-                                                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                                      deploy:
-                                                                                                                                                                                                                                                                                                                                                          needs: docker
-                                                                                                                                                                                                                                                                                                                                                              runs-on: ubuntu-latest
-                                                                                                                                                                                                                                                                                                                                                                  steps:
-                                                                                                                                                                                                                                                                                                                                                                        - uses: actions/checkout@v4
-                                                                                                                                                                                                                                                                                                                                                                              
-                                                                                                                                                                                                                                                                                                                                                                                    - name: Login to Azure CLI
-                                                                                                                                                                                                                                                                                                                                                                                            uses: azure/login@v1
-                                                                                                                                                                                                                                                                                                                                                                                                    with:
-                                                                                                                                                                                                                                                                                                                                                                                                              creds: ${{ secrets.AZURE_CREDENTIALS }}
-                                                                                                                                                                                                                                                                                                                                                                                                                    
-                                                                                                                                                                                                                                                                                                                                                                                                                          - name: Deploy to Azure Container Apps
-                                                                                                                                                                                                                                                                                                                                                                                                                                  run: |
-                                                                                                                                                                                                                                                                                                                                                                                                                                            az containerapp up \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                        --name aip-api \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                    --resource-group aip-rg \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                --image sacksons/aip-api:${{ github.sha }} \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            --registry-server docker.io \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        --registry-username ${{ secrets.DOCKER_USERNAME }} \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    --registry-password ${{ secrets.DOCKER_PASSWORD }} \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                --environment-variables \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              DATABASE_URL="${{ secrets.DATABASE_URL }}" \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            SECRET_KEY="${{ secrets.SECRET_KEY }}" \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          AIRTABLE_API_KEY="${{ secrets.AIRTABLE_API_KEY }}" \
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        AIRTABLE_BASE_ID="${{ secrets.AIRTABLE_BASE_ID }}"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pytest pytest-asyncio
+
+      - name: Run tests
+        run: pytest backend/tests/ -v --tb=short
+
+      - name: Verify app imports
+        run: python -c "from backend.main import app; print('App imported successfully')"
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: sacksons/aip-api:${{ github.sha }},sacksons/aip-api:latest
+          cache-from: type=registry,ref=sacksons/aip-api:buildcache
+          cache-to: type=registry,ref=sacksons/aip-api:buildcache,mode=max
+
+  deploy:
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to Azure CLI
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy to Azure Container Apps
+        run: |
+          az containerapp up \
+            --name aip-api \
+            --resource-group aip-rg \
+            --image sacksons/aip-api:${{ github.sha }} \
+            --registry-server docker.io \
+            --registry-username ${{ secrets.DOCKER_USERNAME }} \
+            --registry-password ${{ secrets.DOCKER_PASSWORD }} \
+            --environment-variables \
+              DATABASE_URL="${{ secrets.DATABASE_URL }}" \
+              SECRET_KEY="${{ secrets.SECRET_KEY }}" \
+              AIRTABLE_API_KEY="${{ secrets.AIRTABLE_API_KEY }}" \
+              AIRTABLE_BASE_ID="${{ secrets.AIRTABLE_BASE_ID }}"
