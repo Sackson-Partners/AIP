@@ -21,53 +21,97 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
-from backend.models import InfrastructureProject, ProjectEvent
+from backend.models import InfrastructureProject
 from backend.security.auth import get_current_user, require_admin
 from backend.models import User
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/api/projects", tags=["Projects"])
+router = APIRouter(prefix="/api/projects", tags=["Infrastructure Projects"])
+
+
+# ---------------------------------------------------------------------------
+# Request / Response Models
+# ---------------------------------------------------------------------------
 
 
 class ProjectCreate(BaseModel):
-    name: str
-    description: str
-    country_code: Optional[str] = None
+    project_name: str
+    country: Optional[str] = None
+    region: Optional[str] = None
     sector: Optional[str] = None
-    cost_estimate_usd: Optional[float] = None
-
-
-class ProjectUpdate(BaseModel):
-    name: Optional[str] = None
+    project_type: Optional[str] = None
+    estimated_cost: Optional[str] = None
+    status: Optional[str] = "planned"
+    investors: Optional[list[str]] = None
+    developers: Optional[list[str]] = None
     description: Optional[str] = None
-    status: Optional[str] = None  # active | paused | archived
+    strategic_notes: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    source_url: Optional[str] = None
 
 
-@router.get("")
+class ProjectResponse(BaseModel):
+    id: str
+    project_name: str
+    country: Optional[str]
+    region: Optional[str]
+    sector: Optional[str]
+    project_type: Optional[str]
+    estimated_cost: Optional[str]
+    status: Optional[str]
+    description: Optional[str]
+    latitude: Optional[float]
+    longitude: Optional[float]
+    has_ai_brief: bool
+
+    class Config:
+        from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("", response_model=list[ProjectResponse])
 async def list_projects(
-    sector: Optional[str] = Query(None),
     country: Optional[str] = Query(None),
+    sector: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0),
     db: Session = Depends(get_db),
 ):
-    """Return a list of all projects, optionally filtered."""
-    query = db.query(InfrastructureProject).filter(InfrastructureProject.status != "archived")
-    if sector:
-        query = query.filter(InfrastructureProject.sector == sector)
+    """List infrastructure projects with optional filtering."""
+    query = db.query(InfrastructureProject)
     if country:
-        query = query.filter(InfrastructureProject.country_code == country)
-    projects = query.all()
-    return {"projects": projects, "count": len(projects)}
+        query = query.filter(InfrastructureProject.country.ilike(f"%{country}%"))
+    if sector:
+        query = query.filter(InfrastructureProject.sector.ilike(f"%{sector}%"))
+    if status:
+        query = query.filter(InfrastructureProject.status == status)
+    if region:
+        query = query.filter(InfrastructureProject.region.ilike(f"%{region}%"))
+    projects = query.offset(offset).limit(limit).all()
+    return [
+        ProjectResponse(
+            **{c.key: getattr(p, c.key) for c in p.__table__.columns if c.key != "investors"},
+            has_ai_brief=bool(p.ai_brief),
+        )
+        for p in projects
+    ]
 
 
-@router.get("/{id}")
-async def get_project(
-    id: str,
-    db: Session = Depends(get_db),
-):
-    """Return a single project by ID,"""
-    project = db.query(InfrastructureProject).filter(InfrastructureProject.id == id).first()
+@router.get("/{project_id}")
+async def get_project(project_id: str, db: Session = Depends(get_db)):
+    """Return full details for a single project including AI brief if available."""
+    project = db.query(InfrastructureProject).filter(
+        InfrastructureProject.id == project_id
+    ).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
     return project
 
 
@@ -77,69 +121,65 @@ async def create_project(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
-    """Create a new project (admin only)."""
-    project = InfrastructureProject(**project_in.model_dump())
+    """Create a new infrastructure project record (admin only)."""
+    project = InfrastructureProject(
+        **{k: v for k, v in project_in.model_dump().items() if k not in ("investors", "developers")},
+        investors=json.dumps(project_in.investors or []),
+        developers=json.dumps(project_in.developers or []),
+    )
     db.add(project)
     db.commit()
     db.refresh(project)
+    logger.info("Project created: %s by %s", project.project_name, current_user.email)
     return project
 
 
-@router.put("/{id}")
-async def update_project(
-    id: str,
-    update_in: ProjectUpdate,
+@router.post("/{project_id}/brief")
+async def generate_project_brief(
+    project_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
+    current_user: User = Depends(get_current_user),
 ):
-    """Update a project (admin  only)."""
-    project = db.query(InfrastructureProject).filter(InfrastructureProject.id == id).first()
+    """
+    Generate or refresh the AI intelligence brief for a project.
+    Caches the result on the project record for subsequent requests.
+    """
+    from backend.services.claude_service import call_claude_structured, INFRASTRUCTURE_ANALYST_SYSTEM
+    from backend.services.prompt_service import build_prompt
+    from datetime import datetime, timezone
+    import json as _json
+
+    project = db.query(InfrastructureProject).filter(
+        InfrastructureProject.id == project_id
+    ).first()
     if not project:
-        raise HTTPException(status_code=404, detail="Project not found.")
-    for field, value in update_in.model_dump().items():
-        if value is not None:
-            setattr(project, field, value)
-    db.commit()
-    db.refresh(project)
-    return project
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found.")
 
+    project_data = {
+        "project_name": project.project_name,
+        "country": project.country,
+        "region": project.region,
+        "sector": project.sector,
+        "estimated_cost": project.estimated_cost,
+        "status": project.status,
+        "investors": _json.loads(project.investors or "[]"),
+        "developers": _json.loads(project.developers or \"[]\"),
+        "description": project.description,
+        "strategic_notes": project.strategic_notes,
+    }
 
-@router.delete("/{id}")
-async def archive_project(
-    id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """Archive "trash" a project (soft delete, admin only)."""
-    project = db.query(InfrastructureProject).filter(InfrastructureProject.id == id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found.")
-    project.status = "archived"
-    db.commit()
-    db.refresh(project)
-    return {project_id: id, timestamp: str(import_datetime())}
-
-
-@router.post("/{id}/brief", status_code=status.HTTP_201_CREATED)
-async def generate_aibrief(
-    id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(require_admin),
-):
-    """Generate an AI-powered intelligence brief for the specified project."""
-    project = db.query(InfrastructureProject).filter(InfrastructureProject.id == id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found.")
-    # TODO: Connect to AI service
-    brief = {"content": agency_discovery(project)}
-   B€ #PrUÂÊe AI Menerated brief in cache context
-    event = ProjectEvent(
-        project_id=id,
-        type="brief_gen",
-        description="AI powered intelligence brief",
-        extra_data=brief,
+    populated_prompt = build_prompt(
+        "infrastructure_project_analysis",
+        {"project_data": _json.dumps(project_data, indent=2)},
     )
-    db.add(event)
+    brief = await call_claude_structured(
+        prompt=populated_prompt,
+        system_prompt=IFNSRASTRUCTURE_ANALYST_SYSTEM,
+        max_tokens=2500,
+    )
+
+    project.ai_brief = brief
+    project.ai_brief_generated_at = datetime.now(timezone.utc)
     db.commit()
-    db.refresh(event)
-    return event
+
+    return {"success": True, "project_id": project_id, "brief": brief}
