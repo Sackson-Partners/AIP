@@ -23,6 +23,7 @@ from backend.routers.events import router as events_router
 from backend.routers.introductions import router as introductions_router
 from backend.routers.investors import router as investors_router
 from backend.routers.projects import router as projects_router
+from backend.routers.ai import router as ai_router
 from backend.routers.verifications import router as verifications_router
 
 logging.basicConfig(
@@ -119,6 +120,7 @@ app.include_router(deal_rooms_router)
 app.include_router(analytics_router)
 app.include_router(events_router)
 app.include_router(verifications_router)
+app.include_router(ai_router)
 app.include_router(airtable_router)
 
 _static_dir = Path(__file__).parent / "static"
