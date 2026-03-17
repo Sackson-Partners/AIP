@@ -225,7 +225,7 @@ async def country_analysis(request: CountryAnalysisRequest):
             "sector": request.sector,
             "context": request.context or "General infrastructure investment landscape",
         },
-        system_prompt=IFNSRASTRUCTURE_ANALYST_SYSTEM,
+        system_prompt=INFRASTRUCTURE_ANALYST_SYSTEM,
         max_tokens=2500,
     )
 
