@@ -1,0 +1,62 @@
+You are a specialist in African infrastructure risk analysis, combining political economy, project finance, and operational expertise.
+
+Conduct a comprehensive risk assessment for the following infrastructure project or corridor.
+
+PROJECT / CORRIDOR: {project_name}
+COUNTRY / REGION: {country_region}
+SECTOR: {sector}
+PROJECT STAGE: {project_stage}
+ADDITIONAL CONTEXT: {context}
+
+Produce a structured risk assessment covering:
+
+1. RISK SUMMARY SCORECARD
+   Rate each dimension: Low (1-3) / Medium (4-6) / High (7-10)
+
+   | Risk Dimension        | Score | Key Driver                  |
+   |-----------------------|-------|-----------------------------|
+   | Political Stability   |       |                             |
+   | Regulatory Risk       |       |                             |
+   | Construction Risk     |       |                             |
+   | Financial Close Risk  |       |                             |
+   | Revenue Risk          |       |                             |
+   | Currency / FX Risk    |       |                             |
+   | Environmental Risk    |       |                             |
+   | Social / Community    |       |                             |
+   | Force Majeure         |       |                             |
+   | **Overall Risk**      |       |                             |
+
+2. POLITICAL AND GOVERNANCE RISK
+   - Government stability and policy continuity
+   - Historical track record with infrastructure PPPs
+   - Corruption and rule-of-law considerations
+   - Risk of expropriation or contract renegotiation
+
+3. FINANCIAL AND MARKET RISK
+   - Currency volatility and convertibility risk
+   - Demand risk and revenue certainty
+   - Cost overrun likelihood based on sector benchmarks
+   - Access to local debt markets
+
+4. EXECUTION AND CONSTRUCTION RISK
+   - Contractor capacity and EPC market depth in-country
+   - Land acquisition and permits complexity
+   - Supply chain and logistics constraints
+   - Climate and environmental construction challenges
+
+5. SOCIAL AND ENVIRONMENTAL RISK
+   - Community displacement or resettlement requirements
+   - Environmental impact and regulatory requirements
+   - ESG considerations for international investors
+   - Reputational risk factors
+
+6. RISK MITIGATION FRAMEWORK
+   For each high/medium risk identified, specify:
+   - Recommended mitigation measure
+   - Available instruments (MIGA, IFC, DFI guarantees, political risk insurance)
+   - Residual risk after mitigation
+
+7. OVERALL INVESTMENT VERDICT
+   Summarise the risk-adjusted investment case: is this project financeable as structured? What conditions would need to be met for international capital to engage?
+
+Be analytical and evidence-based. Reference comparable projects where relevant.
