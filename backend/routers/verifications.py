@@ -1,124 +1,110 @@
-# routers/verifications.py
-from fastapi import APIRouter, Depends, HTTPException
+"""
+AIP Verifications Router
+-------------------------
+User identity and accreditation verification flow.
+
+Endpoints:
+    POST /api/verifications              - Submit verification request
+    GET  /api/verifications/status       - Check own verification status
+    GET  /api/verifications              - List all verifications (admin)
+    PUT  /api/verifications/{id}/review  - Approve or reject (admin)
+"""
+
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from typing import List
-from backend.schemas import Verification, VerificationCreate
+
 from backend.database import get_db
-from backend import models
+from backend.models import Verification
+from backend.security.auth import get_current_user, require_admin
+from backend.models import User
 
-router = APIRouter(prefix="/verifications", tags=["verifications"])
-
-
-def _get_level_enum(level_str: str) -> models.VerificationLevel:
-    """Convert verification level string to enum."""
-    for lvl in models.VerificationLevel:
-        if lvl.value == level_str:
-            return lvl
-    try:
-        return models.VerificationLevel[level_str.upper().replace(" ", "_").replace(":", "")]
-    except KeyError:
-        raise HTTPException(status_code=422, detail=f"Invalid verification level: {level_str}")
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/verifications", tags=["Verifications"])
 
 
-def _deserialize_verification(db_v: models.Verification) -> Verification:
-    """Convert database model to Pydantic model."""
-    level_val = db_v.level.value if hasattr(db_v.level, 'value') else str(db_v.level)
+class VerificationCreate(BaseModel):
+    verification_type: str  # email | identity | accreditation
+    document_url: Optional[str] = None
 
-    # Reconstruct bankability from stored fields
-    bankability = None
-    if db_v.overall_score is not None:
-        bankability = {
-            "technical_readiness": db_v.technical_readiness or 0,
-            "financial_robustness": db_v.financial_robustness or 0,
-            "legal_clarity": db_v.legal_clarity or 0,
-            "esg_compliance": db_v.esg_compliance or 0,
-            "overall_score": db_v.overall_score or 0,
-            "risk_flags": db_v.risk_flags.split(",") if db_v.risk_flags else [],
-            "last_verified": db_v.last_verified or ""
-        }
 
-    return Verification(
-        id=db_v.id,
-        project_id=db_v.project_id,
-        level=level_val,
-        bankability=bankability
+class VerificationReview(BaseModel):
+    status: str  # approved | rejected
+    reviewer_notes: Optional[str] = None
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def submit_verification(
+    ver_in: VerificationCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Submit a verification request."""
+    verification = Verification(
+        user_id=current_user.id,
+        verification_type=ver_in.verification_type,
+        document_url=ver_in.document_url,
     )
-
-
-@router.get("/ping")
-def ping():
-    """Health check for verifications service."""
-    return {"ok": True}
-
-
-@router.get("/", response_model=List[Verification])
-def list_all(db: Session = Depends(get_db)):
-    """Get all verification records."""
-    db_verifications = db.query(models.Verification).all()
-    return [_deserialize_verification(v) for v in db_verifications]
-
-
-@router.post("/", response_model=Verification)
-def create(verification: VerificationCreate, db: Session = Depends(get_db)):
-    """Create a new verification record for a project."""
-    # Check if project exists
-    project = db.query(models.Project).filter(models.Project.id == verification.project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    # Convert level string to enum
-    level_enum = _get_level_enum(verification.level)
-
-    # Create verification record
-    db_verification = models.Verification(
-        project_id=verification.project_id,
-        level=level_enum,
-        technical_readiness=verification.bankability.technical_readiness if verification.bankability else None,
-        financial_robustness=verification.bankability.financial_robustness if verification.bankability else None,
-        legal_clarity=verification.bankability.legal_clarity if verification.bankability else None,
-        esg_compliance=verification.bankability.esg_compliance if verification.bankability else None,
-        overall_score=verification.bankability.overall_score if verification.bankability else None,
-        risk_flags=",".join(verification.bankability.risk_flags) if verification.bankability and verification.bankability.risk_flags else None,
-        last_verified=verification.bankability.last_verified if verification.bankability else None
-    )
-    db.add(db_verification)
+    db.add(verification)
     db.commit()
-    db.refresh(db_verification)
-    return _deserialize_verification(db_verification)
+    db.refresh(verification)
+    return verification
 
 
-@router.get("/{verification_id}", response_model=Verification)
-def read(verification_id: int, db: Session = Depends(get_db)):
-    """Get a verification record by ID."""
-    db_verification = db.query(models.Verification).filter(
-        models.Verification.id == verification_id
-    ).first()
-    if db_verification is None:
-        raise HTTPException(status_code=404, detail="Verification not found")
-    return _deserialize_verification(db_verification)
+@router.get("/status")
+async def verification_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Return the current user's verification records."""
+    verifications = (
+        db.query(Verification).filter(Verification.user_id == current_user.id).all()
+    )
+    return {"verifications": verifications}
 
 
-@router.get("/project/{project_id}", response_model=List[Verification])
-def list_by_project(project_id: int, db: Session = Depends(get_db)):
-    """Get all verification records for a project."""
-    # Check if project exists
-    project = db.query(models.Project).filter(models.Project.id == project_id).first()
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
+@router.get("")
+async def list_verifications(
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """List all verification requests (admin only)."""
+    query = db.query(Verification)
+    if status:
+        query = query.filter(Verification.status == status)
+    verifications = query.all()
+    return {"verifications": verifications, "count": len(verifications)}
 
-    db_verifications = db.query(models.Verification).filter(
-        models.Verification.project_id == project_id
-    ).all()
-    return [_deserialize_verification(v) for v in db_verifications]
 
 
-@router.get("/project/{project_id}/latest", response_model=Verification)
-def get_latest(project_id: int, db: Session = Depends(get_db)):
-    """Get the latest verification record for a project."""
-    verification = db.query(models.Verification).filter(
-        models.Verification.project_id == project_id
-    ).order_by(models.Verification.id.desc()).first()
+@router.put("/{ver_id}/review")
+async def review_verification(
+    ver_id: str,
+    review: VerificationReview,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Approve or reject a verification request (admin only)."""
+    from datetime import datetime, timezone
 
-    if verification is None:
-        raise HTTPException(status_code=404, detail="No verification found for project")
-    return _deserialize_verification(verification)
+    ver = db.query(Verification).filter(Verification.id == ver_id).first()
+    if not ver:
+        raise HTTPException(status_code=404, detail="Verification not found.")
+
+    ver.status = review.status
+    ver.reviewer_notes = review.reviewer_notes
+    ver.reviewed_at = datetime.now(timezone.utc)
+
+    # If approved, mark the user as verified
+    if review.status == "approved":
+        user = db.query(User).filter(User.id == ver.user_id).first()
+        if user:
+            user.is_verified = True
+
+    db.commit()
+    db.refresh(ver)
+    return ver
