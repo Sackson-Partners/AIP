@@ -4,10 +4,12 @@ name: Trigger auto deployment for aip-backend-container
 on:
   # Automatically trigger it when detected changes in repo
   push:
-    branches: 
-      [ claude/open-file-pycharm-ryQqL ]
+    branches:
+  - main
     paths:
-    - '**'
+  - 'backend/**'
+  - 'Dockerfile'
+
     - '.github/workflows/aip-backend-container-AutoDeployTrigger-eecd2923-1a8c-4174-8667-17a6e199cea6.yml'
 
   # Allow manual trigger 
@@ -35,15 +37,13 @@ jobs:
         uses: azure/container-apps-deploy-action@v2
         with:
           appSourcePath: ${{ github.workspace }}
-          _dockerfilePathKey_: _dockerfilePath_
-          _targetLabelKey_: _targetLabel_
+          dockerfilePath: Dockerfile
           registryUrl: docker.io
           registryUsername: ${{ secrets.AIPBACKENDCONTAINER_REGISTRY_USERNAME }}
           registryPassword: ${{ secrets.AIPBACKENDCONTAINER_REGISTRY_PASSWORD }}
           containerAppName: aip-backend-container
           resourceGroup: AIP-RG
           imageToBuild: sacksons/aip-backend-container:${{ github.sha }}
-          _buildArgumentsKey_: |
-            _buildArgumentsValues_
+      
 
 
