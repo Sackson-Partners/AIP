@@ -163,7 +163,7 @@ async def generate_project_brief(
         "estimated_cost": project.estimated_cost,
         "status": project.status,
         "investors": _json.loads(project.investors or "[]"),
-        "developers": _json.loads(project.developers or \"[]\"),
+        "developers": _json.loads(project.developers or "[]"),
         "description": project.description,
         "strategic_notes": project.strategic_notes,
     }
@@ -174,7 +174,7 @@ async def generate_project_brief(
     )
     brief = await call_claude_structured(
         prompt=populated_prompt,
-        system_prompt=IFNSRASTRUCTURE_ANALYST_SYSTEM,
+        system_prompt=INFRASTRUCTURE_ANALYST_SYSTEM,
         max_tokens=2500,
     )
 
