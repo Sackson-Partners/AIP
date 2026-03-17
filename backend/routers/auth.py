@@ -1,143 +1,124 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Form
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-from pydantic import BaseModel
-import httpx
-import os
-from typing import Optional
+"""
+AIP Authentication Router
+--------------------------
+Handles user registration, login, and token management.
 
-router = APIRouter(prefix="/auth", tags=["auth"])
-security = HTTPBearer(auto_error=False)
+Endpoints:
+    POST /api/auth/register   - Register a new user account
+    POST /api/auth/token      - Login and receive JWT access token
+    GET  /api/auth/me         - Get current authenticated user profile
+    POST /api/auth/logout     - Invalidate session (client-side token removal)
+"""
 
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
+import logging
+from datetime import timedelta
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+
+from backend.database import get_db
+from backend.models import User
+from backend.security.auth import (
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    Token,
+    authenticate_user,
+    create_access_token,
+    get_current_user,
+    hash_password,
+)
+
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 
-class RegisterRequest(BaseModel):
-    email: str
+# ---------------------------------------------------------------------------
+# Request / Response Models
+# ---------------------------------------------------------------------------
+
+
+class UserCreate(BaseModel):
+    email: EmailStr
     password: str
-    full_name: str
-    phone: Optional[str] = None
+    full_name: str | None = None
+    organisation: str | None = None
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Verify Supabase JWT token and return the user."""
-    if not credentials:
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    full_name: str | None
+    organisation: str | None
+    role: str
+    is_active: bool
+    is_verified: bool
+
+    class Config:
+        from_attributes = True
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+async def register(user_in: UserCreate, db: Session = Depends(get_db)):
+    """Register a new AIP platform user."""
+    existing = db.query(User).filter(User.email == user_in.email).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="An account with this email already exists.",
+        )
+    user = User(
+        email=user_in.email,
+        hashed_password=hash_password(user_in.password),
+        full_name=user_in.full_name,
+        organisation=user_in.organisation,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    logger.info("New user registered: %s", user.email)
+    return user
+
+
+@router.post("/token", response_model=Token)
+async def login(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Authenticate with email/password and receive a JWT access token."""
+    user = authenticate_user(db, form_data.username, form_data.password)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Not authenticated",
+            detail="Incorrect email or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    token = credentials.credentials
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase credentials not configured",
-        )
-    async with httpx.AsyncClient() as client:
-        try:
-            response = await client.get(
-                f"{SUPABASE_URL}/auth/v1/user",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "apikey": SUPABASE_ANON_KEY,
-                },
-            )
-            if response.status_code != 200:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication failed",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-        except httpx.RequestError:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication failed",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
-    return response.json()
+    token = create_access_token(
+        data={"sub": user.email, "user_id": user.id},
+        expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+    )
+    return Token(
+        access_token=token,
+        token_type="bearer",
+        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+    )
 
 
-@router.post("/register")
-async def register(request: RegisterRequest):
-    """Register a new user via Supabase Auth."""
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase credentials not configured",
-        )
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{SUPABASE_URL}/auth/v1/signup",
-            headers={
-                "apikey": SUPABASE_ANON_KEY,
-                "Content-Type": "application/json",
-            },
-            json={
-                "email": request.email,
-                "password": request.password,
-                "data": {
-                    "full_name": request.full_name,
-                    "phone": request.phone,
-                },
-            },
-        )
-    data = response.json()
-    if response.status_code not in (200, 201):
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=data.get("msg", data.get("message", "Registration failed")),
-        )
-    return {
-        "user": data.get("user"),
-        "session": data.get("session"),
-        "access_token": (data.get("session") or {}).get("access_token"),
-        "message": "Registration successful. Please check your email to confirm your account.",
-    }
-
-
-@router.post("/token")
-async def login(username: str = Form(...), password: str = Form(...)):
-    """Login with email/password via Supabase Auth."""
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Supabase credentials not configured",
-        )
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            f"{SUPABASE_URL}/auth/v1/token?grant_type=password",
-            headers={
-                "apikey": SUPABASE_ANON_KEY,
-                "Content-Type": "application/json",
-            },
-            json={
-                "email": username,
-                "password": password,
-            },
-        )
-    data = response.json()
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=data.get("error_description", data.get("msg", "Invalid credentials")),
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return {
-        "access_token": data.get("access_token"),
-        "token_type": "bearer",
-        "expires_in": data.get("expires_in"),
-        "refresh_token": data.get("refresh_token"),
-        "user": data.get("user"),
-    }
-
-
-@router.get("/me")
-async def get_me(user=Depends(get_current_user)):
+@router.get("/me", response_model=UserResponse)
+async def get_me(current_user: User = Depends(get_current_user)):
     """Return the currently authenticated user's profile."""
-    return {
-        "id": user.get("id"),
-        "email": user.get("email"),
-        "full_name": user.get("user_metadata", {}).get("full_name"),
-        "phone": user.get("user_metadata", {}).get("phone"),
-        "created_at": user.get("created_at"),
-    }
+    return current_user
+
+
+@router.post("/logout")
+async def logout():
+    """
+    Client-side logout — instruct the client to discard the JWT token.
+    Server-side token invalidation is handled via token expiry.
+    """
+    return {"success": True, "message": "Logged out. Please discard your access token."}
