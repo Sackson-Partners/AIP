@@ -80,7 +80,6 @@ async def list_verifications(
     return {"verifications": verifications, "count": len(verifications)}
 
 
-
 @router.put("/{ver_id}/review")
 async def review_verification(
     ver_id: str,
