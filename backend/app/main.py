@@ -24,6 +24,8 @@ from backend.routers.introductions import router as introductions_router
 from backend.routers.investors import router as investors_router
 from backend.routers.projects import router as projects_router
 from backend.routers.verifications import router as verifications_router
+from backend.app.routers.radar import router as radar_router
+from backend.app.routers.infrastructure_map import router as map_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -116,6 +118,8 @@ app.include_router(analytics_router)
 app.include_router(events_router)
 app.include_router(verifications_router)
 app.include_router(airtable_router)
+app.include_router(radar_router, prefix="/api")
+app.include_router(map_router, prefix="/api")
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.exists():
