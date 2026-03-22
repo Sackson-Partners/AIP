@@ -1,557 +1,326 @@
 """
-AI Intelligence API Routes
-Implements Claude-powered intelligence agents per PRD Section 9
+AIP AI Intelligence Router
+---------------------------
+Exposes Claude-powered intelligence endpoints for the AIP platform.
+Each endpoint loads the appropriate prompt template, injects context data,
+calls the Claude API, and returns a structured intelligence response.
+
+All routes are protected by JWT authentication.
+Rate-limited via the slowapi middleware configured in main.py.
+
+Endpoints:
+    POST /api/ai/analyze-project       Full infrastructure project analysis
+    POST /api/ai/investment-brief      Investor-grade project brief
+    POST /api/ai/country-analysis      Country infrastructure & investment profile
+    POST /api/ai/podcast-prep          Podcast episode briefing and questions
+    POST /api/ai/infrastructure-risk   Risk assessment for project or corridor
+    POST /api/ai/geopolitical          Geopolitical analysis of investment dynamics
+    GET  /api/ai/prompts               List available prompt templates
 """
 
-import os
-import json
-from typing import Optional, Dict, Any
+import logging
+from typing import Any, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
-from sqlalchemy.orm import Session
-from datetime import datetime
 
-from backend.database import get_db
-from backend.auth import get_current_user
-from backend.models import (
-    Project, PETFELAssessment, PETFELScore, ExecutiveNote, EINSection,
-    AIAnalysis, PartnerMatch, Investor, User
+from backend.services.claude_service import (
+    call_claude_structured,
+    INFRASTRUCTURE_ANALYST_SYSTEM,
+    INVESTMENT_INTELLIGENCE_SYSTEM,
+    GEOPOLITICS_SYSTEM,
+    PODCAST_INTELLIGENCE_SYSTEM,
 )
-from backend.services.petfel_service import PETFELService, PETFEL_CRITERIA, PILLAR_WEIGHTS
-from backend.services.ein_service import EINService, EIN_SECTIONS
+from backend.services.prompt_service import build_prompt, list_available_prompts
 
-# Anthropic Claude API
-try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
+logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/ai", tags=["AI Intelligence"])
+router = APIRouter(prefix="/api/ai", tags=["AI Intelligence"])
 
 
-# ============================================================================
-# Pydantic Schemas
-# ============================================================================
-
-class AIAnalysisResponse(BaseModel):
-    """AI analysis response"""
-    project_id: int
-    analysis_type: str
-    content: str
-    model_version: str
-    generated_at: datetime
-    tokens_used: Optional[int]
-    processing_time_ms: Optional[int]
+# ---------------------------------------------------------------------------
+# Request / Response Models
+# ---------------------------------------------------------------------------
 
 
-class PETFELAugmentResponse(BaseModel):
-    """PETFEL augmentation response"""
-    assessment_id: int
-    augmented_scores: Dict[str, Any]
-    recommendations: str
-    confidence: float
-    model_version: str
-
-
-class EINGenerationResponse(BaseModel):
-    """EIN generation response"""
-    project_id: int
-    ein_id: int
-    sections_generated: int
-    model_version: str
-
-
-class CountryRiskResponse(BaseModel):
-    """Country risk analysis response"""
-    country: str
-    risk_rating: str
-    analysis: Dict[str, Any]
-    generated_at: datetime
-
-
-class InvestorMatchResponse(BaseModel):
-    """Investor match response"""
-    project_id: int
-    matches: list
-    total_matches: int
-
-
-# ============================================================================
-# Claude API Client
-# ============================================================================
-
-def get_claude_client():
-    """Get Anthropic Claude client"""
-    if not ANTHROPIC_AVAILABLE:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Anthropic SDK not available"
-        )
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="ANTHROPIC_API_KEY not configured"
-        )
-
-    return anthropic.Anthropic(api_key=api_key)
-
-
-# ============================================================================
-# System Prompts
-# ============================================================================
-
-EIN_SYSTEM_PROMPT = """You are a senior infrastructure investment analyst at a top-tier development finance institution focused on Africa. Write professional investment committee notes with the precision of a World Bank project appraisal document and the clarity of a McKinsey executive brief.
-
-Structure your output using the AIP EIN 9-section template.
-Tone: authoritative, data-driven, balanced on risks and mitigations.
-Format: Markdown with section headers. Length: 800-1400 words for Sections 1-6."""
-
-PETFEL_AUGMENT_PROMPT = """You are an expert infrastructure due diligence analyst. Analyze the provided project information and PETFEL assessment data to:
-1. Suggest scores (1-5) for each sub-criterion based on available evidence
-2. Identify gaps in the evidence
-3. Recommend specific mitigations for low-scoring areas
-4. Flag any critical risks that should trigger a HOLD decision
-
-Provide your analysis in JSON format with the following structure:
-{
-    "suggested_scores": {"pillar_criterion": {"score": 1-5, "rationale": "..."}},
-    "evidence_gaps": ["list of missing evidence"],
-    "mitigations": [{"criterion": "...", "mitigation": "...", "owner": "suggested owner"}],
-    "critical_flags": ["list of critical issues"],
-    "overall_assessment": "brief narrative",
-    "confidence": 0.0-1.0
-}"""
-
-COUNTRY_RISK_PROMPT = """You are a country risk analyst specializing in African infrastructure investment. Analyze the investment climate for the specified country, covering:
-1. Political stability and governance
-2. Regulatory environment for infrastructure PPPs
-3. Currency and FX risks
-4. Legal framework for foreign investment
-5. Recent developments affecting infrastructure investment
-
-Provide your analysis in JSON format with:
-{
-    "risk_rating": "low|medium|high|critical",
-    "political": {"score": 1-5, "analysis": "..."},
-    "economic": {"score": 1-5, "analysis": "..."},
-    "regulatory": {"score": 1-5, "analysis": "..."},
-    "legal": {"score": 1-5, "analysis": "..."},
-    "recent_events": ["list of relevant events"],
-    "investment_outlook": "narrative",
-    "key_risks": ["list of top risks"],
-    "opportunities": ["list of opportunities"]
-}"""
-
-
-# ============================================================================
-# API Endpoints
-# ============================================================================
-
-@router.post("/analyze/{project_id}", response_model=AIAnalysisResponse, summary="Run full AI analysis")
-async def analyze_project(
-    project_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Run comprehensive AI analysis on a project"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {project_id} not found"
-        )
-
-    client = get_claude_client()
-    start_time = datetime.now()
-
-    # Build project context
-    project_info = f"""
-Project: {project.name}
-Sector: {project.sector.value if project.sector else 'N/A'}
-Country: {project.country}
-Region: {project.region or 'N/A'}
-Stage: {project.stage.value if project.stage else 'N/A'}
-Estimated CAPEX: ${project.estimated_capex:,.0f} if project.estimated_capex else 'N/A'
-Funding Gap: ${project.funding_gap:,.0f} if project.funding_gap else 'N/A'
-Revenue Model: {project.revenue_model or 'N/A'}
-Offtaker: {project.offtaker or 'N/A'}
-Technology: {project.technology or 'N/A'}
-"""
-
-    prompt = f"""Analyze this African infrastructure project and provide a comprehensive investment assessment:
-
-{project_info}
-
-Provide:
-1. Executive Summary (2-3 sentences)
-2. Key Investment Highlights (3-5 bullets)
-3. Critical Risks (3-5 bullets with severity)
-4. Recommended Next Steps (3-5 bullets)
-5. Preliminary Investment Thesis"""
-
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2000,
-        system="You are a senior infrastructure investment analyst focused on African markets.",
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    content = response.content[0].text
-    processing_time = (datetime.now() - start_time).total_seconds() * 1000
-
-    # Save analysis
-    analysis = AIAnalysis(
-        project_id=project_id,
-        analysis_type="full",
-        content=content,
-        model_version=response.model,
-        raw_response=json.dumps({"usage": {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens}}),
-        tokens_used=response.usage.input_tokens + response.usage.output_tokens,
-        processing_time_ms=int(processing_time)
-    )
-    db.add(analysis)
-    db.commit()
-
-    return AIAnalysisResponse(
-        project_id=project_id,
-        analysis_type="full",
-        content=content,
-        model_version=response.model,
-        generated_at=analysis.generated_at,
-        tokens_used=analysis.tokens_used,
-        processing_time_ms=analysis.processing_time_ms
+class ProjectAnalysisRequest(BaseModel):
+    project_data: dict[str, Any] = Field(
+        ...,
+        description="Project metadata: name, country, sector, cost, investors, etc.",
+        example={
+            "project_name": "Simandou Railway",
+            "country": "Guinea",
+            "sector": "Mining Logistics / Rail",
+            "estimated_cost": "$15B",
+            "investors": ["Rio Tinto", "Winning Consortium", "Chinese state banks"],
+            "status": "under_construction",
+        },
     )
 
 
-@router.post("/petfel-augment/{assessment_id}", response_model=PETFELAugmentResponse, summary="AI augment PETFEL assessment")
-async def augment_petfel(
-    assessment_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Use AI to suggest scores and identify gaps in PETFEL assessment"""
-    assessment = db.query(PETFELAssessment).filter(
-        PETFELAssessment.id == assessment_id
-    ).first()
-
-    if not assessment:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Assessment {assessment_id} not found"
-        )
-
-    project = db.query(Project).filter(Project.id == assessment.project_id).first()
-    client = get_claude_client()
-
-    # Build assessment context
-    scores_context = []
-    for score in assessment.scores:
-        scores_context.append({
-            "pillar": score.pillar.value,
-            "criterion": score.sub_criterion,
-            "current_score": score.score,
-            "evidence": score.evidence_notes,
-            "mitigation": score.mitigation
-        })
-
-    prompt = f"""Analyze this PETFEL due diligence assessment and suggest improvements:
-
-Project: {project.name}
-Sector: {project.sector.value if project.sector else 'N/A'}
-Country: {project.country}
-
-Current Assessment Scores:
-{json.dumps(scores_context, indent=2)}
-
-PETFEL Criteria Reference:
-{json.dumps({p.value: [c['name'] for c in criteria] for p, criteria in PETFEL_CRITERIA.items()}, indent=2)}
-
-{PETFEL_AUGMENT_PROMPT}"""
-
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=3000,
-        system=PETFEL_AUGMENT_PROMPT,
-        messages=[{"role": "user", "content": prompt}]
+class InvestmentBriefRequest(BaseModel):
+    project_data: dict[str, Any] = Field(
+        ..., description="Project metadata for brief generation."
+    )
+    investor_type: str = Field(
+        default="infrastructure fund",
+        description="Target investor profile (e.g. 'development bank', 'sovereign fund').",
     )
 
-    content = response.content[0].text
 
-    # Try to parse JSON response
+class CountryAnalysisRequest(BaseModel):
+    country: str = Field(..., example="Kenya")
+    sector: str = Field(
+        default="General Infrastructure",
+        example="Transport",
+    )
+    context: Optional[str] = Field(
+        default="",
+        description="Additional context or specific angle to focus on.",
+    )
+
+
+class PodcastPrepRequest(BaseModel):
+    guest_name: str = Field(..., example="Dr. Amara Nwosu")
+    guest_organisation: str = Field(..., example="African Development Bank")
+    episode_theme: str = Field(..., example="Financing the Lobito Atlantic Railway")
+    background_notes: Optional[str] = Field(
+        default="",
+        description="Any additional context, previous episode notes, or guest background.",
+    )
+
+
+class RiskAssessmentRequest(BaseModel):
+    project_name: str = Field(..., example="LAPSSET Corridor")
+    country_region: str = Field(..., example="Kenya / Ethiopia / South Sudan")
+    sector: str = Field(..., example="Multi-modal Transport")
+    project_stage: str = Field(
+        default="Under Construction",
+        example="Planned",
+    )
+    context: Optional[str] = Field(default="", description="Additional project context.")
+
+
+class GeopoliticalRequest(BaseModel):
+    topic: str = Field(
+        ...,
+        example="Chinese investment in DRC infrastructure vs. Western alternatives",
+    )
+    countries: Optional[list[str]] = Field(
+        default=None,
+        description="Countries or regions to focus on.",
+    )
+
+
+class AIResponse(BaseModel):
+    success: bool
+    analysis: str
+    prompt_used: Optional[str] = None
+
+
+# ---------------------------------------------------------------------------
+# Helper
+# ---------------------------------------------------------------------------
+
+
+async def _run_analysis(
+    prompt_name: str,
+    variables: dict[str, Any],
+    system_prompt: str,
+    max_tokens: int = 2000,
+) -> AIResponse:
+    """Load prompt, inject data, call Claude, return structured response."""
+    import json
+
+    # Serialize any dict values to JSON strings for prompt injection
+    serialized = {
+        k: json.dumps(v, indent=2) if isinstance(v, (dict, list)) else str(v)
+        for k, v in variables.items()
+    }
+
     try:
-        # Find JSON in response
-        json_start = content.find('{')
-        json_end = content.rfind('}') + 1
-        if json_start >= 0 and json_end > json_start:
-            augmented_data = json.loads(content[json_start:json_end])
-        else:
-            augmented_data = {"raw_response": content}
-    except json.JSONDecodeError:
-        augmented_data = {"raw_response": content}
-
-    # Update assessment
-    assessment.ai_augmented = True
-    assessment.ai_model_version = response.model
-    assessment.ai_confidence_score = augmented_data.get("confidence", 0.7)
-    assessment.last_analyzed_at = datetime.now()
-    db.commit()
-
-    return PETFELAugmentResponse(
-        assessment_id=assessment_id,
-        augmented_scores=augmented_data,
-        recommendations=augmented_data.get("overall_assessment", content[:500]),
-        confidence=augmented_data.get("confidence", 0.7),
-        model_version=response.model
-    )
-
-
-@router.post("/generate-ein/{project_id}", response_model=EINGenerationResponse, summary="AI generate EIN draft")
-async def generate_ein(
-    project_id: int,
-    petfel_assessment_id: Optional[int] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Generate a complete EIN draft using AI"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
+        populated_prompt = build_prompt(prompt_name, serialized)
+    except FileNotFoundError as exc:
+        logger.error("Prompt not found: %s", exc)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {project_id} not found"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Prompt template error: {exc}",
         )
 
-    # Get or create EIN
-    ein_service = EINService(db)
-    ein = ein_service.create_ein(project_id, current_user.id, petfel_assessment_id)
-
-    # Get PETFEL if available
-    petfel_context = ""
-    if petfel_assessment_id:
-        assessment = db.query(PETFELAssessment).filter(
-            PETFELAssessment.id == petfel_assessment_id
-        ).first()
-        if assessment:
-            petfel_context = f"""
-PETFEL Assessment:
-- Overall Score: {assessment.overall_score or 'Not calculated'}
-- Rating: {assessment.rating.value if assessment.rating else 'N/A'}
-- Gating Result: {assessment.gating_result.value if assessment.gating_result else 'N/A'}
-- Political Score: {assessment.political_score or 'N/A'}
-- Economic Score: {assessment.economic_score or 'N/A'}
-- Technical Score: {assessment.technical_score or 'N/A'}
-- Financial Score: {assessment.financial_score or 'N/A'}
-- Environmental Score: {assessment.environmental_score or 'N/A'}
-- Legal Score: {assessment.legal_score or 'N/A'}
-"""
-
-    client = get_claude_client()
-
-    # Generate each section
-    project_context = f"""
-Project: {project.name}
-Sector: {project.sector.value if project.sector else 'N/A'}
-Country: {project.country}
-Region: {project.region or 'N/A'}
-Stage: {project.stage.value if project.stage else 'N/A'}
-Estimated CAPEX: ${project.estimated_capex:,.0f} if project.estimated_capex else 'N/A'
-Funding Gap: ${project.funding_gap:,.0f} if project.funding_gap else 'N/A'
-Revenue Model: {project.revenue_model or 'N/A'}
-Offtaker: {project.offtaker or 'N/A'}
-Technology: {project.technology or 'N/A'}
-EPC Status: {project.epc_status or 'N/A'}
-Land Status: {project.land_acquisition_status or 'N/A'}
-Permits: {project.permits_status or 'N/A'}
-ESG Category: {project.esg_category or 'N/A'}
-{petfel_context}
-"""
-
-    sections_generated = 0
-
-    for section_def in EIN_SECTIONS[:8]:  # Skip annexes
-        section_prompt = f"""Generate content for the following EIN section:
-
-Section: {section_def['name']}
-Objective: {section_def['objective']}
-Key Questions to Answer: {', '.join(section_def['key_questions'])}
-Output Guidance: {section_def['output_guidance']}
-
-Project Information:
-{project_context}
-
-Generate professional, investment-grade content in Markdown format."""
-
-        response = client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1500,
-            system=EIN_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": section_prompt}]
-        )
-
-        content = response.content[0].text
-
-        # Update section
-        ein_service.update_section(
-            ein_id=ein.id,
-            section_code=section_def['code'],
-            content=content,
-            generated_by="ai"
-        )
-        sections_generated += 1
-
-    return EINGenerationResponse(
-        project_id=project_id,
-        ein_id=ein.id,
-        sections_generated=sections_generated,
-        model_version="claude-sonnet-4-20250514"
-    )
-
-
-@router.post("/country-risk/{country}", response_model=CountryRiskResponse, summary="Generate country risk brief")
-async def analyze_country_risk(
-    country: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Generate country risk analysis for infrastructure investment"""
-    client = get_claude_client()
-
-    prompt = f"""Analyze the investment climate for infrastructure projects in {country}.
-
-{COUNTRY_RISK_PROMPT}"""
-
-    response = client.messages.create(
-        model="claude-sonnet-4-20250514",
-        max_tokens=2000,
-        system=COUNTRY_RISK_PROMPT,
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    content = response.content[0].text
-
-    # Try to parse JSON
     try:
-        json_start = content.find('{')
-        json_end = content.rfind('}') + 1
-        if json_start >= 0 and json_end > json_start:
-            analysis_data = json.loads(content[json_start:json_end])
-        else:
-            analysis_data = {"raw_analysis": content}
-    except json.JSONDecodeError:
-        analysis_data = {"raw_analysis": content}
-
-    return CountryRiskResponse(
-        country=country,
-        risk_rating=analysis_data.get("risk_rating", "medium"),
-        analysis=analysis_data,
-        generated_at=datetime.now()
-    )
-
-
-@router.post("/matching/run/{project_id}", response_model=InvestorMatchResponse, summary="Run investor matching")
-async def run_investor_matching(
-    project_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Run AI-powered investor matching algorithm"""
-    project = db.query(Project).filter(Project.id == project_id).first()
-    if not project:
+        result = await call_claude_structured(
+            prompt=populated_prompt,
+            system_prompt=system_prompt,
+            max_tokens=max_tokens,
+        )
+    except Exception as exc:
+        logger.error("Claude API error: %s", exc)
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Project {project_id} not found"
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Intelligence generation failed. Please try again.",
         )
 
-    # Get all investors
-    investors = db.query(Investor).all()
+    return AIResponse(success=True, analysis=result, prompt_used=prompt_name)
 
-    matches = []
-    for investor in investors:
-        # Calculate match scores per PRD Section 9.3
-        sector_score = 0
-        if project.sector and investor.sector_focus:
-            if project.sector.value.lower() in investor.sector_focus.lower():
-                sector_score = 30
-            elif any(s in investor.sector_focus.lower() for s in ['infrastructure', 'all']):
-                sector_score = 15
 
-        geography_score = 0
-        if project.country and investor.country_focus:
-            if project.country.lower() in investor.country_focus.lower():
-                geography_score = 25
-            elif 'africa' in investor.country_focus.lower():
-                geography_score = 12
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
-        ticket_score = 0
-        if project.funding_gap and investor.ticket_size_min and investor.ticket_size_max:
-            if investor.ticket_size_min <= project.funding_gap <= investor.ticket_size_max:
-                ticket_score = 20
-            elif project.funding_gap <= investor.ticket_size_max * 1.5:
-                ticket_score = 10
 
-        # Total score
-        total_score = sector_score + geography_score + ticket_score
-
-        if total_score >= 20:  # Minimum threshold
-            match = PartnerMatch(
-                project_id=project_id,
-                investor_id=investor.id,
-                match_score=total_score,
-                sector_score=sector_score,
-                geography_score=geography_score,
-                ticket_score=ticket_score,
-                status="suggested"
-            )
-            db.add(match)
-            matches.append({
-                "investor_id": investor.id,
-                "investor_name": investor.fund_name,
-                "match_score": total_score,
-                "sector_score": sector_score,
-                "geography_score": geography_score,
-                "ticket_score": ticket_score
-            })
-
-    db.commit()
-
-    # Sort by score
-    matches.sort(key=lambda x: x["match_score"], reverse=True)
-
-    return InvestorMatchResponse(
-        project_id=project_id,
-        matches=matches[:20],  # Top 20
-        total_matches=len(matches)
+@router.post(
+    "/analyze-project",
+    response_model=AIResponse,
+    summary="Full infrastructure project analysis",
+)
+async def analyze_project(request: ProjectAnalysisRequest):
+    """
+    Generate a comprehensive AI intelligence brief for an infrastructure project.
+    Covers strategic importance, financing, geopolitics, trade impact, risks, and
+    investment opportunity.
+    """
+    return await _run_analysis(
+        prompt_name="infrastructure_project_analysis",
+        variables={"project_data": request.project_data},
+        system_prompt=INFRASTRUCTURE_ANALYST_SYSTEM,
+        max_tokens=2500,
     )
 
 
-@router.get("/matching/{project_id}", response_model=InvestorMatchResponse, summary="Get investor matches")
-async def get_investor_matches(
-    project_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get previously calculated investor matches for a project"""
-    matches = db.query(PartnerMatch).filter(
-        PartnerMatch.project_id == project_id
-    ).order_by(PartnerMatch.match_score.desc()).all()
-
-    result = []
-    for m in matches:
-        investor = db.query(Investor).filter(Investor.id == m.investor_id).first()
-        result.append({
-            "investor_id": m.investor_id,
-            "investor_name": investor.fund_name if investor else "Unknown",
-            "match_score": m.match_score,
-            "sector_score": m.sector_score,
-            "geography_score": m.geography_score,
-            "ticket_score": m.ticket_score,
-            "status": m.status
-        })
-
-    return InvestorMatchResponse(
-        project_id=project_id,
-        matches=result,
-        total_matches=len(result)
+@router.post(
+    "/investment-brief",
+    response_model=AIResponse,
+    summary="Investor-grade project brief",
+)
+async def investment_brief(request: InvestmentBriefRequest):
+    """
+    Generate a concise investor-grade brief covering deal structure,
+    financial profile, risk/return matrix, and next steps.
+    """
+    return await _run_analysis(
+        prompt_name="investor_summary",
+        variables={
+            "project_data": request.project_data,
+            "investor_type": request.investor_type,
+        },
+        system_prompt=INVESTMENT_INTELLIGENCE_SYSTEM,
+        max_tokens=2000,
     )
+
+
+@router.post(
+    "/country-analysis",
+    response_model=AIResponse,
+    summary="Country infrastructure and investment profile",
+)
+async def country_analysis(request: CountryAnalysisRequest):
+    """
+    Produce a comprehensive country brief covering infrastructure overview,
+    investment climate, key financiers, strategic corridors, and sector deep-dive.
+    """
+    return await _run_analysis(
+        prompt_name="country_investment_brief",
+        variables={
+            "country": request.country,
+            "sector": request.sector,
+            "context": request.context or "General infrastructure investment landscape",
+        },
+        system_prompt=INFRASTRUCTURE_ANALYST_SYSTEM,
+        max_tokens=2500,
+    )
+
+
+@router.post(
+    "/podcast-prep",
+    response_model=AIResponse,
+    summary="Ground Truth Podcast episode preparation",
+)
+async def podcast_prep(request: PodcastPrepRequest):
+    """
+    Generate structured podcast preparation materials: guest profile,
+    episode context, discussion questions, and host reference terms.
+    """
+    return await _run_analysis(
+        prompt_name="podcast_question_generator",
+        variables={
+            "guest_name": request.guest_name,
+            "guest_organisation": request.guest_organisation,
+            "episode_theme": request.episode_theme,
+            "background_notes": request.background_notes or "No additional notes provided.",
+        },
+        system_prompt=PODCAST_INTELLIGENCE_SYSTEM,
+        max_tokens=2000,
+    )
+
+
+@router.post(
+    "/infrastructure-risk",
+    response_model=AIResponse,
+    summary="Infrastructure project risk assessment",
+)
+async def infrastructure_risk(request: RiskAssessmentRequest):
+    """
+    Conduct a structured risk assessment across political, financial, construction,
+    social, and environmental dimensions with a mitigation framework.
+    """
+    return await _run_analysis(
+        prompt_name="infrastructure_risk_assessment",
+        variables={
+            "project_name": request.project_name,
+            "country_region": request.country_region,
+            "sector": request.sector,
+            "project_stage": request.project_stage,
+            "context": request.context or "No additional context provided.",
+        },
+        system_prompt=INFRASTRUCTURE_ANALYST_SYSTEM,
+        max_tokens=2500,
+    )
+
+
+@router.post(
+    "/geopolitical",
+    response_model=AIResponse,
+    summary="Geopolitical analysis of infrastructure investment dynamics",
+)
+async def geopolitical_analysis(request: GeopoliticalRequest):
+    """
+    Analyse geopolitical dynamics in African infrastructure: China vs. Western
+    investment, sovereignty, conditionality, and strategic implications.
+    """
+    countries_str = ", ".join(request.countries) if request.countries else "Africa broadly"
+    prompt = (
+        f"Provide a detailed geopolitical analysis of the following topic:\n\n"
+        f"TOPIC: {request.topic}\n\n"
+        f"GEOGRAPHIC FOCUS: {countries_str}\n\n"
+        f"Cover: (1) China vs. Western investment dynamics, "
+        f"(2) sovereignty and conditionality issues, "
+        f"(3) regional integration implications, "
+        f"(4) strategic recommendations for African governments and investors."
+    )
+
+    try:
+        result = await call_claude_structured(
+            prompt=prompt,
+            system_prompt=GEOPOLITICS_SYSTEM,
+            max_tokens=2000,
+        )
+    except Exception as exc:
+        logger.error("Claude API error: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Geopolitical analysis failed. Please try again.",
+        )
+
+    return AIResponse(success=True, analysis=result)
+
+
+@router.get(
+    "/prompts",
+    summary="List available prompt templates",
+)
+async def list_prompts():
+    """
+    Return all available prompt template names in the AIP prompt library.
+    """
+    prompts = list_available_prompts()
+    return {"success": True, "prompts": prompts, "count": len(prompts)}

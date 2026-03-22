@@ -1,414 +1,328 @@
-"""
-Radar Intelligence Service
-Handles signal analysis and AI-powered project intelligence generation using Claude API.
-"""
-
-import os
-import json
+"""Radar service layer - business logic for the Africa Infrastructure Radar."""
 import hashlib
-from typing import Optional, Dict, Any, List
+import logging
+import time
+from dataclasses import dataclass, field
 from datetime import datetime
-from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
 
-# Anthropic SDK for Claude API
-try:
-    import anthropic
-    ANTHROPIC_AVAILABLE = True
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
+from sqlalchemy import func
+from sqlalchemy.orm import Session
 
+from app.models.radar import RadarProject, RadarSignal, RadarScanLog, StrategicCorridor
+
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Region / investment classification helpers
+# ---------------------------------------------------------------------------
+
+_REGION_MAP: Dict[str, List[str]] = {
+          "West Africa": [
+                        "Nigeria", "Ghana", "Senegal", "Cote d'Ivoire", "Mali", "Burkina Faso",
+                        "Niger", "Guinea", "Sierra Leone", "Liberia", "Togo", "Benin",
+                        "Mauritania", "Gambia", "Guinea-Bissau", "Cape Verde",
+          ],
+          "East Africa": [
+                        "Kenya", "Ethiopia", "Tanzania", "Uganda", "Rwanda", "Burundi",
+                        "South Sudan", "Somalia", "Djibouti", "Eritrea", "Comoros", "Seychelles",
+          ],
+          "Southern Africa": [
+                        "South Africa", "Mozambique", "Zimbabwe", "Zambia", "Malawi",
+                        "Botswana", "Namibia", "Lesotho", "Eswatini", "Madagascar", "Mauritius",
+          ],
+          "North Africa": [
+                        "Egypt", "Morocco", "Algeria", "Tunisia", "Libya", "Sudan",
+          ],
+          "Central Africa": [
+                        "DRC", "Congo", "Cameroon", "Central African Republic", "Chad",
+                        "Gabon", "Equatorial Guinea", "Sao Tome and Principe",
+          ],
+}
+
+_INVESTMENT_RANGES = [
+          (1_000_000_000, "$1B+"),
+          (500_000_000, "$500M+"),
+          (100_000_000, "$100M+"),
+          (50_000_000, "$50M+"),
+          (10_000_000, "$10M+"),
+]
+
+
+# ---------------------------------------------------------------------------
+# Analysis result dataclass (returned by radar_service.analyze_signal)
+# ---------------------------------------------------------------------------
 
 @dataclass
-class RadarAnalysisResult:
-    """Result of radar signal analysis."""
-    project_name: str
-    summary: str
-    sector: str
-    sub_sector: Optional[str]
-    primary_country: str
-    countries: List[str]
-    region: str
-    estimated_investment_usd: Optional[float]
-    investment_range: str
-    investment_readiness: str
-    strategic_importance: str
-    regional_impact: str
-    investment_opportunity: str
-    risk_factors: List[Dict[str, Any]]
-    key_stakeholders: List[Dict[str, Any]]
-    draft_article: str
-    podcast_suggestion: str
-    confidence_score: float
-    processing_time_ms: int
+class AnalysisResult:
+          project_name: str
+          summary: str
+          primary_country: str
+          countries: List[str]
+          region: Optional[str]
+          sector: str
+          sub_sector: Optional[str]
+          investment_readiness: str
+          estimated_investment_usd: Optional[float]
+          strategic_importance: str
+          regional_impact: str
+          investment_opportunity: str
+          risk_factors: List[str]
+          key_stakeholders: List[str]
+          draft_article: Optional[str]
+          podcast_suggestion: Optional[str]
+          confidence_score: Optional[float]
+          processing_time_ms: Optional[int] = None
 
 
-class RadarIntelligenceService:
-    """Service for radar signal detection and AI-powered analysis."""
+# ---------------------------------------------------------------------------
+# RadarService
+# ---------------------------------------------------------------------------
 
-    ANALYSIS_PROMPT = """You are an expert infrastructure analyst specializing in African infrastructure development.
-Analyze the following signal about an infrastructure project and provide a comprehensive intelligence assessment.
+class RadarService:
+          """Business logic for the Africa Infrastructure Radar."""
 
-Signal Title: {title}
-Source: {source_name} ({source_type})
-Content: {content}
+    # ── Project CRUD ────────────────────────────────────────────────────────
 
-Provide your analysis in the following JSON format:
-{{
-    "project_name": "Official or descriptive name of the project",
-    "summary": "2-3 sentence executive summary",
-    "sector": "One of: Transport | Energy | Mining Logistics | Ports | Digital Infrastructure | Water | Urban Development",
-    "sub_sector": "More specific classification (e.g., Railway, Solar, Port expansion)",
-    "primary_country": "Main country where project is located",
-    "countries": ["List of all countries involved"],
-    "region": "One of: West Africa | East Africa | Central Africa | Southern Africa | North Africa",
-    "estimated_investment_usd": null or number (in USD),
-    "investment_range": "One of: $100M+ | $500M+ | $1B+ | $5B+ | $10B+",
-    "investment_readiness": "One of: early_stage | feasibility | tender_open | financing_sought | under_construction | operational",
-    "strategic_importance": "Detailed paragraph on why this project matters strategically",
-    "regional_impact": "Detailed paragraph on regional economic and development impact",
-    "investment_opportunity": "Detailed paragraph for potential investors - opportunities and considerations",
-    "risk_factors": [
-        {{"category": "political|financial|execution|regulatory|environmental", "description": "...", "severity": "high|medium|low"}}
-    ],
-    "key_stakeholders": [
-        {{"name": "...", "role": "sponsor|contractor|financier|government|operator", "details": "..."}}
-    ],
-    "draft_article": "A 300-500 word draft article suitable for AIP publication, written in professional journalism style",
-    "podcast_suggestion": "A suggested podcast topic and 3-5 discussion points based on this project"
-}}
+    def get_project(self, db: Session, project_id: int) -> Optional[RadarProject]:
+                  """Fetch a single radar project by primary key."""
+                  return db.query(RadarProject).filter(RadarProject.id == project_id).first()
 
-Focus on accuracy and actionable intelligence. If information is uncertain, indicate this clearly."""
+    def get_project_by_uuid(self, db: Session, uuid: str) -> Optional[RadarProject]:
+                  """Fetch a radar project by UUID."""
+                  return db.query(RadarProject).filter(RadarProject.uuid == uuid).first()
 
-    INTELLIGENCE_BRIEF_PROMPT = """You are an expert infrastructure analyst. Generate a strategic intelligence brief for the following project.
+    def list_projects(
+                  self,
+                  db: Session,
+                  *,
+                  sector: Optional[str] = None,
+                  region: Optional[str] = None,
+                  country: Optional[str] = None,
+                  status: Optional[str] = None,
+                  investment_readiness: Optional[str] = None,
+                  investment_range: Optional[str] = None,
+                  corridor_id: Optional[int] = None,
+                  page: int = 1,
+                  page_size: int = 20,
+    ) -> tuple[List[RadarProject], int]:
+                  """Return paginated radar projects with optional filters."""
+                  q = db.query(RadarProject)
+                  if sector:
+                                    q = q.filter(RadarProject.sector == sector)
+                                if region:
+                      q = q.filter(RadarProject.region == region)
+                                              if country:
+                                                  q = q.filter(RadarProject.primary_country == country)
+                                                            if status:
+                                                                q = q.filter(RadarProject.status == status)
+                                                                          if investment_readiness:
+                                                                              q = q.filter(RadarProject.investment_readiness == investment_readiness)
+                                                                                        if investment_range:
+                                                                                            q = q.filter(RadarProject.investment_range == investment_range)
+                                                                                                      if corridor_id is not None:
+                                                                                                                        q = q.filter(RadarProject.corridor_id == corridor_id)
+                                                                                                                    total = q.count()
+        items = q.order_by(RadarProject.created_at.desc()).offset(
+                          (page - 1) * page_size
+        ).limit(page_size).all()
+        return items, total
 
-Project: {name}
-Sector: {sector}
-Location: {country}
-Investment Size: {investment_usd}
-Description: {description}
+    # ── Signal CRUD ─────────────────────────────────────────────────────────
 
-Generate a comprehensive intelligence brief in JSON format:
-{{
-    "executive_summary": "2-3 sentence strategic overview",
-    "strategic_importance": {{
-        "rating": "critical|high|medium|low",
-        "analysis": "Detailed strategic importance analysis"
-    }},
-    "investment_opportunity": {{
-        "attractiveness": "highly attractive|attractive|moderate|challenging",
-        "key_factors": ["List of key investment factors"],
-        "recommended_investor_types": ["DFI", "Private Equity", "Strategic", etc.],
-        "analysis": "Detailed investment opportunity analysis"
-    }},
-    "regional_impact": {{
-        "economic_impact": "Description of economic impact",
-        "connectivity_impact": "Description of regional connectivity improvements",
-        "development_impact": "Description of development outcomes"
-    }},
-    "risk_assessment": {{
-        "overall_risk": "high|medium|low",
-        "risks": [
-            {{"category": "...", "description": "...", "mitigation": "..."}}
-        ]
-    }},
-    "key_milestones": ["List of expected milestones"],
-    "related_projects": ["List of related infrastructure projects in the region"]
-}}"""
+    def create_signal(
+                  self,
+                  db: Session,
+                  *,
+                  source_type: str,
+                  source_name: str,
+                  title: str,
+                  raw_content: Optional[str] = None,
+                  **kwargs: Any,
+) -> RadarSignal:
+        """Create a radar signal, computing content hash for deduplication."""
+        content_hash: Optional[str] = None
+        if raw_content:
+                          content_hash = hashlib.sha256(raw_content.encode()).hexdigest()
+            existing = db.query(RadarSignal).filter(
+                                  RadarSignal.content_hash == content_hash
+            ).first()
+            if existing:
+                                  raise ValueError("Duplicate signal: identical content already exists")
 
-    def __init__(
-        self,
-        anthropic_api_key: Optional[str] = None,
-        model: str = "claude-sonnet-4-20250514"
-    ):
-        self.anthropic_api_key = anthropic_api_key or os.getenv("ANTHROPIC_API_KEY")
-        self.model = model
-        self.client = None
+        signal = RadarSignal(
+                          source_type=source_type,
+                          source_name=source_name,
+                          title=title,
+                          raw_content=raw_content,
+                          content_hash=content_hash,
+                          **kwargs,
+        )
+        db.add(signal)
+        db.commit()
+        db.refresh(signal)
+        return signal
 
-        if ANTHROPIC_AVAILABLE and self.anthropic_api_key:
-            self.client = anthropic.Anthropic(api_key=self.anthropic_api_key)
+    def list_unprocessed_signals(
+                  self, db: Session, *, limit: int = 50
+    ) -> List[RadarSignal]:
+                  """Return unprocessed signals ordered by detection date."""
+        return (
+                          db.query(RadarSignal)
+                          .filter(RadarSignal.is_processed == False)  # noqa: E712
+                          .order_by(RadarSignal.detected_at.asc())
+                          .limit(limit)
+                          .all()
+        )
 
-    def _generate_content_hash(self, content: str) -> str:
-        """Generate a hash for content deduplication."""
-        return hashlib.sha256(content.encode()).hexdigest()
+    # ── Region / investment helpers ─────────────────────────────────────────
+
+    @staticmethod
+    def classify_region(countries: Optional[List[str]]) -> Optional[str]:
+                  """Infer African region from a list of country names."""
+        if not countries:
+                          return None
+                      for country in countries:
+                                        for region, members in _REGION_MAP.items():
+                                                              if country in members:
+                                                                                        return region
+                                                                            return "Pan-African"
+
+    @staticmethod
+    def classify_investment_range(amount_usd: Optional[float]) -> Optional[str]:
+                  """Return a human-readable investment-range bucket."""
+        if not amount_usd:
+                          return None
+                      for threshold, label in _INVESTMENT_RANGES:
+                                        if amount_usd >= threshold:
+                                                              return label
+                                                      return "<$10M"
+
+    # ── AI analysis stub ────────────────────────────────────────────────────
 
     async def analyze_signal(
-        self,
-        title: str,
-        content: str,
-        source_name: str,
-        source_type: str = "media"
-    ) -> RadarAnalysisResult:
-        """
-        Analyze a radar signal using Claude API.
+                  self,
+                  *,
+                  title: str,
+                  content: str,
+                  source_name: str = "Unknown",
+                  source_type: str = "unknown",
+    ) -> AnalysisResult:
+                  """
+                          AI-powered analysis of a raw signal.
 
-        Args:
-            title: Signal title/headline
-            content: Full signal content
-            source_name: Name of the source
-            source_type: Type of source (government, dfi, corporate, media)
+                                  This stub returns a structured placeholder.  In production, replace
+                                          the body with calls to your LLM service (OpenAI, Anthropic, etc.)
+                                                  and parse the structured output into an AnalysisResult.
+                                                          """
+        t0 = time.monotonic()
 
-        Returns:
-            RadarAnalysisResult with comprehensive analysis
-        """
-        import time
-        start_time = time.time()
-
-        prompt = self.ANALYSIS_PROMPT.format(
-            title=title,
-            source_name=source_name,
-            source_type=source_type,
-            content=content
+        # Placeholder structured output ─────────────────────────────────────
+        result = AnalysisResult(
+                          project_name=title,
+                          summary=f"Infrastructure project detected from {source_name}: {title}",
+                          primary_country="Nigeria",       # replace with LLM extraction
+                          countries=["Nigeria"],           # replace with LLM extraction
+                          region="West Africa",            # replace with classify_region
+                          sector="Transport",              # replace with LLM extraction
+                          sub_sector=None,
+                          investment_readiness="early_stage",
+                          estimated_investment_usd=None,
+                          strategic_importance=(
+                                                "Strategic infrastructure project with potential to improve "
+                                                "regional connectivity and economic integration."
+                          ),
+                          regional_impact=(
+                                                "Positive regional impact expected through improved trade "
+                                                "corridors and job creation."
+                          ),
+                          investment_opportunity=(
+                                                "Investment opportunity under evaluation; further due diligence "
+                                                "required to quantify returns."
+                          ),
+                          risk_factors=["Political risk", "Currency risk", "Execution risk"],
+                          key_stakeholders=[source_name],
+                          draft_article=None,
+                          podcast_suggestion=f"Episode idea: {title} - Opportunities and Challenges",
+                          confidence_score=0.5,
+                          processing_time_ms=int((time.monotonic() - t0) * 1000),
         )
+        return result
 
-        if self.client:
-            # Call Claude API
-            try:
-                message = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-                response_text = message.content[0].text
+    # ── Analytics ───────────────────────────────────────────────────────────
 
-                # Parse JSON from response
-                # Handle potential markdown code blocks
-                if "```json" in response_text:
-                    json_start = response_text.find("```json") + 7
-                    json_end = response_text.find("```", json_start)
-                    response_text = response_text[json_start:json_end].strip()
-                elif "```" in response_text:
-                    json_start = response_text.find("```") + 3
-                    json_end = response_text.find("```", json_start)
-                    response_text = response_text[json_start:json_end].strip()
-
-                analysis = json.loads(response_text)
-                confidence = 0.85
-
-            except (json.JSONDecodeError, anthropic.APIError) as e:
-                # Fallback to simulated response
-                analysis = self._get_simulated_analysis(title, content, source_name)
-                confidence = 0.5
-        else:
-            # Use simulated response when API not available
-            analysis = self._get_simulated_analysis(title, content, source_name)
-            confidence = 0.5
-
-        processing_time = int((time.time() - start_time) * 1000)
-
-        return RadarAnalysisResult(
-            project_name=analysis.get("project_name", title),
-            summary=analysis.get("summary", ""),
-            sector=analysis.get("sector", "Transport"),
-            sub_sector=analysis.get("sub_sector"),
-            primary_country=analysis.get("primary_country", "Unknown"),
-            countries=analysis.get("countries", []),
-            region=analysis.get("region", ""),
-            estimated_investment_usd=analysis.get("estimated_investment_usd"),
-            investment_range=analysis.get("investment_range", "$100M+"),
-            investment_readiness=analysis.get("investment_readiness", "early_stage"),
-            strategic_importance=analysis.get("strategic_importance", ""),
-            regional_impact=analysis.get("regional_impact", ""),
-            investment_opportunity=analysis.get("investment_opportunity", ""),
-            risk_factors=analysis.get("risk_factors", []),
-            key_stakeholders=analysis.get("key_stakeholders", []),
-            draft_article=analysis.get("draft_article", ""),
-            podcast_suggestion=analysis.get("podcast_suggestion", ""),
-            confidence_score=confidence,
-            processing_time_ms=processing_time
+    def sector_summary(self, db: Session) -> List[Dict[str, Any]]:
+                  """Return project counts per sector."""
+        rows = (
+                          db.query(RadarProject.sector, func.count(RadarProject.id).label("count"))
+                          .group_by(RadarProject.sector)
+                          .order_by(func.count(RadarProject.id).desc())
+                          .all()
         )
+        return [{"sector": r.sector, "count": r.count} for r in rows]
 
-    async def generate_intelligence_brief(
-        self,
-        name: str,
-        sector: str,
-        country: str,
-        investment_usd: Optional[float],
-        description: str
-    ) -> Dict[str, Any]:
-        """
-        Generate a detailed intelligence brief for a project.
-
-        Args:
-            name: Project name
-            sector: Project sector
-            country: Primary country
-            investment_usd: Investment amount in USD
-            description: Project description
-
-        Returns:
-            Dict with intelligence brief data
-        """
-        import time
-        start_time = time.time()
-
-        prompt = self.INTELLIGENCE_BRIEF_PROMPT.format(
-            name=name,
-            sector=sector,
-            country=country,
-            investment_usd=f"${investment_usd:,.0f}" if investment_usd else "Not specified",
-            description=description or "No detailed description available"
+    def region_summary(self, db: Session) -> List[Dict[str, Any]]:
+                  """Return project counts per region."""
+        rows = (
+                          db.query(RadarProject.region, func.count(RadarProject.id).label("count"))
+                          .group_by(RadarProject.region)
+                          .order_by(func.count(RadarProject.id).desc())
+                          .all()
         )
+        return [{"region": r.region, "count": r.count} for r in rows]
 
-        if self.client:
-            try:
-                message = self.client.messages.create(
-                    model=self.model,
-                    max_tokens=4096,
-                    messages=[
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-                response_text = message.content[0].text
+    def readiness_summary(self, db: Session) -> List[Dict[str, Any]]:
+                  """Return project counts per investment readiness level."""
+        rows = (
+                          db.query(
+                                                RadarProject.investment_readiness,
+                                                func.count(RadarProject.id).label("count"),
+                          )
+                          .group_by(RadarProject.investment_readiness)
+                          .order_by(func.count(RadarProject.id).desc())
+                          .all()
+        )
+        return [{"investment_readiness": r.investment_readiness, "count": r.count} for r in rows]
 
-                # Parse JSON from response
-                if "```json" in response_text:
-                    json_start = response_text.find("```json") + 7
-                    json_end = response_text.find("```", json_start)
-                    response_text = response_text[json_start:json_end].strip()
-                elif "```" in response_text:
-                    json_start = response_text.find("```") + 3
-                    json_end = response_text.find("```", json_start)
-                    response_text = response_text[json_start:json_end].strip()
+    # ── Scan-log helpers ────────────────────────────────────────────────────
 
-                brief = json.loads(response_text)
+    def start_scan_log(self, db: Session, scan_type: str, source_type: Optional[str] = None) -> RadarScanLog:
+                  """Create a new scan-log entry and mark it as started."""
+        log = RadarScanLog(
+                          scan_type=scan_type,
+                          source_type=source_type,
+                          status="started",
+        )
+        db.add(log)
+        db.commit()
+        db.refresh(log)
+        return log
 
-            except (json.JSONDecodeError, anthropic.APIError):
-                brief = self._get_simulated_brief(name, sector, country, investment_usd)
-        else:
-            brief = self._get_simulated_brief(name, sector, country, investment_usd)
-
-        processing_time = int((time.time() - start_time) * 1000)
-
-        return {
-            "brief": brief,
-            "processing_time_ms": processing_time,
-            "generated_at": datetime.utcnow().isoformat()
-        }
-
-    def _get_simulated_analysis(
-        self,
-        title: str,
-        content: str,
-        source_name: str
-    ) -> Dict[str, Any]:
-        """Generate simulated analysis for demo/testing."""
-        return {
-            "project_name": title,
-            "summary": f"Infrastructure project detected from {source_name}. Analysis pending full API integration.",
-            "sector": "Transport",
-            "sub_sector": "Railway",
-            "primary_country": "Kenya",
-            "countries": ["Kenya"],
-            "region": "East Africa",
-            "estimated_investment_usd": None,
-            "investment_range": "$100M+",
-            "investment_readiness": "early_stage",
-            "strategic_importance": "This project has been detected through the AIP radar system and requires further analysis.",
-            "regional_impact": "Regional impact assessment pending detailed analysis.",
-            "investment_opportunity": "Investment opportunity analysis pending.",
-            "risk_factors": [
-                {"category": "execution", "description": "Standard project execution risks", "severity": "medium"}
-            ],
-            "key_stakeholders": [],
-            "draft_article": f"# {title}\n\nA new infrastructure development has been identified. Further details are being gathered.",
-            "podcast_suggestion": f"Discussion topic: {title} - implications for regional development"
-        }
-
-    def _get_simulated_brief(
-        self,
-        name: str,
-        sector: str,
-        country: str,
-        investment_usd: Optional[float]
-    ) -> Dict[str, Any]:
-        """Generate simulated intelligence brief for demo/testing."""
-        return {
-            "executive_summary": f"{name} is a significant {sector.lower()} infrastructure project in {country}.",
-            "strategic_importance": {
-                "rating": "high",
-                "analysis": f"This {sector.lower()} project in {country} represents a strategic infrastructure investment for the region."
-            },
-            "investment_opportunity": {
-                "attractiveness": "attractive",
-                "key_factors": [
-                    "Strategic location",
-                    "Government support",
-                    "Regional connectivity improvements"
-                ],
-                "recommended_investor_types": ["DFI", "Infrastructure Funds", "Strategic Investors"],
-                "analysis": "The project presents attractive investment characteristics for long-term infrastructure investors."
-            },
-            "regional_impact": {
-                "economic_impact": "Expected to contribute significantly to regional GDP growth.",
-                "connectivity_impact": "Will improve regional transportation and logistics efficiency.",
-                "development_impact": "Expected to create jobs and stimulate local economic development."
-            },
-            "risk_assessment": {
-                "overall_risk": "medium",
-                "risks": [
-                    {
-                        "category": "political",
-                        "description": "Political stability considerations",
-                        "mitigation": "Engage with multiple government stakeholders"
-                    },
-                    {
-                        "category": "execution",
-                        "description": "Large-scale project execution complexity",
-                        "mitigation": "Partner with experienced EPC contractors"
-                    }
-                ]
-            },
-            "key_milestones": [
-                "Feasibility study completion",
-                "Environmental impact assessment",
-                "Financial close",
-                "Construction commencement",
-                "Operational launch"
-            ],
-            "related_projects": []
-        }
-
-    def classify_investment_range(self, amount_usd: Optional[float]) -> str:
-        """Classify investment amount into standardized ranges."""
-        if amount_usd is None:
-            return "Unknown"
-        if amount_usd >= 10_000_000_000:
-            return "$10B+"
-        elif amount_usd >= 5_000_000_000:
-            return "$5B+"
-        elif amount_usd >= 1_000_000_000:
-            return "$1B+"
-        elif amount_usd >= 500_000_000:
-            return "$500M+"
-        elif amount_usd >= 100_000_000:
-            return "$100M+"
-        else:
-            return "<$100M"
-
-    def classify_region(self, countries: List[str]) -> str:
-        """Classify region based on countries."""
-        region_mapping = {
-            "West Africa": ["Nigeria", "Ghana", "Senegal", "Cote d'Ivoire", "Mali", "Burkina Faso",
-                          "Niger", "Guinea", "Benin", "Togo", "Sierra Leone", "Liberia", "Gambia",
-                          "Guinea-Bissau", "Cape Verde", "Mauritania"],
-            "East Africa": ["Kenya", "Tanzania", "Uganda", "Rwanda", "Burundi", "Ethiopia",
-                          "Somalia", "Djibouti", "Eritrea", "South Sudan"],
-            "Central Africa": ["DRC", "Congo", "Cameroon", "Chad", "Central African Republic",
-                              "Gabon", "Equatorial Guinea", "Sao Tome and Principe"],
-            "Southern Africa": ["South Africa", "Zimbabwe", "Zambia", "Botswana", "Namibia",
-                               "Mozambique", "Malawi", "Angola", "Lesotho", "Eswatini", "Madagascar"],
-            "North Africa": ["Egypt", "Morocco", "Algeria", "Tunisia", "Libya", "Sudan"]
-        }
-
-        for region, region_countries in region_mapping.items():
-            for country in countries:
-                if country in region_countries:
-                    return region
-
-        return "Africa"
+    def finish_scan_log(
+                  self,
+                  db: Session,
+                  log: RadarScanLog,
+                  *,
+                  status: str = "completed",
+                  signals_detected: int = 0,
+                  projects_created: int = 0,
+                  projects_updated: int = 0,
+                  error_message: Optional[str] = None,
+    ) -> RadarScanLog:
+                  """Mark a scan-log entry as completed (or failed)."""
+        log.status = status
+        log.completed_at = datetime.utcnow()
+        log.signals_detected = signals_detected
+        log.projects_created = projects_created
+        log.projects_updated = projects_updated
+        if log.started_at:
+                          delta = datetime.utcnow() - log.started_at
+            log.duration_seconds = int(delta.total_seconds())
+        log.error_message = error_message
+        db.commit()
+        db.refresh(log)
+        return log
 
 
-# Singleton instance
-radar_service = RadarIntelligenceService()
+# Module-level singleton
+radar_service = RadarService()

@@ -1,69 +1,76 @@
-# routers/analytics.py
-from fastapi import APIRouter, Depends, HTTPException
+"""
+AIP Analytics Router
+---------------------
+Platform usage and engagement analytics.
+
+Endpoints:
+    POST /api/analytics/track   - Track an analytics event
+    GET  /api/analytics/summary - Summary stats (admin)
+"""
+
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, Depends, Request
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from backend.schemas import AnalyticReport, AnalyticReportCreate
+
 from backend.database import get_db
-from backend import models
+from backend.models import AnalyticsEvent
+from backend.security.auth import get_current_user, require_admin
+from backend.models import User
 
-router = APIRouter(prefix="/analytics", tags=["analytics"])
-
-
-def _get_sector_enum(sector_str: str) -> models.Sector:
-    """Convert sector string to enum."""
-    for s in models.Sector:
-        if s.value == sector_str:
-            return s
-    try:
-        return models.Sector[sector_str.upper()]
-    except KeyError:
-        raise HTTPException(status_code=422, detail=f"Invalid sector: {sector_str}")
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/analytics", tags=["Analytics"])
 
 
-def _serialize_report(report: AnalyticReportCreate) -> dict:
-    """Convert Pydantic model to dict with proper enum types."""
-    data = report.model_dump()
-    if report.sector:
-        data["sector"] = _get_sector_enum(report.sector)
-    return data
+class TrackEvent(BaseModel):
+    event_type: str
+    entity_type: Optional[str] = None
+    entity_id: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
-def _deserialize_report(db_report: models.AnalyticReport) -> AnalyticReport:
-    """Convert database model to Pydantic model."""
-    sector_val = None
-    if db_report.sector:
-        sector_val = db_report.sector.value if hasattr(db_report.sector, 'value') else str(db_report.sector)
-    return AnalyticReport(
-        id=db_report.id,
-        title=db_report.title,
-        sector=sector_val,
-        country=db_report.country,
-        content=db_report.content,
-        created_at=db_report.created_at
+@router.post("/track", status_code=201)
+async def track_event(
+    event_in: TrackEvent,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Track a platform analytics event (no authentication required)."""
+    import json, hashlib
+
+    # Hash the IP address — never store raw IPs
+    client_ip = request.client.host if request.client else "unknown"
+    ip_hash = hashlib.sha256(client_ip.encode()).hexdigest()[:16]
+
+    event = AnalyticsEvent(
+        event_type=event_in.event_type,
+        entity_type=event_in.entity_type,
+        entity_id=event_in.entity_id,
+        event_metadata=json.dumps(event_in.metadata) if event_in.metadata else None,
+        ip_hash=ip_hash,
     )
-
-
-@router.get("/", response_model=list[AnalyticReport])
-def list_reports(db: Session = Depends(get_db)):
-    """List all analytic reports."""
-    db_reports = db.query(models.AnalyticReport).all()
-    return [_deserialize_report(r) for r in db_reports]
-
-
-@router.post("/", response_model=AnalyticReport)
-def create(report: AnalyticReportCreate, db: Session = Depends(get_db)):
-    """Create a new analytic report."""
-    data = _serialize_report(report)
-    db_report = models.AnalyticReport(**data)
-    db.add(db_report)
+    db.add(event)
     db.commit()
-    db.refresh(db_report)
-    return _deserialize_report(db_report)
+    return {"success": True}
 
 
-@router.get("/{report_id}", response_model=AnalyticReport)
-def read(report_id: int, db: Session = Depends(get_db)):
-    """Get an analytic report by ID."""
-    db_report = db.query(models.AnalyticReport).filter(models.AnalyticReport.id == report_id).first()
-    if db_report is None:
-        raise HTTPException(status_code=404, detail="Analytic report not found")
-    return _deserialize_report(db_report)
+@router.get("/summary")
+async def analytics_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Return aggregate analytics summary (admin only)."""
+    from sqlalchemy import func
+
+    total_events = db.query(AnalyticsEvent).count()
+    by_type = (
+        db.query(AnalyticsEvent.event_type, func.count(AnalyticsEvent.id))
+        .group_by(AnalyticsEvent.event_type)
+        .all()
+    )
+    return {
+        "total_events": total_events,
+        "by_type": {event_type: count for event_type, count in by_type},
+    }
