@@ -27,6 +27,13 @@ from backend.routers.verifications import router as verifications_router
 from backend.app.routers.radar import router as radar_router
 from backend.app.routers.infrastructure_map import router as map_router
 
+# PRD v2.0 - New routers for PETFEL, EIN, Pipeline, IC, AI
+from backend.routers.petfel import router as petfel_router
+from backend.routers.ein import router as ein_router
+from backend.routers.pipeline import router as pipeline_router
+from backend.routers.ic import router as ic_router
+from backend.routers.ai import router as ai_router
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -120,6 +127,13 @@ app.include_router(verifications_router)
 app.include_router(airtable_router)
 app.include_router(radar_router, prefix="/api")
 app.include_router(map_router, prefix="/api")
+
+# PRD v2.0 - PETFEL, EIN, Pipeline, IC, AI routes
+app.include_router(petfel_router)  # /petfel/*
+app.include_router(ein_router)     # /ein/*
+app.include_router(pipeline_router)  # /pipeline/*
+app.include_router(ic_router)      # /ic/*
+app.include_router(ai_router)      # /ai/*
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.exists():

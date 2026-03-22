@@ -823,3 +823,420 @@ class AIAnalysisResult(Base):
     requested_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
 
+
+# ============================================================================
+# PETFEL DUE DILIGENCE ENGINE (PRD Section 6)
+# ============================================================================
+
+class PillarType(PyEnum):
+    """PETFEL pillars for due diligence assessment"""
+    POLITICAL = "political"
+    ECONOMIC = "economic"
+    TECHNICAL = "technical"
+    FINANCIAL = "financial"
+    ENVIRONMENTAL = "environmental"
+    LEGAL = "legal"
+
+
+class PETFELRating(PyEnum):
+    """PETFEL rating bands (PRD Section 6.5)"""
+    A = "A"  # 80-100: GO - Investment Ready
+    B = "B"  # 65-79: Near-Ready (GO with conditions)
+    C = "C"  # 50-64: HOLD - Material Gaps
+    D = "D"  # <50: NO-GO - Early Stage / High Risk
+
+
+class AssessmentStatus(PyEnum):
+    """PETFEL assessment workflow status"""
+    DRAFT = "draft"
+    SUBMITTED = "submitted"
+    REVIEWED = "reviewed"
+    APPROVED = "approved"
+
+
+class GatingResult(PyEnum):
+    """PETFEL gating decision"""
+    GO = "GO"
+    HOLD = "HOLD"
+
+
+class FlagType(PyEnum):
+    """PETFEL red flag types (PRD Section 6.6)"""
+    LAND_UNRESOLVED = "land_unresolved"
+    NO_LEGAL_MANDATE = "no_legal_mandate"
+    NO_OFFTAKE = "no_offtake"
+    EIA_RESETTLEMENT = "eia_resettlement"
+    PILLAR_LOW = "pillar_low"
+
+
+class PETFELAssessment(Base):
+    """PETFEL Due Diligence Assessment for a project"""
+    __tablename__ = "petfel_assessments"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    version = Column(Integer, default=1)
+    status = Column(SQLEnum(AssessmentStatus), default=AssessmentStatus.DRAFT)
+
+    # Assessor info
+    assessed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    assessed_at = Column(DateTime, default=datetime.datetime.now)
+
+    # Overall results
+    overall_score = Column(Float, nullable=True)  # 0-100
+    rating = Column(SQLEnum(PETFELRating), nullable=True)
+    gating_result = Column(SQLEnum(GatingResult), nullable=True)
+
+    # Pillar scores (weighted: P=15%, E=15%, T=20%, F=20%, En=15%, L=15%)
+    political_score = Column(Float, nullable=True)
+    economic_score = Column(Float, nullable=True)
+    technical_score = Column(Float, nullable=True)
+    financial_score = Column(Float, nullable=True)
+    environmental_score = Column(Float, nullable=True)
+    legal_score = Column(Float, nullable=True)
+
+    # Recommendation and notes
+    recommendation = Column(String, nullable=True)
+    notes = Column(String, nullable=True)
+
+    # AI augmentation
+    ai_augmented = Column(Boolean, default=False)
+    ai_model_version = Column(String(50), nullable=True)
+    ai_confidence_score = Column(Float, nullable=True)
+    last_analyzed_at = Column(DateTime, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+
+    # Relationships
+    project = relationship("Project")
+    scores = relationship("PETFELScore", back_populates="assessment", cascade="all, delete-orphan")
+    flags = relationship("PETFELFlag", back_populates="assessment", cascade="all, delete-orphan")
+
+
+class PETFELScore(Base):
+    """Individual sub-criteria scores for PETFEL assessment (30 total)"""
+    __tablename__ = "petfel_scores"
+
+    id = Column(Integer, primary_key=True)
+    assessment_id = Column(Integer, ForeignKey("petfel_assessments.id"), nullable=False)
+
+    # Criteria identification
+    pillar = Column(SQLEnum(PillarType), nullable=False)
+    sub_criterion = Column(String(255), nullable=False)
+
+    # Scoring (1-5 scale per PRD Section 6.2)
+    score = Column(Integer, nullable=True)  # 1=Critical, 2=High Risk, 3=Moderate, 4=Low Risk, 5=Best Practice
+    sub_weight = Column(Float, default=0.20)  # Weight within pillar (5 criteria = 0.20 each)
+    weighted_score = Column(Float, nullable=True)  # score * sub_weight
+
+    # Evidence and mitigation
+    evidence_notes = Column(String, nullable=True)
+    mitigation = Column(String, nullable=True)
+    owner = Column(String(255), nullable=True)
+
+    # AI suggestions
+    ai_suggested_score = Column(Integer, nullable=True)
+    ai_rationale = Column(String, nullable=True)
+
+    # Timestamps
+    scored_at = Column(DateTime, nullable=True)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+
+    # Relationships
+    assessment = relationship("PETFELAssessment", back_populates="scores")
+
+
+class PETFELFlag(Base):
+    """Risk flags identified during PETFEL assessment"""
+    __tablename__ = "petfel_flags"
+
+    id = Column(Integer, primary_key=True)
+    assessment_id = Column(Integer, ForeignKey("petfel_assessments.id"), nullable=False)
+
+    # Flag details
+    flag_type = Column(SQLEnum(FlagType), nullable=False)
+    pillar = Column(String(50), nullable=True)
+    description = Column(String, nullable=False)
+
+    # Resolution tracking
+    is_resolved = Column(Boolean, default=False)
+    resolved_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    resolved_at = Column(DateTime, nullable=True)
+    resolution_notes = Column(String, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.datetime.now)
+
+    # Relationships
+    assessment = relationship("PETFELAssessment", back_populates="flags")
+
+
+# ============================================================================
+# EXECUTIVE INVESTMENT NOTE (EIN) - PRD Section 7
+# ============================================================================
+
+class EINStatus(PyEnum):
+    """EIN workflow status"""
+    DRAFT = "draft"
+    IN_REVIEW = "in_review"
+    APPROVED = "approved"
+    SENT = "sent"
+
+
+class Recommendation(PyEnum):
+    """EIN recommendation"""
+    GO = "go"
+    HOLD = "hold"
+    NO_GO = "no_go"
+
+
+class ExecutiveNote(Base):
+    """Executive Investment Note (EIN) - 9 section investment memo"""
+    __tablename__ = "executive_notes"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+
+    # EIN metadata
+    title = Column(String(500), nullable=True)  # Auto: {Project Name} — EIN v{version}
+    version = Column(Integer, default=1)
+    status = Column(SQLEnum(EINStatus), default=EINStatus.DRAFT)
+
+    # Author and reviewers
+    author_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Key content
+    executive_summary = Column(String, nullable=True)
+    recommendation = Column(SQLEnum(Recommendation), nullable=True)
+    key_gaps = Column(String, nullable=True)
+    next_steps = Column(String, nullable=True)
+
+    # PETFEL linkage
+    petfel_assessment_id = Column(Integer, ForeignKey("petfel_assessments.id"), nullable=True)
+    petfel_score = Column(Float, nullable=True)  # Rollup from assessment
+    red_flags_count = Column(Integer, default=0)
+
+    # Export status
+    export_ready = Column(Boolean, default=False)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+    approved_at = Column(DateTime, nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    project = relationship("Project")
+    petfel_assessment = relationship("PETFELAssessment")
+    sections = relationship("EINSection", back_populates="ein", cascade="all, delete-orphan")
+
+
+class EINSection(Base):
+    """Individual sections of an Executive Investment Note (9 sections per PRD 7.3)"""
+    __tablename__ = "ein_sections"
+
+    id = Column(Integer, primary_key=True)
+    ein_id = Column(Integer, ForeignKey("executive_notes.id"), nullable=False)
+
+    # Section identification (0-8 per PRD)
+    section_code = Column(Integer, nullable=False)  # 0=Cover, 1=Strategy, 2=Political, etc.
+    section_name = Column(String(255), nullable=False)
+
+    # Content
+    content = Column(String, nullable=True)  # Markdown narrative
+
+    # Generation tracking
+    generated_by = Column(String(50), nullable=True)  # 'ai' | 'analyst' | 'hybrid'
+    ai_prompt_used = Column(String, nullable=True)
+
+    # Review status
+    is_reviewed = Column(Boolean, default=False)
+    reviewed_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    updated_at = Column(DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now)
+
+    # Relationships
+    ein = relationship("ExecutiveNote", back_populates="sections")
+
+
+# ============================================================================
+# PIPELINE & AUDIT TRAIL - PRD Section 4.3
+# ============================================================================
+
+class PipelineStageEnum(PyEnum):
+    """Pipeline stages per PRD"""
+    SOURCING = "sourcing"
+    SCREENING = "screening"
+    DILIGENCE = "diligence"
+    IC = "ic"
+    EXECUTION = "execution"
+
+
+class PipelineStage(Base):
+    """Pipeline stage configuration with SLA"""
+    __tablename__ = "pipeline_stages"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(100), nullable=False)
+    code = Column(String(50), unique=True, nullable=False)
+    order_index = Column(Integer, nullable=False)
+    sla_days = Column(Integer, nullable=True)  # Max days allowed in this stage
+    description = Column(String, nullable=True)
+    is_active = Column(Boolean, default=True)
+
+    created_at = Column(DateTime, default=datetime.datetime.now)
+
+
+class PipelineLog(Base):
+    """Immutable audit trail for pipeline movements (INSERT-ONLY per PRD)"""
+    __tablename__ = "pipeline_logs"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+
+    # Stage movement
+    from_stage = Column(String(50), nullable=True)  # NULL for initial entry
+    to_stage = Column(String(50), nullable=False)
+
+    # Actor and context
+    changed_by = Column(Integer, ForeignKey("users.id"), nullable=False)
+    timestamp = Column(DateTime, default=datetime.datetime.now, nullable=False)
+    notes = Column(String, nullable=True)
+
+    # SLA tracking
+    days_in_previous_stage = Column(Integer, nullable=True)
+    sla_breached = Column(Boolean, default=False)
+
+    # NOTE: No updated_at - this table is INSERT-ONLY for audit compliance
+
+    # Relationships
+    project = relationship("Project")
+
+
+# ============================================================================
+# INVESTMENT COMMITTEE (IC) GOVERNANCE - PRD Section 4.6
+# ============================================================================
+
+class VoteDecision(PyEnum):
+    """IC vote options"""
+    APPROVE = "approve"
+    REJECT = "reject"
+    DEFER = "defer"
+    ABSTAIN = "abstain"
+
+
+class InvestmentCommittee(Base):
+    """Investment Committee meeting/session"""
+    __tablename__ = "investment_committees"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    ein_id = Column(Integer, ForeignKey("executive_notes.id"), nullable=True)
+
+    # Meeting details
+    scheduled_date = Column(DateTime, nullable=False)
+    meeting_type = Column(String(50), default="regular")  # regular, extraordinary
+
+    # Status and decision
+    status = Column(String(50), default="scheduled")  # scheduled, in_progress, completed, cancelled
+    decision = Column(String(50), nullable=True)  # approved, rejected, deferred
+    decision_notes = Column(String, nullable=True)
+
+    # Quorum
+    quorum_required = Column(Integer, default=3)
+    quorum_met = Column(Boolean, default=False)
+
+    # Attendees
+    attendees = Column(String, nullable=True)  # JSON array of user IDs
+
+    # Timestamps
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    completed_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    project = relationship("Project")
+    ein = relationship("ExecutiveNote")
+    votes = relationship("ICVote", back_populates="committee", cascade="all, delete-orphan")
+
+
+class ICVote(Base):
+    """Individual IC member vote on a project"""
+    __tablename__ = "ic_votes"
+
+    id = Column(Integer, primary_key=True)
+    committee_id = Column(Integer, ForeignKey("investment_committees.id"), nullable=False)
+
+    # Voter
+    voter_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+
+    # Vote details
+    vote = Column(SQLEnum(VoteDecision), nullable=False)
+    rationale = Column(String, nullable=True)
+    conditions = Column(String, nullable=True)  # JSON array of conditions if any
+
+    # Timestamp
+    voted_at = Column(DateTime, default=datetime.datetime.now)
+
+    # Relationships
+    committee = relationship("InvestmentCommittee", back_populates="votes")
+
+
+# ============================================================================
+# AI INTELLIGENCE LAYER - PRD Section 9
+# ============================================================================
+
+class AIAnalysis(Base):
+    """AI-generated analyses for projects"""
+    __tablename__ = "ai_analyses"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+
+    # Analysis type
+    analysis_type = Column(String(50), nullable=False)  # full, country_risk, sector, petfel_augment, ein_draft
+
+    # Content
+    content = Column(String, nullable=True)  # Main analysis text
+    model_version = Column(String(100), nullable=True)
+    raw_response = Column(String, nullable=True)  # JSON of full API response
+
+    # Metadata
+    generated_at = Column(DateTime, default=datetime.datetime.now)
+    tokens_used = Column(Integer, nullable=True)
+    processing_time_ms = Column(Integer, nullable=True)
+
+    # Relationships
+    project = relationship("Project")
+
+
+class PartnerMatch(Base):
+    """Investor-project matching results"""
+    __tablename__ = "partner_matches"
+
+    id = Column(Integer, primary_key=True)
+    project_id = Column(Integer, ForeignKey("projects.id"), nullable=False)
+    investor_id = Column(Integer, ForeignKey("investors.id"), nullable=False)
+
+    # Match scoring (per PRD Section 9.3)
+    match_score = Column(Float, nullable=False)  # 0-100
+    sector_score = Column(Float, nullable=True)  # 30% weight
+    geography_score = Column(Float, nullable=True)  # 25% weight
+    ticket_score = Column(Float, nullable=True)  # 20% weight
+    risk_score = Column(Float, nullable=True)  # 15% weight
+    strategic_score = Column(Float, nullable=True)  # 10% weight
+
+    # Status
+    status = Column(String(50), default="suggested")  # suggested, contacted, engaged, closed
+
+    # Timestamps
+    run_at = Column(DateTime, default=datetime.datetime.now)
+    contacted_at = Column(DateTime, nullable=True)
+
+    # Relationships
+    project = relationship("Project")
+    investor = relationship("Investor")
+
