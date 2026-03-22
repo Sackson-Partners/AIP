@@ -355,4 +355,428 @@ export interface Event extends EventCreate {
   id: number;
 }
 
+// ============================================================================
+// PETFEL Types & API
+// ============================================================================
+
+export interface PETFELCriterion {
+  pillar: string;
+  code: string;
+  name: string;
+  weight: number;
+}
+
+export interface PETFELScore {
+  id: number;
+  pillar: string;
+  sub_criterion: string;
+  score: number;
+  evidence_notes?: string;
+  mitigation?: string;
+  owner?: string;
+}
+
+export interface PETFELFlag {
+  id: number;
+  flag_type: string;
+  pillar: string;
+  description: string;
+  is_resolved: boolean;
+}
+
+export interface PETFELAssessment {
+  id: number;
+  project_id: number;
+  version: number;
+  status: string;
+  overall_score?: number;
+  rating?: string;
+  gating_result?: string;
+  recommendation?: string;
+  pillar_scores?: Record<string, number>;
+  scores: PETFELScore[];
+  flags: PETFELFlag[];
+  created_at: string;
+  assessed_at?: string;
+}
+
+export interface ScoreInput {
+  pillar: string;
+  sub_criterion: string;
+  score: number;
+  evidence_notes?: string;
+  mitigation?: string;
+  owner?: string;
+}
+
+export const petfelApi = {
+  getCriteria: async (): Promise<Record<string, PETFELCriterion[]>> => {
+    const response = await api.get('/petfel/criteria');
+    return response.data;
+  },
+  createAssessment: async (projectId: number): Promise<PETFELAssessment> => {
+    const response = await api.post(`/petfel/assess/${projectId}`);
+    return response.data;
+  },
+  getAssessment: async (projectId: number): Promise<PETFELAssessment> => {
+    const response = await api.get(`/petfel/${projectId}`);
+    return response.data;
+  },
+  getAssessmentById: async (assessmentId: number): Promise<PETFELAssessment> => {
+    const response = await api.get(`/petfel/assessment/${assessmentId}`);
+    return response.data;
+  },
+  updateScores: async (assessmentId: number, scores: ScoreInput[]): Promise<PETFELAssessment> => {
+    const response = await api.post(`/petfel/${assessmentId}/score`, { scores });
+    return response.data;
+  },
+  calculate: async (assessmentId: number): Promise<PETFELAssessment> => {
+    const response = await api.post(`/petfel/${assessmentId}/calculate`);
+    return response.data;
+  },
+  submit: async (assessmentId: number): Promise<PETFELAssessment> => {
+    const response = await api.post(`/petfel/${assessmentId}/submit`);
+    return response.data;
+  },
+  listAssessments: async (projectId?: number): Promise<PETFELAssessment[]> => {
+    const params = projectId ? { project_id: projectId } : {};
+    const response = await api.get('/petfel/assessments', { params });
+    return response.data;
+  },
+};
+
+// ============================================================================
+// EIN (Executive Investment Note) Types & API
+// ============================================================================
+
+export interface EINSection {
+  id: number;
+  section_code: number;
+  section_name: string;
+  content?: string;
+  generated_by?: string;
+  is_reviewed: boolean;
+  updated_at: string;
+}
+
+export interface EIN {
+  id: number;
+  project_id: number;
+  title?: string;
+  version: number;
+  status: string;
+  author_id?: number;
+  executive_summary?: string;
+  recommendation?: string;
+  key_gaps?: string;
+  next_steps?: string;
+  petfel_assessment_id?: number;
+  petfel_score?: number;
+  red_flags_count: number;
+  export_ready: boolean;
+  sections: EINSection[];
+  created_at: string;
+  updated_at: string;
+  approved_at?: string;
+  sent_at?: string;
+}
+
+export interface EINTemplate {
+  code: number;
+  name: string;
+  objective: string;
+  key_questions: string[];
+  output_guidance: string;
+}
+
+export const einApi = {
+  getTemplates: async (): Promise<EINTemplate[]> => {
+    const response = await api.get('/ein/templates');
+    return response.data;
+  },
+  create: async (projectId: number, petfelAssessmentId?: number): Promise<EIN> => {
+    const response = await api.post(`/ein/${projectId}`, {
+      project_id: projectId,
+      petfel_assessment_id: petfelAssessmentId,
+    });
+    return response.data;
+  },
+  get: async (projectId: number): Promise<EIN> => {
+    const response = await api.get(`/ein/${projectId}`);
+    return response.data;
+  },
+  getById: async (einId: number): Promise<EIN> => {
+    const response = await api.get(`/ein/note/${einId}`);
+    return response.data;
+  },
+  getApproved: async (projectId: number): Promise<EIN> => {
+    const response = await api.get(`/ein/${projectId}/approved`);
+    return response.data;
+  },
+  updateSection: async (einId: number, sectionCode: number, content: string, generatedBy: string = 'analyst'): Promise<EINSection> => {
+    const response = await api.put(`/ein/${einId}/section/${sectionCode}`, {
+      content,
+      generated_by: generatedBy,
+    });
+    return response.data;
+  },
+  reviewSection: async (einId: number, sectionCode: number): Promise<EINSection> => {
+    const response = await api.post(`/ein/${einId}/section/${sectionCode}/review`);
+    return response.data;
+  },
+  updateSummary: async (einId: number, data: {
+    executive_summary: string;
+    recommendation: string;
+    key_gaps?: string;
+    next_steps?: string;
+  }): Promise<EIN> => {
+    const response = await api.put(`/ein/${einId}/summary`, data);
+    return response.data;
+  },
+  submit: async (einId: number): Promise<EIN> => {
+    const response = await api.post(`/ein/${einId}/submit`);
+    return response.data;
+  },
+  approve: async (einId: number): Promise<EIN> => {
+    const response = await api.post(`/ein/${einId}/approve`);
+    return response.data;
+  },
+  markSent: async (einId: number): Promise<EIN> => {
+    const response = await api.post(`/ein/${einId}/send`);
+    return response.data;
+  },
+  validate: async (einId: number): Promise<{ is_valid: boolean; issues: string[] }> => {
+    const response = await api.get(`/ein/${einId}/validate`);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// AI Intelligence API
+// ============================================================================
+
+export interface AIAnalysisResult {
+  project_id: number;
+  analysis_type: string;
+  content: string;
+  confidence_score?: number;
+  sources?: string[];
+  created_at: string;
+}
+
+export interface AIEINDraft {
+  ein_draft: string;
+  sections: Record<number, string>;
+  executive_summary: string;
+  recommendation: string;
+}
+
+export const aiApi = {
+  analyzeProject: async (projectId: number): Promise<AIAnalysisResult> => {
+    const response = await api.post(`/ai/analyze/${projectId}`);
+    return response.data;
+  },
+  generateEIN: async (projectId: number): Promise<AIEINDraft> => {
+    const response = await api.post(`/ai/generate-ein/${projectId}`);
+    return response.data;
+  },
+  augmentPETFEL: async (assessmentId: number): Promise<{ augmented_scores: ScoreInput[]; suggestions: string[] }> => {
+    const response = await api.post(`/ai/petfel-augment/${assessmentId}`);
+    return response.data;
+  },
+  countryRisk: async (country: string): Promise<{ country: string; risk_brief: string; risk_factors: Record<string, string> }> => {
+    const response = await api.post(`/ai/country-risk/${country}`);
+    return response.data;
+  },
+  runMatching: async (projectId: number): Promise<{ matches: { investor_id: number; score: number; rationale: string }[] }> => {
+    const response = await api.post(`/ai/matching/run/${projectId}`);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// Pipeline Management API
+// ============================================================================
+
+export interface PipelineStage {
+  id: number;
+  name: string;
+  code: string;
+  order_index: number;
+  sla_days?: number;
+  description?: string;
+}
+
+export interface PipelineLog {
+  id: number;
+  project_id: number;
+  from_stage?: string;
+  to_stage: string;
+  changed_by: number;
+  timestamp: string;
+  notes?: string;
+  days_in_previous_stage?: number;
+  sla_breached: boolean;
+}
+
+export interface ProjectPipelineStatus {
+  project_id: number;
+  project_name: string;
+  current_stage: string;
+  entered_at: string;
+  days_in_stage: number;
+  sla_days?: number;
+  sla_status: string;
+  sla_remaining?: number;
+}
+
+export const pipelineApi = {
+  getStages: async (): Promise<PipelineStage[]> => {
+    const response = await api.get('/pipeline/stages');
+    return response.data;
+  },
+  move: async (projectId: number, toStage: string, notes?: string): Promise<PipelineLog> => {
+    const response = await api.post('/pipeline/move', {
+      project_id: projectId,
+      to_stage: toStage,
+      notes,
+    });
+    return response.data;
+  },
+  getHistory: async (projectId: number): Promise<PipelineLog[]> => {
+    const response = await api.get(`/pipeline/history/${projectId}`);
+    return response.data;
+  },
+  getProjectStatus: async (projectId: number): Promise<ProjectPipelineStatus> => {
+    const response = await api.get(`/pipeline/project/${projectId}`);
+    return response.data;
+  },
+  getOverview: async () => {
+    const response = await api.get('/pipeline/overview');
+    return response.data;
+  },
+  getSLAAlerts: async (): Promise<ProjectPipelineStatus[]> => {
+    const response = await api.get('/pipeline/sla-alerts');
+    return response.data;
+  },
+};
+
+// ============================================================================
+// Investment Committee (IC) API
+// ============================================================================
+
+export interface ICCommittee {
+  id: number;
+  project_id: number;
+  ein_id?: number;
+  scheduled_date: string;
+  meeting_type: string;
+  status: string;
+  decision?: string;
+  decision_notes?: string;
+  quorum_required: number;
+  quorum_met: boolean;
+  vote_count: number;
+  approve_count: number;
+  reject_count: number;
+  defer_count: number;
+  created_at: string;
+  completed_at?: string;
+  votes: ICVote[];
+}
+
+export interface ICVote {
+  id: number;
+  committee_id: number;
+  voter_id: number;
+  vote: string;
+  rationale?: string;
+  conditions?: string;
+  voted_at: string;
+}
+
+export const icApi = {
+  createCommittee: async (data: {
+    project_id: number;
+    ein_id?: number;
+    scheduled_date: string;
+    meeting_type?: string;
+    quorum_required?: number;
+  }): Promise<ICCommittee> => {
+    const response = await api.post('/ic/committees', data);
+    return response.data;
+  },
+  listCommittees: async (status?: string): Promise<ICCommittee[]> => {
+    const params = status ? { status_filter: status } : {};
+    const response = await api.get('/ic/committees', { params });
+    return response.data;
+  },
+  getCommittee: async (committeeId: number): Promise<ICCommittee> => {
+    const response = await api.get(`/ic/committees/${committeeId}`);
+    return response.data;
+  },
+  startMeeting: async (committeeId: number): Promise<ICCommittee> => {
+    const response = await api.post(`/ic/committees/${committeeId}/start`);
+    return response.data;
+  },
+  submitVote: async (committeeId: number, vote: string, rationale?: string, conditions?: string): Promise<ICVote> => {
+    const response = await api.post(`/ic/committees/${committeeId}/vote`, {
+      vote,
+      rationale,
+      conditions,
+    });
+    return response.data;
+  },
+  getVotes: async (committeeId: number): Promise<ICVote[]> => {
+    const response = await api.get(`/ic/committees/${committeeId}/votes`);
+    return response.data;
+  },
+  completeMeeting: async (committeeId: number, decision: string, decisionNotes?: string): Promise<ICCommittee> => {
+    const response = await api.post(`/ic/committees/${committeeId}/complete`, {
+      decision,
+      decision_notes: decisionNotes,
+    });
+    return response.data;
+  },
+  cancelMeeting: async (committeeId: number): Promise<ICCommittee> => {
+    const response = await api.post(`/ic/committees/${committeeId}/cancel`);
+    return response.data;
+  },
+  getProjectHistory: async (projectId: number) => {
+    const response = await api.get(`/ic/projects/${projectId}/history`);
+    return response.data;
+  },
+};
+
+// ============================================================================
+// User Roles & Profile
+// ============================================================================
+
+export type UserRole = 'admin' | 'project_manager' | 'analyst' | 'investor' | 'viewer';
+
+export interface UserProfile {
+  id: number;
+  email: string;
+  full_name: string;
+  role: UserRole;
+  phone?: string;
+  organization?: string;
+  created_at: string;
+}
+
+export const usersApi = {
+  getProfile: async (): Promise<UserProfile> => {
+    const response = await api.get('/auth/me');
+    return response.data;
+  },
+  updateProfile: async (data: Partial<UserProfile>): Promise<UserProfile> => {
+    const response = await api.put('/auth/me', data);
+    return response.data;
+  },
+  listUsers: async (): Promise<UserProfile[]> => {
+    const response = await api.get('/auth/users');
+    return response.data;
+  },
+};
+
 export default api;
