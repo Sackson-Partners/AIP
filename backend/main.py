@@ -25,13 +25,14 @@ from backend.routers.investors import router as investors_router
 from backend.routers.projects import router as projects_router
 from backend.routers.ai import router as ai_router
 from backend.routers.verifications import router as verifications_router
-# AIP v2 — PETFEL DD Engine, EIN, Pipeline, IC Governance, Matching, Radar
+# AIP v2 — PETFEL DD Engine, EIN, Pipeline, IC Governance, Matching, Radar, Documents
 from backend.routers.petfel import router as petfel_router
 from backend.routers.ein import router as ein_router
 from backend.routers.pipeline import router as pipeline_router
 from backend.routers.ic import router as ic_router
 from backend.routers.matching import router as matching_router
 from backend.routers.radar import router as radar_router
+from backend.routers.documents import router as documents_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -145,6 +146,7 @@ app.include_router(pipeline_router)
 app.include_router(ic_router)
 app.include_router(matching_router)
 app.include_router(radar_router)
+app.include_router(documents_router)
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.exists():

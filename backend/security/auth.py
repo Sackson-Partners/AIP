@@ -182,6 +182,49 @@ async def require_admin(
     return current_user
 
 
+async def require_analyst(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Require the user to be an admin or analyst."""
+    if current_user.role not in ("admin", "analyst"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Analyst access required.",
+        )
+    return current_user
+
+
+async def require_ic_member(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Require the user to be an IC member or admin."""
+    if current_user.role not in ("admin", "ic_member"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="IC Member access required.",
+        )
+    return current_user
+
+
+def require_roles(allowed_roles: list[str]):
+    """
+    Factory that returns a FastAPI dependency enforcing a set of allowed roles.
+
+    Usage:
+        @router.post("/endpoint")
+        async def endpoint(user = Depends(require_roles(["admin", "analyst"]))):
+            ...
+    """
+    async def _check(current_user: User = Depends(get_current_user)) -> User:
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"One of these roles required: {allowed_roles}",
+            )
+        return current_user
+    return _check
+
+
 # ---------------------------------------------------------------------------
 # User Authentication Helper
 # ---------------------------------------------------------------------------

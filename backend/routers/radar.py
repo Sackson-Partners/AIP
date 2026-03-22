@@ -56,7 +56,7 @@ class RadarScanRequest(BaseModel):
 # ---------------------------------------------------------------------------
 
 
-@router.get("")
+@router.get("/results")
 async def get_radar_results(
     db:           Session = Depends(get_db),
     current_user: User    = Depends(get_current_user),

@@ -113,7 +113,7 @@ def _compute_overall_score(scores: list[PetfelScore]) -> tuple[float, str, str]:
         if s.score is not None and s.pillar in pillar_scores:
             # Normalise 1-5 score to 0-100 range using weight
             normalised = ((s.score - 1) / 4) * 100  # 1→0, 5→100
-            weighted   = normalised * (s.sub_weight or 0.20)
+            weighted   = normalised * float(s.sub_weight or 0.20)
             pillar_scores[s.pillar].append(weighted)
             if s.score <= 2 and s.mitigation is None:
                 critical_flags = True
