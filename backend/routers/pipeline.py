@@ -1,6 +1,5 @@
 """
 AIP Pipeline Management Router
-================================
 Tracks the full deal lifecycle with an immutable audit trail.
 
 Stages: sourcing → screening → diligence → ic → execution

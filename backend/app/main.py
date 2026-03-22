@@ -26,6 +26,15 @@ from backend.routers.introductions import router as introductions_router
 from backend.routers.investors import router as investors_router
 from backend.routers.projects import router as projects_router
 from backend.routers.verifications import router as verifications_router
+from backend.app.routers.radar import router as radar_router
+from backend.app.routers.infrastructure_map import router as map_router
+
+# PRD v2.0 - New routers for PETFEL, EIN, Pipeline, IC, AI
+from backend.routers.petfel import router as petfel_router
+from backend.routers.ein import router as ein_router
+from backend.routers.pipeline import router as pipeline_router
+from backend.routers.ic import router as ic_router
+from backend.routers.ai import router as ai_router
 
 # New app-level routers
 from app.routers.radar import router as radar_router
@@ -123,6 +132,15 @@ app.include_router(analytics_router)
 app.include_router(events_router)
 app.include_router(verifications_router)
 app.include_router(airtable_router)
+app.include_router(radar_router, prefix="/api")
+app.include_router(map_router, prefix="/api")
+
+# PRD v2.0 - PETFEL, EIN, Pipeline, IC, AI routes
+app.include_router(petfel_router)  # /petfel/*
+app.include_router(ein_router)     # /ein/*
+app.include_router(pipeline_router)  # /pipeline/*
+app.include_router(ic_router)      # /ic/*
+app.include_router(ai_router)      # /ai/*
 
 # ── New feature routers ───────────────────────────────────────────────────────
 app.include_router(radar_router, prefix="/api")
