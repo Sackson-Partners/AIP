@@ -1,22 +1,30 @@
 import axios from 'axios';
 import { supabase } from '@/lib/supabase';
+import { getMsalInstance, acquireAccessToken } from '@/lib/azure-auth';
 
-// API URL configuration
-// In development (localhost), use local backend
-// In production, use NEXT_PUBLIC_API_URL env variable
+// ============================================================================
+// Auth Provider Configuration
+// ============================================================================
+
+export type AuthProvider = 'supabase' | 'azure_b2c';
+
+// Set via environment variable: NEXT_PUBLIC_AUTH_PROVIDER=azure_b2c
+const AUTH_PROVIDER: AuthProvider = (process.env.NEXT_PUBLIC_AUTH_PROVIDER as AuthProvider) || 'supabase';
+
+// ============================================================================
+// API URL Configuration
+// ============================================================================
+
 const getApiUrl = () => {
-  // If env variable is set, use it
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // In browser, check if we're on localhost
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:8000';
     }
   }
-  // Default for production
   return 'https://web-production-8e81a.up.railway.app';
 };
 
@@ -29,35 +37,77 @@ const api = axios.create({
   },
 });
 
-// Add auth token to requests (Supabase)
+// ============================================================================
+// Token Acquisition Functions
+// ============================================================================
+
+async function getSupabaseToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
+
+async function getAzureB2CToken(): Promise<string | null> {
+  try {
+    const msalInstance = getMsalInstance();
+    if (!msalInstance) return null;
+    return await acquireAccessToken(msalInstance);
+  } catch {
+    return null;
+  }
+}
+
+async function getAuthToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+
+  if (AUTH_PROVIDER === 'azure_b2c') {
+    return getAzureB2CToken();
+  }
+  return getSupabaseToken();
+}
+
+// ============================================================================
+// Request Interceptor - Add Auth Token
+// ============================================================================
+
 api.interceptors.request.use(async (config) => {
   if (typeof window !== 'undefined') {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      config.headers.Authorization = `Bearer ${session.access_token}`;
+    const token = await getAuthToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
   }
   return config;
 });
+
+// ============================================================================
+// Response Interceptor - Handle Auth Errors
+// ============================================================================
 
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        // Only sign out if the user's session is genuinely expired/missing.
-        // Don't sign out on authorization errors (e.g. insufficient permissions)
-        // where the session itself is still valid.
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
-          await supabase.auth.signOut();
-          window.location.href = '/login';
+        if (AUTH_PROVIDER === 'azure_b2c') {
+          // Azure AD B2C: Let MSAL handle token refresh
+          // The AzureAuthContext will trigger re-auth if needed
+          console.warn('Azure AD B2C token expired or invalid');
+        } else {
+          // Supabase: Check if session is missing
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            await supabase.auth.signOut();
+            window.location.href = '/login';
+          }
         }
       }
     }
     return Promise.reject(error);
   }
 );
+
+// Export auth provider for conditional logic elsewhere
+export { AUTH_PROVIDER };
 
 // Auth API
 export const authApi = {
