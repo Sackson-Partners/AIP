@@ -25,6 +25,13 @@ from backend.routers.investors import router as investors_router
 from backend.routers.projects import router as projects_router
 from backend.routers.ai import router as ai_router
 from backend.routers.verifications import router as verifications_router
+# AIP v2 — PETFEL DD Engine, EIN, Pipeline, IC Governance, Matching, Radar
+from backend.routers.petfel import router as petfel_router
+from backend.routers.ein import router as ein_router
+from backend.routers.pipeline import router as pipeline_router
+from backend.routers.ic import router as ic_router
+from backend.routers.matching import router as matching_router
+from backend.routers.radar import router as radar_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -64,9 +71,14 @@ def _get_cors_origins():
 
 
 app = FastAPI(
-    title="AIP API",
-    description="Africa Infrastructure Projects",
-    version="2.0.0",
+    title="AIP API — African Infrastructure Partners",
+    description=(
+        "Institutional-grade deal origination, PETFEL due diligence, EIN generation, "
+        "and AI-powered capital matching for African infrastructure investment. "
+        "v2.1 adds PETFEL Engine, Executive Investment Notes, Pipeline Audit Trail, "
+        "IC Governance, Investor Matching, and Infrastructure Radar (Kazi)."
+    ),
+    version="2.1.0",
     lifespan=lifespan,
 )
 
@@ -93,7 +105,11 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 @app.get("/", tags=["Health"])
 def root():
-    return {"status": "AIP API is running", "version": "2.0.0"}
+    return {
+        "status": "AIP API is running",
+        "version": "2.1.0",
+        "features": ["petfel", "ein", "pipeline", "ic_governance", "matching", "radar"],
+    }
 
 
 @app.get("/health", tags=["Health"])
@@ -122,6 +138,13 @@ app.include_router(events_router)
 app.include_router(verifications_router)
 app.include_router(ai_router)
 app.include_router(airtable_router)
+# AIP v2 routers
+app.include_router(petfel_router)
+app.include_router(ein_router)
+app.include_router(pipeline_router)
+app.include_router(ic_router)
+app.include_router(matching_router)
+app.include_router(radar_router)
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.exists():

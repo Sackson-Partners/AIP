@@ -374,3 +374,14 @@ class Verification(Base):
 
     # Relationships
     user = relationship("User", back_populates="verifications")
+
+# AIP v2 extended models — PETFEL, EIN, Pipeline, IC, AI
+from backend.models_aip_v2 import (
+    Organization, Partner, PartnerProject,
+    ProjectDetail,
+    PipelineStage, ProjectPipeline, PipelineLog,
+    PetfelAssessment, PetfelScore, PetfelFlag,
+    ExecutiveNote, EINSection,
+    InvestmentCommittee, ICVote,
+    AiAnalysis, InvestorMatch,
+)
