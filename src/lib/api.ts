@@ -16,8 +16,8 @@ const getApiUrl = () => {
       return 'http://localhost:8000';
     }
   }
-  // Default for production
-  return 'https://web-production-8e81a.up.railway.app';
+  // Default for production (Azure Container App)
+  return 'https://aip-api.yellowfield-a5f6cbee.eastus.azurecontainerapps.io';
 };
 
 const API_BASE_URL = getApiUrl();
