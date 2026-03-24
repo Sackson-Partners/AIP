@@ -128,25 +128,24 @@ export const authApi = {
 
 // Projects API
 export const projectsApi = {
-  list: async (params?: { sector?: string; country?: string; stage?: string }) => {
-    const response = await api.get('/projects/', { params });
+  list: async (params?: { sector?: string; country?: string; status?: string; region?: string }) => {
+    const response = await api.get('/projects', { params });
     return response.data;
   },
-  get: async (id: number) => {
+  get: async (id: string) => {
     const response = await api.get(`/projects/${id}`);
     return response.data;
   },
   create: async (project: ProjectCreate) => {
-    const response = await api.post('/projects/', project);
+    const response = await api.post('/projects', project);
     return response.data;
   },
-  update: async (id: number, project: Partial<ProjectCreate>) => {
+  update: async (id: string, project: Partial<ProjectCreate>) => {
     const response = await api.put(`/projects/${id}`, project);
     return response.data;
   },
-  delete: async (id: number) => {
-    const response = await api.delete(`/projects/${id}`);
-    return response.data;
+  delete: async (id: string) => {
+    await api.delete(`/projects/${id}`);
   },
 };
 
@@ -272,34 +271,23 @@ export const eventsApi = {
 
 // Types
 export interface ProjectCreate {
-  name: string;
-  sector: string;
-  country: string;
+  project_name: string;
+  country?: string;
   region?: string;
-  gps_location?: string;
-  stage: string;
-  estimated_capex: number;
-  funding_gap?: number;
-  timeline_fid?: string;
-  timeline_cod?: string;
-  revenue_model: string;
-  offtaker?: string;
-  tariff_mechanism?: string;
-  concession_length?: number;
-  fx_exposure?: string;
-  political_risk_mitigation?: string;
-  sovereign_support?: string;
-  technology?: string;
-  epc_status?: string;
-  land_acquisition_status?: string;
-  esg_category?: string;
-  permits_status?: string;
+  sector?: string;
+  project_type?: string;
+  estimated_cost?: string;
+  status?: string;
+  description?: string;
+  strategic_notes?: string;
+  latitude?: number;
+  longitude?: number;
+  source_url?: string;
 }
 
 export interface Project extends ProjectCreate {
-  id: number;
-  created_at: string;
-  updated_at: string;
+  id: string;
+  has_ai_brief: boolean;
 }
 
 export interface InvestorCreate {
@@ -796,6 +784,11 @@ export const icApi = {
     const response = await api.get(`/ic/projects/${projectId}/history`);
     return response.data;
   },
+  // Record final IC decision (approve / reject / defer)
+  recordDecision: async (committeeId: number | string, outcome: string, outcome_notes?: string) => {
+    const response = await api.post(`/ic/committees/${committeeId}/decide`, { outcome, outcome_notes });
+    return response.data;
+  },
 };
 
 // ============================================================================
@@ -823,8 +816,46 @@ export const usersApi = {
     const response = await api.put('/auth/me', data);
     return response.data;
   },
-  listUsers: async (): Promise<UserProfile[]> => {
-    const response = await api.get('/auth/users');
+  // Admin user management — backed by /api/users
+  listUsers: async (params?: { role?: string; search?: string }): Promise<UserProfile[]> => {
+    const response = await api.get('/users', { params });
+    return response.data;
+  },
+  getUser: async (id: string): Promise<UserProfile> => {
+    const response = await api.get(`/users/${id}`);
+    return response.data;
+  },
+  createUser: async (data: {
+    email: string;
+    password: string;
+    full_name?: string;
+    organisation?: string;
+    role?: string;
+  }): Promise<UserProfile> => {
+    const response = await api.post('/users', data);
+    return response.data;
+  },
+  updateUser: async (id: string, data: Partial<UserProfile>): Promise<UserProfile> => {
+    const response = await api.put(`/users/${id}`, data);
+    return response.data;
+  },
+  deleteUser: async (id: string): Promise<void> => {
+    await api.delete(`/users/${id}`);
+  },
+  activateUser: async (id: string): Promise<{ message: string }> => {
+    const response = await api.post(`/users/${id}/activate`);
+    return response.data;
+  },
+  deactivateUser: async (id: string): Promise<{ message: string }> => {
+    const response = await api.post(`/users/${id}/deactivate`);
+    return response.data;
+  },
+  verifyUser: async (id: string): Promise<{ message: string }> => {
+    const response = await api.post(`/users/${id}/verify`);
+    return response.data;
+  },
+  getStats: async () => {
+    const response = await api.get('/users/stats/summary');
     return response.data;
   },
 };

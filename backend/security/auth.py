@@ -103,9 +103,38 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
+def _decode_supabase_token(token: str) -> Optional[TokenData]:
+    """
+    Try to decode a Supabase JWT using SUPABASE_JWT_SECRET.
+    Returns TokenData if successful, None if Supabase is not configured or token is not a Supabase token.
+    """
+    supabase_jwt_secret = os.getenv("SUPABASE_JWT_SECRET", "")
+    if not supabase_jwt_secret:
+        return None
+    try:
+        payload = jwt.decode(
+            token,
+            supabase_jwt_secret,
+            algorithms=["HS256"],
+            options={"verify_aud": False},
+        )
+        # Supabase tokens have 'sub' = user UUID and 'email' claim
+        email: str = payload.get("email") or payload.get("sub")
+        user_id: str = payload.get("sub")
+        if email and "@" not in email:
+            # sub is UUID, not email — try email claim only
+            email = payload.get("email")
+        if email:
+            return TokenData(email=email, user_id=user_id)
+    except JWTError:
+        pass
+    return None
+
+
 def decode_token(token: str) -> TokenData:
     """
     Decode and validate a JWT token.
+    Tries Supabase JWT first (if SUPABASE_JWT_SECRET is set), then falls back to local SECRET_KEY.
 
     Raises:
         HTTPException 401 if token is invalid or expired.
@@ -115,6 +144,13 @@ def decode_token(token: str) -> TokenData:
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+    # Try Supabase JWT first
+    supabase_data = _decode_supabase_token(token)
+    if supabase_data:
+        return supabase_data
+
+    # Fall back to local JWT
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         email: str = payload.get("sub")
@@ -136,7 +172,7 @@ async def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     """
-    FastAPI dependency: decode JWT, look up the user, return active User object.
+    FastAPI dependency: decode JWT (Supabase or local), look up or auto-provision the user.
 
     Raises:
         HTTPException 401 if token invalid.
@@ -144,6 +180,27 @@ async def get_current_user(
     """
     token_data = decode_token(token)
     user = db.query(User).filter(User.email == token_data.email).first()
+
+    # Auto-provision: if the user authenticated via Supabase but has no local record, create one
+    if user is None and token_data.email:
+        logger.info("Auto-provisioning user from Supabase token: %s", token_data.email)
+        user = User(
+            email=token_data.email,
+            hashed_password=hash_password("__supabase_sso__"),  # not used for SSO logins
+            full_name=token_data.email.split("@")[0],
+            role="analyst",       # default role for SSO users
+            is_active=True,
+            is_verified=True,
+        )
+        db.add(user)
+        try:
+            db.commit()
+            db.refresh(user)
+        except Exception:
+            db.rollback()
+            # Race condition: another worker created the user
+            user = db.query(User).filter(User.email == token_data.email).first()
+
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

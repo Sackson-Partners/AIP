@@ -33,6 +33,7 @@ from backend.routers.ic import router as ic_router
 from backend.routers.matching import router as matching_router
 from backend.routers.radar import router as radar_router
 from backend.routers.documents import router as documents_router
+from backend.routers.users import router as users_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -129,6 +130,7 @@ def favicon():
 
 
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(projects_router)
 app.include_router(investors_router)
 app.include_router(introductions_router)
