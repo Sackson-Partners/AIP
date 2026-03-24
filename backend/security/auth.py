@@ -44,11 +44,7 @@ SECRET_KEY = os.getenv("SECRET_KEY", "")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
-# Supabase – Option A: offline JWT verification (fast, recommended)
-# Get from: Supabase Dashboard → Project Settings → API → JWT Secret
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
-
-# Supabase – Option B: REST API verification (fallback when JWT secret not set)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
@@ -99,7 +95,10 @@ def hash_password(password: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
+def create_access_token(
+    data: dict,
+    expires_delta: Optional[timedelta] = None,
+) -> str:
     """
     Create a signed JWT access token.
 
@@ -138,7 +137,6 @@ def _decode_supabase_token_offline(token: str) -> Optional[TokenData]:
     """
     Try to verify a Supabase JWT offline using SUPABASE_JWT_SECRET.
     Fast: no network call. Returns None if secret not set or token is invalid.
-    Get SUPABASE_JWT_SECRET from: Supabase Dashboard → Project Settings → API → JWT Secret
     """
     if not SUPABASE_JWT_SECRET:
         return None
@@ -149,10 +147,8 @@ def _decode_supabase_token_offline(token: str) -> Optional[TokenData]:
             algorithms=["HS256"],
             options={"verify_aud": False},
         )
-        # Supabase tokens: 'sub' = user UUID, 'email' = email claim
         email: str = payload.get("email")
         user_id: str = payload.get("sub")
-        # Older Supabase versions put email in sub
         if not email and user_id and "@" in user_id:
             email = user_id
         if email:
@@ -172,8 +168,7 @@ async def _verify_supabase_token_api(token: str) -> Optional[TokenData]:
         logger.warning(
             "Supabase token cannot be verified: SUPABASE_JWT_SECRET and "
             "SUPABASE_URL/SUPABASE_ANON_KEY are not set. "
-            "Add at least one of these to the Azure Container App env vars "
-            "to fix 'Could not validate credentials'."
+            "Add at least one of these to the Azure Container App env vars."
         )
         return None
     try:
@@ -205,8 +200,7 @@ async def _verify_supabase_token_api(token: str) -> Optional[TokenData]:
 def decode_token(token: str) -> TokenData:
     """
     Synchronous decode — tries local JWT then Supabase offline.
-    Used by the /auth/token endpoint. Raises HTTPException 401 on failure.
-    For route protection, use get_current_user (which also handles REST API fallback).
+    Raises HTTPException 401 on failure.
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -266,35 +260,35 @@ async def get_current_user(
     user = db.query(User).filter(User.email == token_data.email).first()
 
     # 5. Auto-provision Supabase users on first login
-  if user is None:
-    logger.info(
-        "Auto-provisioning local user for Supabase account: %s",
-        token_data.email
-    )
-    user = User(
-        email=token_data.email,
-        full_name=token_data.email.split("@")[0],
-        hashed_password=hash_password(os.urandom(32).hex()),
-        role="analyst",        # analyst not viewer
-        is_active=True,
-        is_verified=True,
-    )
-    db.add(user)
-    try:
-        db.commit()
-        db.refresh(user)
+    if user is None:
         logger.info(
-            "Auto-provisioned user: %s with role: analyst",
-            token_data.email
+            "Auto-provisioning local user for Supabase account: %s",
+            token_data.email,
         )
-    except Exception as e:
-        db.rollback()
-        logger.warning(
-            "Race condition on user provision: %s", e
+        user = User(
+            email=token_data.email,
+            full_name=token_data.email.split("@")[0],
+            hashed_password=hash_password(os.urandom(32).hex()),
+            role="analyst",
+            is_active=True,
+            is_verified=True,
         )
-        user = db.query(User).filter(
-            User.email == token_data.email
-        ).first()
+        db.add(user)
+        try:
+            db.commit()
+            db.refresh(user)
+            logger.info(
+                "Auto-provisioned user: %s with role: analyst",
+                token_data.email,
+            )
+        except Exception as e:
+            db.rollback()
+            logger.warning(
+                "Race condition on user provision: %s", e
+            )
+            user = db.query(User).filter(
+                User.email == token_data.email
+            ).first()
 
     if user is None:
         raise credentials_exception
@@ -304,6 +298,7 @@ async def get_current_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is inactive",
         )
+
     return user
 
 
@@ -364,7 +359,9 @@ def require_roles(allowed_roles: list[str]):
         async def endpoint(user = Depends(require_roles(["admin", "analyst"]))):
             ...
     """
-    async def _check(current_user: User = Depends(get_current_user)) -> User:
+    async def _check(
+        current_user: User = Depends(get_current_user),
+    ) -> User:
         if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -379,7 +376,11 @@ def require_roles(allowed_roles: list[str]):
 # ---------------------------------------------------------------------------
 
 
-def authenticate_user(db: Session, email: str, password: str) -> Optional[User]:
+def authenticate_user(
+    db: Session,
+    email: str,
+    password: str,
+) -> Optional[User]:
     """
     Look up a user by email and verify their password.
 
