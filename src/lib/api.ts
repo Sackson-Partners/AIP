@@ -31,7 +31,7 @@ const getApiUrl = () => {
 const API_BASE_URL = getApiUrl();
 
 const api = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: `${API_BASE_URL}/api`,
   headers: {
     'Content-Type': 'application/json',
   },
