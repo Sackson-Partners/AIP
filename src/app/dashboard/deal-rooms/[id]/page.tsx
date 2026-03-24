@@ -15,7 +15,7 @@ const getApiUrl = () => {
       return 'http://localhost:8000';
     }
   }
-  return 'https://web-production-8e81a.up.railway.app';
+  return 'https://aip-api.yellowfield-a5f6cbee.eastus.azurecontainerapps.io';
 };
 
 const API_URL = getApiUrl();
