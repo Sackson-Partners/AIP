@@ -122,16 +122,40 @@ async def create_project(
     current_user: User = Depends(require_analyst),
 ):
     """Create a new infrastructure project record (analyst or admin)."""
-    project = InfrastructureProject(
-        **{k: v for k, v in project_in.model_dump().items() if k not in ("investors", "developers")},
-        investors=json.dumps(project_in.investors or []),
-        developers=json.dumps(project_in.developers or []),
-    )
-    db.add(project)
-    db.commit()
-    db.refresh(project)
-    logger.info("Project created: %s by %s", project.project_name, current_user.email)
-    return project
+    try:
+        project = InfrastructureProject(
+            **{
+                k: v
+                for k, v in project_in.model_dump().items()
+                if k not in ("investors", "developers")
+            },
+            investors=json.dumps(project_in.investors or []),
+            developers=json.dumps(project_in.developers or []),
+        )
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+        logger.info(
+            "Project created: %s by %s (role: %s)",
+            project.project_name,
+            current_user.email,
+            current_user.role,
+        )
+        return project
+
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            "Failed to create project. User: %s Role: %s Error: %s",
+            current_user.email,
+            current_user.role,
+            str(e),
+            exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create project: {str(e)}",
+        )
 
 
 @router.put("/{project_id}")
