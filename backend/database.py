@@ -50,7 +50,13 @@ def get_db():
     try:
         yield db
     except Exception:
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:
+            pass  # Don't let rollback failure mask the original exception
         raise
     finally:
-        db.close()
+        try:
+            db.close()
+        except Exception:
+            pass
