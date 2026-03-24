@@ -1,314 +1,352 @@
 """
-AIP Authentication & Authorization Middleware
----------------------------------------------
-JWT-based authentication for the AIP FastAPI backend.
-Supports three token types in priority order:
-  1. Local HS256 JWTs issued by /api/auth/token
-  2. Supabase JWTs verified offline via SUPABASE_JWT_SECRET
-  3. Supabase JWTs verified via Supabase REST API
+AIP SQLAlchemy ORM Models
+--------------------------
+All models import Base from backend.database to avoid circular imports.
 """
 
-import os
-import logging
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+import uuid
 
-import httpx
-from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
-from passlib.context import CryptContext
-from pydantic import BaseModel
-from sqlalchemy.orm import Session
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
+from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
-from backend.database import get_db
-from backend.models import User
+from backend.database import Base
 
-logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
-
-SECRET_KEY = os.getenv("SECRET_KEY", "")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
-SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
-SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
-SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
-
-if not SECRET_KEY:
-    logger.warning("SECRET_KEY is not set! Using insecure default.")
-    SECRET_KEY = "INSECURE_DEFAULT_KEY_REPLACE_IN_PRODUCTION"
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
+def _uuid() -> str:
+    """Generate a new UUID string."""
+    return str(uuid.uuid4())
 
 
 # ---------------------------------------------------------------------------
-# Token Models
+# Users
 # ---------------------------------------------------------------------------
 
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-    expires_in: int
+class User(Base):
+    __tablename__ = "users"
 
+    id              = Column(String, primary_key=True, default=_uuid)
+    email           = Column(String, unique=True, nullable=False, index=True)
+    hashed_password = Column(String, nullable=False)
+    full_name       = Column(String, nullable=True)
+    organisation    = Column(String, nullable=True)
+    role            = Column(String, default="analyst")
+    is_active       = Column(Boolean, default=True)
+    is_verified     = Column(Boolean, default=False)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
 
-class TokenData(BaseModel):
-    email: Optional[str] = None
-    user_id: Optional[str] = None
-
-
-# ---------------------------------------------------------------------------
-# Password Utilities
-# ---------------------------------------------------------------------------
-
-
-def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
-
-
-def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    # Relationships
+    introductions = relationship("Introduction", back_populates="user")
+    analytics     = relationship("AnalyticsEvent", back_populates="user")
+    verifications = relationship("Verification", back_populates="user")
 
 
 # ---------------------------------------------------------------------------
-# JWT Utilities
+# Infrastructure Projects
 # ---------------------------------------------------------------------------
 
 
-def create_access_token(
-    data: dict,
-    expires_delta: Optional[timedelta] = None,
-) -> str:
-    to_encode = data.copy()
-    expire = datetime.now(timezone.utc) + (
-        expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    )
-    to_encode.update({"exp": expire})
-    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+class InfrastructureProject(Base):
+    __tablename__ = "infrastructure_projects"
 
+    id                    = Column(String, primary_key=True, default=_uuid)
+    airtable_record_id    = Column(String, unique=True, nullable=True, index=True)
+    project_name          = Column(String, nullable=False, index=True)
+    country               = Column(String, nullable=True, index=True)
+    region                = Column(String, nullable=True)
+    latitude              = Column(Float, nullable=True)
+    longitude             = Column(Float, nullable=True)
+    sector                = Column(String, nullable=True)
+    project_type          = Column(String, nullable=True)
+    estimated_cost        = Column(String, nullable=True)
+    status                = Column(String, default="planned")
+    investors             = Column(Text, nullable=True)
+    developers            = Column(Text, nullable=True)
+    description           = Column(Text, nullable=True)
+    strategic_notes       = Column(Text, nullable=True)
+    ai_brief              = Column(Text, nullable=True)
+    ai_brief_generated_at = Column(DateTime(timezone=True), nullable=True)
+    source_url            = Column(String, nullable=True)
+    created_at            = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at            = Column(DateTime(timezone=True), onupdate=func.now())
 
-def _decode_local_token(token: str) -> Optional[TokenData]:
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        email: str = payload.get("sub")
-        user_id: str = payload.get("user_id")
-        if email is None:
-            return None
-        return TokenData(email=email, user_id=user_id)
-    except JWTError:
-        return None
-
-
-def _decode_supabase_token_offline(token: str) -> Optional[TokenData]:
-    if not SUPABASE_JWT_SECRET:
-        return None
-    try:
-        payload = jwt.decode(
-            token,
-            SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False},
-        )
-        email: str = payload.get("email")
-        user_id: str = payload.get("sub")
-        if not email and user_id and "@" in user_id:
-            email = user_id
-        if email:
-            return TokenData(email=email, user_id=user_id)
-    except JWTError:
-        pass
-    return None
-
-
-async def _verify_supabase_token_api(token: str) -> Optional[TokenData]:
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        logger.warning("Supabase token cannot be verified: env vars not set.")
-        return None
-    try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            resp = await client.get(
-                f"{SUPABASE_URL}/auth/v1/user",
-                headers={
-                    "Authorization": f"Bearer {token}",
-                    "apikey": SUPABASE_ANON_KEY,
-                },
-            )
-        if resp.status_code == 200:
-            data = resp.json()
-            email: str = data.get("email")
-            user_id: str = data.get("id")
-            if email:
-                return TokenData(email=email, user_id=user_id)
-        else:
-            logger.debug(
-                "Supabase API token check: %s %s",
-                resp.status_code,
-                resp.text[:200],
-            )
-    except Exception as exc:
-        logger.debug("Supabase API token check failed: %s", exc)
-    return None
-
-
-def decode_token(token: str) -> TokenData:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-    result = _decode_local_token(token) or _decode_supabase_token_offline(token)
-    if result is None:
-        raise credentials_exception
-    return result
+    # Relationships
+    data_rooms    = relationship("DataRoom", back_populates="project")
+    deal_rooms    = relationship("DealRoom", back_populates="project")
+    events        = relationship("ProjectEvent", back_populates="project")
+    introductions = relationship("Introduction", back_populates="project")
 
 
 # ---------------------------------------------------------------------------
-# FastAPI Dependencies
+# Countries
 # ---------------------------------------------------------------------------
 
 
-async def get_current_user(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db),
-) -> User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+class Country(Base):
+    __tablename__ = "countries"
 
-    # 1. Try local JWT
-    token_data = _decode_local_token(token)
-
-    # 2. Try Supabase offline
-    if token_data is None:
-        token_data = _decode_supabase_token_offline(token)
-
-    # 3. Try Supabase REST API
-    if token_data is None:
-        token_data = await _verify_supabase_token_api(token)
-
-    if token_data is None or not token_data.email:
-        raise credentials_exception
-
-    # 4. Look up user in local DB
-    user = db.query(User).filter(User.email == token_data.email).first()
-
-    # 5. Auto-provision Supabase users
-    if user is None:
-        logger.info(
-            "Auto-provisioning user: %s",
-            token_data.email,
-        )
-        user = User(
-            email=token_data.email,
-            full_name=token_data.email.split("@")[0],
-            hashed_password=hash_password(os.urandom(32).hex()),
-            role="analyst",
-            is_active=True,
-            is_verified=True,
-        )
-        db.add(user)
-        try:
-            db.commit()
-            db.refresh(user)
-            logger.info(
-                "Auto-provisioned user: %s with role: analyst",
-                token_data.email,
-            )
-        except Exception as e:
-            db.rollback()
-            logger.warning("Race condition on user provision: %s", e)
-            user = db.query(User).filter(
-                User.email == token_data.email
-            ).first()
-
-    if user is None:
-        raise credentials_exception
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is inactive",
-        )
-
-    return user
-
-
-async def get_current_verified_user(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    if not current_user.is_verified:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account verification required.",
-        )
-    return current_user
-
-
-async def require_admin(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Admin access required.",
-        )
-    return current_user
-
-
-async def require_analyst(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    if current_user.role not in ("admin", "analyst"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Analyst access required.",
-        )
-    return current_user
-
-
-async def require_ic_member(
-    current_user: User = Depends(get_current_user),
-) -> User:
-    if current_user.role not in ("admin", "ic_member"):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="IC Member access required.",
-        )
-    return current_user
-
-
-def require_roles(allowed_roles: list[str]):
-    async def _check(
-        current_user: User = Depends(get_current_user),
-    ) -> User:
-        if current_user.role not in allowed_roles:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"One of these roles required: {allowed_roles}",
-            )
-        return current_user
-    return _check
+    id                      = Column(String, primary_key=True, default=_uuid)
+    name                    = Column(String, unique=True, nullable=False, index=True)
+    iso_code                = Column(String(3), nullable=True)
+    region                  = Column(String, nullable=True)
+    infrastructure_strategy = Column(Text, nullable=True)
+    investment_priority     = Column(Text, nullable=True)
+    logistics_corridors     = Column(Text, nullable=True)
+    energy_capacity         = Column(String, nullable=True)
+    key_contacts            = Column(Text, nullable=True)
+    ai_brief                = Column(Text, nullable=True)
+    ai_brief_generated_at   = Column(DateTime(timezone=True), nullable=True)
+    created_at              = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at              = Column(DateTime(timezone=True), onupdate=func.now())
 
 
 # ---------------------------------------------------------------------------
-# User Authentication Helper
+# Stakeholders
 # ---------------------------------------------------------------------------
 
 
-def authenticate_user(
-    db: Session,
-    email: str,
-    password: str,
-) -> Optional[User]:
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        return None
-    if not verify_password(password, user.hashed_password):
-        return None
-    return user
+class Stakeholder(Base):
+    __tablename__ = "stakeholders"
+
+    id                    = Column(String, primary_key=True, default=_uuid)
+    name                  = Column(String, nullable=False)
+    role                  = Column(String, nullable=True)
+    organisation          = Column(String, nullable=True)
+    country               = Column(String, nullable=True)
+    sector                = Column(String, nullable=True)
+    email                 = Column(String, nullable=True)
+    linkedin              = Column(String, nullable=True)
+    podcast_guest         = Column(Boolean, default=False)
+    podcast_episode_count = Column(Integer, default=0)
+    notes                 = Column(Text, nullable=True)
+    created_at            = Column(DateTime(timezone=True), server_default=func.now())
+
+
+# ---------------------------------------------------------------------------
+# Investors
+# ---------------------------------------------------------------------------
+
+
+class Investor(Base):
+    __tablename__ = "investors"
+
+    id                   = Column(String, primary_key=True, default=_uuid)
+    user_id              = Column(String, ForeignKey("users.id"), nullable=True)
+    organisation_name    = Column(String, nullable=False)
+    investor_type        = Column(String, nullable=True)
+    aum_usd              = Column(String, nullable=True)
+    focus_sectors        = Column(Text, nullable=True)
+    focus_regions        = Column(Text, nullable=True)
+    min_ticket_usd       = Column(String, nullable=True)
+    max_ticket_usd       = Column(String, nullable=True)
+    preferred_structures = Column(Text, nullable=True)
+    contact_name         = Column(String, nullable=True)
+    contact_email        = Column(String, nullable=True)
+    website              = Column(String, nullable=True)
+    is_active            = Column(Boolean, default=True)
+    created_at           = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at           = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    introductions = relationship("Introduction", back_populates="investor")
+
+
+# ---------------------------------------------------------------------------
+# Introductions
+# ---------------------------------------------------------------------------
+
+
+class Introduction(Base):
+    __tablename__ = "introductions"
+
+    id           = Column(String, primary_key=True, default=_uuid)
+    project_id   = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
+    investor_id  = Column(String, ForeignKey("investors.id"), nullable=True)
+    user_id      = Column(String, ForeignKey("users.id"), nullable=True)
+    status       = Column(String, default="pending")
+    notes        = Column(Text, nullable=True)
+    initiated_by = Column(String, nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    project  = relationship("InfrastructureProject", back_populates="introductions")
+    investor = relationship("Investor", back_populates="introductions")
+    user     = relationship("User", back_populates="introductions")
+
+
+# ---------------------------------------------------------------------------
+# Data Rooms
+# ---------------------------------------------------------------------------
+
+
+class DataRoom(Base):
+    __tablename__ = "data_rooms"
+
+    id           = Column(String, primary_key=True, default=_uuid)
+    project_id   = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
+    name         = Column(String, nullable=False)
+    description  = Column(Text, nullable=True)
+    is_active    = Column(Boolean, default=True)
+    access_level = Column(String, default="restricted")
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at   = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    project   = relationship("InfrastructureProject", back_populates="data_rooms")
+    documents = relationship("DataRoomDocument", back_populates="data_room")
+
+
+class DataRoomDocument(Base):
+    __tablename__ = "data_room_documents"
+
+    id              = Column(String, primary_key=True, default=_uuid)
+    data_room_id    = Column(String, ForeignKey("data_rooms.id"), nullable=False)
+    file_name       = Column(String, nullable=False)
+    file_type       = Column(String, nullable=True)
+    file_size_bytes = Column(Integer, nullable=True)
+    azure_blob_url  = Column(String, nullable=True)
+    uploaded_by     = Column(String, ForeignKey("users.id"), nullable=True)
+    description     = Column(Text, nullable=True)
+    is_active       = Column(Boolean, default=True)
+    created_at      = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    data_room = relationship("DataRoom", back_populates="documents")
+
+
+# ---------------------------------------------------------------------------
+# Deal Rooms
+# ---------------------------------------------------------------------------
+
+
+class DealRoom(Base):
+    __tablename__ = "deal_rooms"
+
+    id          = Column(String, primary_key=True, default=_uuid)
+    project_id  = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
+    name        = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    status      = Column(String, default="active")
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at  = Column(DateTime(timezone=True), onupdate=func.now())
+
+    # Relationships
+    project  = relationship("InfrastructureProject", back_populates="deal_rooms")
+    messages = relationship("DealRoomMessage", back_populates="deal_room")
+
+
+class DealRoomMessage(Base):
+    __tablename__ = "deal_room_messages"
+
+    id               = Column(String, primary_key=True, default=_uuid)
+    deal_room_id     = Column(String, ForeignKey("deal_rooms.id"), nullable=False)
+    user_id          = Column(String, ForeignKey("users.id"), nullable=True)
+    message_type     = Column(String, default="text")
+    content          = Column(Text, nullable=True)
+    message_metadata = Column(Text, nullable=True)
+    created_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    deal_room = relationship("DealRoom", back_populates="messages")
+
+
+# ---------------------------------------------------------------------------
+# Analytics
+# ---------------------------------------------------------------------------
+
+
+class AnalyticsEvent(Base):
+    __tablename__ = "analytics_events"
+
+    id             = Column(String, primary_key=True, default=_uuid)
+    user_id        = Column(String, ForeignKey("users.id"), nullable=True)
+    event_type     = Column(String, nullable=False)
+    entity_type    = Column(String, nullable=True)
+    entity_id      = Column(String, nullable=True)
+    event_metadata = Column(Text, nullable=True)
+    ip_hash        = Column(String, nullable=True)
+    created_at     = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="analytics")
+
+
+# ---------------------------------------------------------------------------
+# Project Events
+# ---------------------------------------------------------------------------
+
+
+class ProjectEvent(Base):
+    __tablename__ = "project_events"
+
+    id          = Column(String, primary_key=True, default=_uuid)
+    project_id  = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
+    event_type  = Column(String, nullable=False)
+    title       = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    event_date  = Column(DateTime(timezone=True), nullable=True)
+    source_url  = Column(String, nullable=True)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    project = relationship("InfrastructureProject", back_populates="events")
+
+
+# ---------------------------------------------------------------------------
+# Verifications
+# ---------------------------------------------------------------------------
+
+
+class Verification(Base):
+    __tablename__ = "verifications"
+
+    id                = Column(String, primary_key=True, default=_uuid)
+    user_id           = Column(String, ForeignKey("users.id"), nullable=False)
+    verification_type = Column(String, nullable=False)
+    status            = Column(String, default="pending")
+    submitted_at      = Column(DateTime(timezone=True), server_default=func.now())
+    reviewed_at       = Column(DateTime(timezone=True), nullable=True)
+    reviewer_notes    = Column(Text, nullable=True)
+    document_url      = Column(String, nullable=True)
+
+    # Relationships
+    user = relationship("User", back_populates="verifications")
+
+
+# ---------------------------------------------------------------------------
+# AIP v2 Extended Models — import AFTER all base models are defined
+# ---------------------------------------------------------------------------
+
+from backend.models_aip_v2 import (  # noqa: E402
+    Organization,
+    UserOrganization,
+    Partner,
+    PartnerProject,
+    ProjectDetail,
+    ProjectDocument,
+    InvestorInterest,
+    PipelineStage,
+    ProjectPipeline,
+    PipelineLog,
+    InvestmentCommittee,
+    ICVote,
+    PetfelAssessment,
+    PetfelScore,
+    PetfelFlag,
+    ExecutiveNote,
+    EINSection,
+    AiAnalysis,
+    InvestorMatch,
+)
