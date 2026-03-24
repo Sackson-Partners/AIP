@@ -99,22 +99,16 @@ jobs:
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Deploy to Azure Container Apps
-        uses: azure/container-apps-deploy-action@v1
-        with:
-          resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
-          containerAppName: ${{ env.AZURE_CONTAINER_APP }}
-          imageToDeploy: ${{ env.DOCKER_IMAGE }}:latest
-      - name: Set Supabase environment variables
+      - name: Deploy image + set env vars (single revision)
         run: |
           az containerapp update \
             --name ${{ env.AZURE_CONTAINER_APP }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --image ${{ env.DOCKER_IMAGE }}:latest \
             --set-env-vars \
               "SUPABASE_URL=https://evpbetmgmhwhhhgwvnfb.supabase.co" \
-              "SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2cGJldG1nbWh3aGhoZ3d2bmZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0NTk5NTYsImV4cCI6MjA4NTAzNTk1Nn0.hfOyt0P-LOQ-t6MNMMCmF9dzAedSf1HNhG3BI9aPQ8E" \
-            --no-wait
-          echo "Supabase env vars set on Container App (SUPABASE_URL + SUPABASE_ANON_KEY)"
+              "SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2cGJldG1nbWh3aGhoZ3d2bmZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0NTk5NTYsImV4cCI6MjA4NTAzNTk1Nn0.hfOyt0P-LOQ-t6MNMMCmF9dzAedSf1HNhG3BI9aPQ8E"
+          echo "Deployed new image + Supabase env vars in one revision"
       - name: Fix health probe ports to 8000
         run: |
           python3 - <<'EOF'
