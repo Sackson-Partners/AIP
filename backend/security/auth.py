@@ -266,24 +266,35 @@ async def get_current_user(
     user = db.query(User).filter(User.email == token_data.email).first()
 
     # 5. Auto-provision Supabase users on first login
-    if user is None:
-        logger.info("Auto-provisioning local user for Supabase account: %s", token_data.email)
-        user = User(
-            email=token_data.email,
-            full_name=token_data.email.split("@")[0],
-            hashed_password=hash_password(os.urandom(32).hex()),  # locked — login via Supabase only
-            role="analyst",
-            is_active=True,
-            is_verified=True,  # Supabase already verified the email
+  if user is None:
+    logger.info(
+        "Auto-provisioning local user for Supabase account: %s",
+        token_data.email
+    )
+    user = User(
+        email=token_data.email,
+        full_name=token_data.email.split("@")[0],
+        hashed_password=hash_password(os.urandom(32).hex()),
+        role="analyst",        # analyst not viewer
+        is_active=True,
+        is_verified=True,
+    )
+    db.add(user)
+    try:
+        db.commit()
+        db.refresh(user)
+        logger.info(
+            "Auto-provisioned user: %s with role: analyst",
+            token_data.email
         )
-        db.add(user)
-        try:
-            db.commit()
-            db.refresh(user)
-        except Exception:
-            db.rollback()
-            # Race condition: another worker created the user concurrently
-            user = db.query(User).filter(User.email == token_data.email).first()
+    except Exception as e:
+        db.rollback()
+        logger.warning(
+            "Race condition on user provision: %s", e
+        )
+        user = db.query(User).filter(
+            User.email == token_data.email
+        ).first()
 
     if user is None:
         raise credentials_exception
