@@ -26,7 +26,7 @@ const getApiUrl = () => {
     }
   }
   // Default for production (Azure Container App)
-  return 'https://aip-api.yellowfield-a5f6cbee.eastus.azurecontainerapps.io';
+  return 'https://aip-api.politesea-b4c1d412.southafricanorth.azurecontainerapps.io';
 };
 
 const API_BASE_URL = getApiUrl();

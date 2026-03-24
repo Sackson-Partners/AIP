@@ -15,7 +15,7 @@ const getApiUrl = () => {
       return 'http://localhost:8000';
     }
   }
-  return 'https://aip-api.yellowfield-a5f6cbee.eastus.azurecontainerapps.io';
+  return 'https://aip-api.politesea-b4c1d412.southafricanorth.azurecontainerapps.io';
 };
 
 const API_URL = getApiUrl();
