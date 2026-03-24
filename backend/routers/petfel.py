@@ -1,6 +1,5 @@
 """
 AIP PETFEL Due Diligence Engine Router
-=======================================
 Full 30-sub-criterion scoring engine across 6 pillars:
   Political | Economic | Technical | Financial | Environmental | Legal
 

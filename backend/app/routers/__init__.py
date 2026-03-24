@@ -8,6 +8,8 @@ from .verifications import router as verifications_router
 from .investors import router as investors_router
 from .dealrooms import router as dealrooms_router
 from .events import router as events_router
+from .radar import router as radar_router
+from .infrastructure_map import router as map_router
 
 __all__ = [
     "auth_router",
@@ -19,4 +21,6 @@ __all__ = [
     "investors_router",
     "dealrooms_router",
     "events_router",
+    "radar_router",
+    "map_router",
 ]

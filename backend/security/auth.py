@@ -2,12 +2,13 @@
 AIP Authentication & Authorization Middleware
 ---------------------------------------------
 JWT-based authentication for the AIP FastAPI backend.
-Supports two token types:
-  1. Local HS256 JWTs issued by /api/auth/token  (existing backend users)
-  2. Supabase JWTs issued by Supabase Auth        (frontend Supabase login)
+Supports three token types in priority order:
+  1. Local HS256 JWTs issued by /api/auth/token       (existing backend users)
+  2. Supabase JWTs verified offline via SUPABASE_JWT_SECRET  (fast, no network)
+  3. Supabase JWTs verified via Supabase REST API     (fallback — uses SUPABASE_URL)
 
-When a Supabase token arrives, the user is looked up — or auto-provisioned —
-in the local DB so that every protected endpoint works transparently.
+When a Supabase token arrives, the user is looked up or auto-provisioned in the
+local DB so that every protected endpoint works transparently.
 
 Usage:
     from backend.security.auth import get_current_user, require_admin
@@ -43,7 +44,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
-# Supabase – used to verify Supabase-issued JWTs sent by the frontend
+# Supabase – Option A: offline JWT verification (fast, recommended)
+# Get from: Supabase Dashboard → Project Settings → API → JWT Secret
+SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
+
+# Supabase – Option B: REST API verification (fallback when JWT secret not set)
 SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
@@ -113,11 +118,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def decode_token(token: str) -> Optional[TokenData]:
+def _decode_local_token(token: str) -> Optional[TokenData]:
     """
-    Try to decode as a local HS256 JWT.
-    Returns None on failure (does NOT raise) so callers can fall back to
-    Supabase verification.
+    Try to decode as a locally-issued HS256 JWT.
+    Returns None on failure — does NOT raise.
     """
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
@@ -130,17 +134,46 @@ def decode_token(token: str) -> Optional[TokenData]:
         return None
 
 
-async def _verify_supabase_token(token: str) -> Optional[TokenData]:
+def _decode_supabase_token_offline(token: str) -> Optional[TokenData]:
     """
-    Verify a Supabase access token via the Supabase Auth REST API.
-    Calls GET {SUPABASE_URL}/auth/v1/user with the token.
-    Returns TokenData(email, user_id) on success, None on any failure.
+    Try to verify a Supabase JWT offline using SUPABASE_JWT_SECRET.
+    Fast: no network call. Returns None if secret not set or token is invalid.
+    Get SUPABASE_JWT_SECRET from: Supabase Dashboard → Project Settings → API → JWT Secret
+    """
+    if not SUPABASE_JWT_SECRET:
+        return None
+    try:
+        payload = jwt.decode(
+            token,
+            SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False},
+        )
+        # Supabase tokens: 'sub' = user UUID, 'email' = email claim
+        email: str = payload.get("email")
+        user_id: str = payload.get("sub")
+        # Older Supabase versions put email in sub
+        if not email and user_id and "@" in user_id:
+            email = user_id
+        if email:
+            return TokenData(email=email, user_id=user_id)
+    except JWTError:
+        pass
+    return None
+
+
+async def _verify_supabase_token_api(token: str) -> Optional[TokenData]:
+    """
+    Verify a Supabase token via the Supabase Auth REST API.
+    Fallback when SUPABASE_JWT_SECRET is not set.
+    Requires SUPABASE_URL and SUPABASE_ANON_KEY env vars.
     """
     if not SUPABASE_URL or not SUPABASE_ANON_KEY:
         logger.warning(
-            "SUPABASE_URL / SUPABASE_ANON_KEY not set – "
-            "cannot verify Supabase tokens. "
-            "Add these env vars to the Azure Container App."
+            "Supabase token cannot be verified: SUPABASE_JWT_SECRET and "
+            "SUPABASE_URL/SUPABASE_ANON_KEY are not set. "
+            "Add at least one of these to the Azure Container App env vars "
+            "to fix 'Could not validate credentials'."
         )
         return None
     try:
@@ -160,13 +193,30 @@ async def _verify_supabase_token(token: str) -> Optional[TokenData]:
                 return TokenData(email=email, user_id=user_id)
         else:
             logger.debug(
-                "Supabase token verification returned %s: %s",
+                "Supabase API token check: %s %s",
                 resp.status_code,
                 resp.text[:200],
             )
     except Exception as exc:
-        logger.debug("Supabase token verification failed with exception: %s", exc)
+        logger.debug("Supabase API token check failed: %s", exc)
     return None
+
+
+def decode_token(token: str) -> TokenData:
+    """
+    Synchronous decode — tries local JWT then Supabase offline.
+    Used by the /auth/token endpoint. Raises HTTPException 401 on failure.
+    For route protection, use get_current_user (which also handles REST API fallback).
+    """
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    result = _decode_local_token(token) or _decode_supabase_token_offline(token)
+    if result is None:
+        raise credentials_exception
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -179,18 +229,17 @@ async def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     """
-    FastAPI dependency: resolve the current user from a token.
+    Resolve the current user from any supported token type.
 
-    Accepts two token types in priority order:
-      1. Local HS256 JWT (issued by /api/auth/token) — verified offline
-      2. Supabase JWT (issued by Supabase Auth)       — verified via Supabase API
+    Priority order:
+      1. Local HS256 JWT  (offline, fast)
+      2. Supabase JWT via SUPABASE_JWT_SECRET  (offline, fast)
+      3. Supabase JWT via REST API  (network fallback)
 
-    If the user authenticates via Supabase but has no local DB record yet,
-    they are auto-provisioned as an 'analyst' so the first API call works
-    without requiring a separate registration step.
+    Supabase users are auto-provisioned in the local DB on first login.
 
     Raises:
-        HTTPException 401 if neither token type validates.
+        HTTPException 401 if no token type validates.
         HTTPException 403 if the user account is inactive.
     """
     credentials_exception = HTTPException(
@@ -199,35 +248,45 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
 
-    # --- Step 1: Try local JWT (fast, offline) ---
-    token_data = decode_token(token)
+    # 1. Try local JWT (fast, offline)
+    token_data = _decode_local_token(token)
 
-    # --- Step 2: Fall back to Supabase token verification (network call) ---
+    # 2. Try Supabase offline (fast, no network)
     if token_data is None:
-        token_data = await _verify_supabase_token(token)
+        token_data = _decode_supabase_token_offline(token)
+
+    # 3. Fall back to Supabase REST API (network call)
+    if token_data is None:
+        token_data = await _verify_supabase_token_api(token)
 
     if token_data is None or not token_data.email:
         raise credentials_exception
 
-    # --- Step 3: Look up user in local DB ---
+    # 4. Look up user in local DB
     user = db.query(User).filter(User.email == token_data.email).first()
 
-    # --- Step 4: Auto-provision Supabase users on first login ---
+    # 5. Auto-provision Supabase users on first login
     if user is None:
-        logger.info(
-            "Auto-provisioning local user for Supabase account: %s",
-            token_data.email,
-        )
+        logger.info("Auto-provisioning local user for Supabase account: %s", token_data.email)
         user = User(
             email=token_data.email,
             full_name=token_data.email.split("@")[0],
             hashed_password=hash_password(os.urandom(32).hex()),  # locked — login via Supabase only
             role="analyst",
             is_active=True,
+            is_verified=True,  # Supabase already verified the email
         )
         db.add(user)
-        db.commit()
-        db.refresh(user)
+        try:
+            db.commit()
+            db.refresh(user)
+        except Exception:
+            db.rollback()
+            # Race condition: another worker created the user concurrently
+            user = db.query(User).filter(User.email == token_data.email).first()
+
+    if user is None:
+        raise credentials_exception
 
     if not user.is_active:
         raise HTTPException(

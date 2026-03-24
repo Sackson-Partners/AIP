@@ -1,6 +1,5 @@
 """
 AIP Investment Committee (IC) Governance Router
-=================================================
 Manages IC scheduling, voting, and decision records.
 
 Endpoints:

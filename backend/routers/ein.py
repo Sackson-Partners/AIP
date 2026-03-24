@@ -1,6 +1,5 @@
 """
 AIP Executive Investment Notes (EIN) Router
-=============================================
 Manages the full lifecycle of investor-grade EINs:
   Create → Draft → AI Generate → Review → Approve → Export
 

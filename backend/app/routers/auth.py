@@ -95,6 +95,13 @@ def require_auth(
     return current_user
 
 
+def optional_auth(
+    current_user: Optional[User] = Depends(get_current_user)
+) -> Optional[User]:
+    """Optional authentication - returns user if authenticated, None otherwise."""
+    return current_user
+
+
 def get_user_role(current_user: User, db: Session) -> str:
     """Get user's primary role from organization membership."""
     membership = db.query(OrgMember).filter(
