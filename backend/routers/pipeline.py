@@ -268,3 +268,101 @@ async def pipeline_overview(
         })
 
     return {"stages": result, "total_projects": sum(s["project_count"] for s in result)}
+
+
+@router.get("/project/{project_id}")
+async def get_project_pipeline_status(
+    project_id:   str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Return the current pipeline status for a single project."""
+    from datetime import datetime, timezone
+
+    project = db.query(InfrastructureProject).filter(
+        InfrastructureProject.id == project_id
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    position = db.query(ProjectPipeline).filter(
+        ProjectPipeline.project_id == project_id
+    ).first()
+    if not position:
+        return {
+            "project_id":   project_id,
+            "project_name": project.project_name,
+            "current_stage": None,
+            "entered_at":   None,
+            "days_in_stage": 0,
+            "sla_days":     None,
+            "sla_status":   "not_in_pipeline",
+            "sla_remaining": None,
+        }
+
+    stage = db.query(PipelineStage).filter(
+        PipelineStage.code == position.stage_code
+    ).first()
+    now = datetime.now(timezone.utc)
+    entered = position.entered_at.replace(tzinfo=timezone.utc) if position.entered_at else now
+    days_in_stage = (now - entered).days
+    sla_days = stage.sla_days if stage else None
+    sla_remaining = (sla_days - days_in_stage) if sla_days else None
+    sla_status = "ok"
+    if sla_remaining is not None:
+        sla_status = "breached" if sla_remaining < 0 else ("warning" if sla_remaining <= 2 else "ok")
+
+    return {
+        "project_id":    project_id,
+        "project_name":  project.project_name,
+        "current_stage": position.stage_code,
+        "entered_at":    str(position.entered_at),
+        "days_in_stage": days_in_stage,
+        "sla_days":      sla_days,
+        "sla_status":    sla_status,
+        "sla_remaining": sla_remaining,
+    }
+
+
+@router.get("/sla-alerts")
+async def get_sla_alerts(
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Return all projects with SLA breaches or warnings."""
+    from datetime import datetime, timezone
+
+    now       = datetime.now(timezone.utc)
+    positions = db.query(ProjectPipeline).all()
+    alerts    = []
+
+    for pos in positions:
+        stage = db.query(PipelineStage).filter(
+            PipelineStage.code == pos.stage_code
+        ).first()
+        if not stage or not stage.sla_days:
+            continue
+
+        entered       = pos.entered_at.replace(tzinfo=timezone.utc) if pos.entered_at else now
+        days_in_stage = (now - entered).days
+        sla_remaining = stage.sla_days - days_in_stage
+
+        if sla_remaining > 2:
+            continue  # No alert needed
+
+        project = db.query(InfrastructureProject).filter(
+            InfrastructureProject.id == pos.project_id
+        ).first()
+        if project:
+            alerts.append({
+                "project_id":    project.id,
+                "project_name":  project.project_name,
+                "current_stage": pos.stage_code,
+                "entered_at":    str(pos.entered_at),
+                "days_in_stage": days_in_stage,
+                "sla_days":      stage.sla_days,
+                "sla_status":    "breached" if sla_remaining < 0 else "warning",
+                "sla_remaining": sla_remaining,
+            })
+
+    return alerts

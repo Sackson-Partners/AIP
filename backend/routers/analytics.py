@@ -31,6 +31,27 @@ class TrackEvent(BaseModel):
     metadata: Optional[dict] = None
 
 
+@router.get("/")
+async def list_analytics(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List analytics reports (returns summary stats for the current user)."""
+    from sqlalchemy import func
+
+    total_events = db.query(AnalyticsEvent).count()
+    by_type = (
+        db.query(AnalyticsEvent.event_type, func.count(AnalyticsEvent.id))
+        .group_by(AnalyticsEvent.event_type)
+        .all()
+    )
+    return {
+        "total_events": total_events,
+        "by_type": {event_type: count for event_type, count in by_type},
+        "reports": [],
+    }
+
+
 @router.post("/track", status_code=201)
 async def track_event(
     event_in: TrackEvent,

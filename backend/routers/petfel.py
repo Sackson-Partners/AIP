@@ -209,6 +209,95 @@ def _get_assessment_or_404(assessment_id: str, db: Session) -> PetfelAssessment:
 # ---------------------------------------------------------------------------
 
 
+@router.get("/criteria")
+async def get_petfel_criteria(current_user: User = Depends(get_current_user)):
+    """Return the full PETFEL criteria definition grouped by pillar."""
+    return {
+        pillar: [
+            {"pillar": pillar, "code": c["code"], "name": c["name"], "weight": c["weight"]}
+            for c in criteria
+        ]
+        for pillar, criteria in PETFEL_SUBCRITERIA.items()
+    }
+
+
+@router.get("/assessments")
+async def list_assessments(
+    project_id:   str       = None,
+    db:           Session   = Depends(get_db),
+    current_user: User      = Depends(get_current_user),
+):
+    """List PETFEL assessments, optionally filtered by project."""
+    query = db.query(PetfelAssessment)
+    if project_id:
+        query = query.filter(PetfelAssessment.project_id == project_id)
+    assessments = query.order_by(PetfelAssessment.created_at.desc()).all()
+    return [
+        {
+            "id":             a.id,
+            "project_id":     a.project_id,
+            "version":        a.version,
+            "status":         a.status,
+            "overall_score":  float(a.overall_score) if a.overall_score else None,
+            "rating":         a.rating,
+            "gating_result":  a.gating_result,
+            "recommendation": a.recommendation,
+            "created_at":     str(a.created_at),
+        }
+        for a in assessments
+    ]
+
+
+@router.get("/assessment/{assessment_id}")
+async def get_assessment_by_id(
+    assessment_id: str,
+    db:            Session = Depends(get_db),
+    current_user:  User    = Depends(get_current_user),
+):
+    """Get a PETFEL assessment by its own ID."""
+    assessment = db.query(PetfelAssessment).filter(
+        PetfelAssessment.id == assessment_id
+    ).first()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+    scores = db.query(PetfelScore).filter(PetfelScore.assessment_id == assessment_id).all()
+    flags  = db.query(PetfelFlag).filter(PetfelFlag.assessment_id == assessment_id).all()
+    return {
+        "id":             assessment.id,
+        "project_id":     assessment.project_id,
+        "version":        assessment.version,
+        "status":         assessment.status,
+        "overall_score":  float(assessment.overall_score) if assessment.overall_score else None,
+        "rating":         assessment.rating,
+        "gating_result":  assessment.gating_result,
+        "recommendation": assessment.recommendation,
+        "pillar_scores":  assessment.pillar_scores,
+        "created_at":     str(assessment.created_at),
+        "scores": [
+            {
+                "id":             s.id,
+                "pillar":         s.pillar,
+                "sub_criterion":  s.sub_criterion,
+                "score":          s.score,
+                "evidence_notes": s.evidence_notes,
+                "mitigation":     s.mitigation,
+                "owner":          s.owner,
+            }
+            for s in scores
+        ],
+        "flags": [
+            {
+                "id":          f.id,
+                "flag_type":   f.flag_type,
+                "pillar":      f.pillar,
+                "description": f.description,
+                "is_resolved": f.is_resolved,
+            }
+            for f in flags
+        ],
+    }
+
+
 @router.post("/assess/{project_id}", response_model=AssessmentResponse, status_code=201)
 async def create_assessment(
     project_id:  str,
@@ -486,3 +575,79 @@ async def ai_augment_assessment(
     db.commit()
 
     return {"augmented": True, "ai_recommendation": augmented.get("recommendation"), "analysis": augmented.get("analysis")}
+
+
+@router.post("/{assessment_id}/score")
+async def update_scores(
+    assessment_id: str,
+    payload:       dict,
+    db:            Session = Depends(get_db),
+    current_user:  User    = Depends(get_current_user),
+):
+    """Upsert one or more PETFEL scores for an assessment."""
+    assessment = _get_assessment_or_404(assessment_id, db)
+    scores_in = payload.get("scores", [])
+    for s in scores_in:
+        existing = db.query(PetfelScore).filter(
+            PetfelScore.assessment_id == assessment_id,
+            PetfelScore.sub_criterion == s["sub_criterion"],
+        ).first()
+        if existing:
+            existing.score          = s.get("score", existing.score)
+            existing.evidence_notes = s.get("evidence_notes", existing.evidence_notes)
+            existing.mitigation     = s.get("mitigation", existing.mitigation)
+            existing.owner          = s.get("owner", existing.owner)
+        else:
+            db.add(PetfelScore(
+                assessment_id   = assessment_id,
+                pillar          = s["pillar"],
+                sub_criterion   = s["sub_criterion"],
+                score           = s.get("score"),
+                evidence_notes  = s.get("evidence_notes"),
+                mitigation      = s.get("mitigation"),
+                owner           = s.get("owner"),
+            ))
+    db.commit()
+    return {"status": "updated", "assessment_id": assessment_id, "scores_updated": len(scores_in)}
+
+
+@router.post("/{assessment_id}/calculate")
+async def calculate_assessment(
+    assessment_id: str,
+    db:            Session = Depends(get_db),
+    current_user:  User    = Depends(get_current_user),
+):
+    """Recalculate the overall PETFEL score from current sub-criterion scores."""
+    assessment = _get_assessment_or_404(assessment_id, db)
+    scores     = db.query(PetfelScore).filter(
+        PetfelScore.assessment_id == assessment_id
+    ).all()
+    overall, rating, gating = _compute_overall_score(scores)
+    assessment.overall_score = overall
+    assessment.rating        = rating
+    assessment.gating_result = gating
+    assessment.updated_at    = datetime.now(timezone.utc)
+    db.commit()
+    return {
+        "assessment_id": assessment_id,
+        "overall_score": overall,
+        "rating":        rating,
+        "gating_result": gating,
+    }
+
+
+@router.post("/{assessment_id}/submit")
+async def submit_assessment(
+    assessment_id: str,
+    db:            Session = Depends(get_db),
+    current_user:  User    = Depends(get_current_user),
+):
+    """Submit a PETFEL assessment (locks scores and marks as complete)."""
+    assessment = _get_assessment_or_404(assessment_id, db)
+    if assessment.status != "draft":
+        return {"status": assessment.status, "assessment_id": assessment_id, "message": "Already submitted"}
+    assessment.status     = "submitted"
+    assessment.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    logger.info("PETFEL assessment submitted | id=%s by %s", assessment_id, current_user.email)
+    return {"status": "submitted", "assessment_id": assessment_id}

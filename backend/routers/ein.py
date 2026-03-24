@@ -193,6 +193,152 @@ async def create_ein(
     )
 
 
+@router.get("/templates")
+async def get_ein_templates(current_user: User = Depends(get_current_user)):
+    """Return the 9 EIN section templates with objectives and guidance."""
+    templates = [
+        {
+            "code": 0,
+            "name": "Cover & Executive Summary",
+            "objective": "Provide a high-level overview of the opportunity for senior decision-makers.",
+            "key_questions": [
+                "What is the recommended decision (go / hold / no-go)?",
+                "What is the headline PETFEL score and rating?",
+                "What are the 3 most material risks?",
+            ],
+            "output_guidance": "1–2 pages max. Lead with the recommendation and PETFEL score. Summarise sector, country, cost, and timeline.",
+        },
+        {
+            "code": 1,
+            "name": "Strategy Perspective",
+            "objective": "Assess alignment with the fund's investment thesis and strategic priorities.",
+            "key_questions": [
+                "Does this project align with the fund's sector and geography mandates?",
+                "What is the fund's competitive advantage in this deal?",
+                "How does this fit within portfolio construction strategy?",
+            ],
+            "output_guidance": "Reference specific fund strategy documents. Identify any mandate extension required.",
+        },
+        {
+            "code": 2,
+            "name": "Political Perspective",
+            "objective": "Evaluate political risk, sponsor credibility, and stakeholder dynamics.",
+            "key_questions": [
+                "Is there a clear legal mandate and government authorization?",
+                "What is the sponsor's track record in similar projects?",
+                "Are there unresolved stakeholder conflicts?",
+            ],
+            "output_guidance": "Include political risk rating. Map key political actors and their positions.",
+        },
+        {
+            "code": 3,
+            "name": "Economic Perspective",
+            "objective": "Assess demand fundamentals, affordability, and macroeconomic exposure.",
+            "key_questions": [
+                "Is demand validated with credible data?",
+                "Are tariffs or user fees economically realistic?",
+                "What is the FX and macro exposure?",
+            ],
+            "output_guidance": "Reference independent demand studies where available. Quantify FX risk.",
+        },
+        {
+            "code": 4,
+            "name": "Financial Perspective",
+            "objective": "Evaluate CAPEX/OPEX realism, revenue model, and bankability.",
+            "key_questions": [
+                "Are cost estimates independently verified?",
+                "Is the revenue model and offtaker credit credible?",
+                "Does the financing plan demonstrate bankability?",
+            ],
+            "output_guidance": "Include IRR, NPV, and DSCR ranges from the financial model. Note key sensitivities.",
+        },
+        {
+            "code": 5,
+            "name": "Legal & Regulatory Perspective",
+            "objective": "Assess the legal framework, permits, land rights, and enforceability.",
+            "key_questions": [
+                "Is the PPP/concession framework fit for purpose?",
+                "What is the status of all required permits?",
+                "Are land titles clear and enforceable?",
+            ],
+            "output_guidance": "List all permits with status. Flag any unresolved legal impediments.",
+        },
+        {
+            "code": 6,
+            "name": "Risk Register & Mitigation Plan",
+            "objective": "Identify, rate, and assign mitigants to all material project risks.",
+            "key_questions": [
+                "What are the top 5 risks by severity?",
+                "Are credible mitigants in place for each critical risk?",
+                "Are any risks unmitigated red flags?",
+            ],
+            "output_guidance": "Use a structured table: Risk | Probability | Impact | Mitigation | Owner. Flag PETFEL red flags explicitly.",
+        },
+        {
+            "code": 7,
+            "name": "Required Next Steps (30/60/90 Days)",
+            "objective": "Define the specific actions required before investment committee.",
+            "key_questions": [
+                "What are the 30-day priority actions?",
+                "What third-party reports are outstanding?",
+                "What conditions must be satisfied before final commitment?",
+            ],
+            "output_guidance": "Format as a clear action plan with owners and deadlines. Distinguish deal-breakers from nice-to-haves.",
+        },
+        {
+            "code": 8,
+            "name": "Annexes",
+            "objective": "Attach supporting documents, data sources, and reference materials.",
+            "key_questions": [
+                "What source documents underpin the analysis?",
+                "Are all referenced reports accessible to the IC?",
+            ],
+            "output_guidance": "List documents with titles, dates, and sources. Include financial model version reference.",
+        },
+    ]
+    return templates
+
+
+@router.get("/note/{ein_id}")
+async def get_ein_by_id(
+    ein_id:       str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Get a specific EIN by its own ID (not project ID)."""
+    ein = _get_ein_or_404(ein_id, db)
+    sections = db.query(EINSection).filter(
+        EINSection.ein_id == ein_id
+    ).order_by(EINSection.section_code).all()
+    return {
+        "id":                ein.id,
+        "project_id":        ein.project_id,
+        "title":             ein.title,
+        "version":           ein.version,
+        "status":            ein.status,
+        "recommendation":    ein.recommendation,
+        "executive_summary": ein.executive_summary,
+        "key_gaps":          ein.key_gaps,
+        "next_steps":        ein.next_steps,
+        "petfel_score":      float(ein.petfel_score) if ein.petfel_score else None,
+        "red_flags_count":   ein.red_flags_count or 0,
+        "export_ready":      ein.export_ready,
+        "created_at":        str(ein.created_at),
+        "sections": [
+            {
+                "id":           s.id,
+                "section_code": s.section_code,
+                "section_name": s.section_name,
+                "content":      s.content,
+                "generated_by": s.generated_by,
+                "is_reviewed":  s.is_reviewed,
+                "updated_at":   str(s.updated_at) if s.updated_at else None,
+            }
+            for s in sections
+        ],
+    }
+
+
 @router.get("/{project_id}", response_model=EINResponse)
 async def get_latest_ein(
     project_id:   str,
@@ -378,3 +524,98 @@ async def export_ein(
             for s in sections
         ],
     }
+
+
+@router.put("/{ein_id}/summary")
+async def update_ein_summary(
+    ein_id:       str,
+    payload:      dict,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Update executive summary, recommendation, key gaps and next steps."""
+    ein = _get_ein_or_404(ein_id, db)
+    if "executive_summary" in payload:
+        ein.executive_summary = payload["executive_summary"]
+    if "recommendation" in payload:
+        ein.recommendation = payload["recommendation"]
+    if "key_gaps" in payload:
+        ein.key_gaps = payload["key_gaps"]
+    if "next_steps" in payload:
+        ein.next_steps = payload["next_steps"]
+    ein.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return {"status": "updated", "ein_id": ein_id}
+
+
+@router.post("/{ein_id}/submit")
+async def submit_ein(
+    ein_id:       str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Submit the EIN for review / approval."""
+    ein = _get_ein_or_404(ein_id, db)
+    if ein.status != "draft":
+        return {"status": ein.status, "ein_id": ein_id, "message": "Already submitted"}
+    ein.status     = "submitted"
+    ein.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    logger.info("EIN submitted | ein_id=%s by %s", ein_id, current_user.email)
+    return {"status": "submitted", "ein_id": ein_id}
+
+
+@router.post("/{ein_id}/section/{code}/review")
+async def review_section(
+    ein_id:       str,
+    code:         int,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Mark a specific EIN section as analyst-reviewed."""
+    _get_ein_or_404(ein_id, db)
+    section = db.query(EINSection).filter(
+        EINSection.ein_id       == ein_id,
+        EINSection.section_code == code,
+    ).first()
+    if not section:
+        raise HTTPException(status_code=404, detail=f"Section {code} not found")
+    section.is_reviewed = True
+    section.updated_at  = datetime.now(timezone.utc)
+    db.commit()
+    return {"status": "reviewed", "ein_id": ein_id, "section_code": code}
+
+
+@router.post("/{ein_id}/send")
+async def mark_ein_sent(
+    ein_id:       str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Mark an approved EIN as sent to investors."""
+    ein = _get_ein_or_404(ein_id, db)
+    ein.status     = "sent"
+    ein.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    logger.info("EIN marked sent | ein_id=%s by %s", ein_id, current_user.email)
+    return {"status": "sent", "ein_id": ein_id}
+
+
+@router.get("/{ein_id}/validate")
+async def validate_ein(
+    ein_id:       str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Validate EIN completeness before submission or export."""
+    ein      = _get_ein_or_404(ein_id, db)
+    sections = db.query(EINSection).filter(EINSection.ein_id == ein_id).all()
+    issues   = []
+    if not ein.executive_summary:
+        issues.append("Executive summary is empty")
+    if not ein.recommendation:
+        issues.append("Recommendation (go/hold/no-go) is not set")
+    empty_sections = [s.section_name for s in sections if not s.content]
+    if empty_sections:
+        issues.append(f"Sections with no content: {', '.join(empty_sections)}")
+    return {"is_valid": len(issues) == 0, "issues": issues, "ein_id": ein_id}
