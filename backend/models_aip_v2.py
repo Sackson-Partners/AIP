@@ -37,7 +37,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 # Import Base and _uuid from models — defined before this import runs
-from backend.models import Base, _uuid
+from backend.database import Base
+from backend.models import _uuid
 
 
 # ---------------------------------------------------------------------------
