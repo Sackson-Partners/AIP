@@ -96,7 +96,7 @@ export default function ICPage() {
     setIsVoting(true);
     try {
       await icApi.submitVote(
-        selectedCommittee.committee_id,
+        Number(selectedCommittee.committee_id),
         voteOption,
         voteRationale || undefined,
       );
@@ -113,7 +113,7 @@ export default function ICPage() {
   const handleDecide = async (outcome: string) => {
     if (!selectedCommittee) return;
     try {
-      await icApi.recordDecision(selectedCommittee.committee_id, outcome);
+      await icApi.recordDecision(Number(selectedCommittee.committee_id), outcome);
       const updated = await icApi.getCommittee(selectedCommittee.committee_id);
       setCommitteeDetail(updated);
       fetchCommittees();

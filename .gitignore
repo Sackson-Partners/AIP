@@ -109,3 +109,4 @@ docker-compose.yml
 # IDE
 .vscode/
 .idea/
+.env*.local
