@@ -72,7 +72,7 @@ export default function PISPage() {
       try {
         // Fetch all data in parallel
         const [projectData, petfelData, einData, pipelineData, verificationsData] = await Promise.allSettled([
-          projectsApi.get(selectedProjectId),
+          projectsApi.get(String(selectedProjectId)),
           petfelApi.getAssessment(selectedProjectId),
           einApi.get(selectedProjectId),
           pipelineApi.getProjectStatus(selectedProjectId),
