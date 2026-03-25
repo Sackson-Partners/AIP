@@ -95,7 +95,7 @@ export default function PipelinePage() {
     if (!moveTarget) return;
     setIsMoving(true);
     try {
-      await pipelineApi.move(moveTarget.Number(project.id), moveTarget.stage, moveNotes);
+      await pipelineApi.move(Number(moveTarget.project.id), moveTarget.stage, moveNotes);
       setShowMoveModal(false);
       setMoveTarget(null);
       fetchData(); // Refresh
