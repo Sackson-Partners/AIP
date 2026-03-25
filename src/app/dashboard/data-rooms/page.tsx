@@ -57,7 +57,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
 
   const getProjectName = (projectId: string | number) => {
     const project = projects.find(p => String(p.id) === String(projectId));
-    return project?.name || `Project #${projectId}`;
+    return project?.project_name || project?.name || `Project #${projectId}`;
   };
 
   return (
