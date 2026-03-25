@@ -287,6 +287,11 @@ export interface ProjectCreate {
 }
 
 export interface Project extends ProjectCreate {
+  name?: string;          // alias for project_name
+  stage?: string;
+  estimated_capex?: number;
+  funding_gap?: number;
+  committee_id?: string;
   id: string;
   has_ai_brief: boolean;
 }
@@ -705,6 +710,7 @@ export const pipelineApi = {
 // ============================================================================
 
 export interface ICCommittee {
+  committee_id?: string;  // alias for id
   id: number;
   project_id: number;
   ein_id?: number;

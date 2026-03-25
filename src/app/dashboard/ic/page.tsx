@@ -67,7 +67,7 @@ export default function ICPage() {
 
   const openCommittee = async (committee: ICCommittee) => {
     try {
-      const detail = await icApi.getCommittee(committee.committee_id);
+      const detail = await icApi.getCommittee(committee.id);
       setCommitteeDetail(detail);
       setSelectedCommittee(committee);
     } catch (err) {

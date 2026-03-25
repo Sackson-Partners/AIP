@@ -125,7 +125,7 @@ export default function PISPage() {
           <option value="">Select a Project</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name} ({p.country})
+              {p.project_name} ({p.country})
             </option>
           ))}
         </select>
