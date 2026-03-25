@@ -14,6 +14,9 @@ from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from backend.models import User
 from backend.database import get_db
+from dotenv import load_dotenv
+load_dotenv()  # Must run before os.getenv
+
 from backend.schemas import User as UserSchema
 
 SECRET_KEY = "your-secret-key"  # Load from env in production: os.getenv('SECRET_KEY')

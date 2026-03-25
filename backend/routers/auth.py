@@ -40,7 +40,7 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str
+    password: str = Field(..., min_length=8, description="Min 8 characters")
     full_name: str | None = None
     organisation: str | None = None
 
