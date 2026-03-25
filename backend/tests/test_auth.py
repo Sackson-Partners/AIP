@@ -1,103 +1,150 @@
-# tests/test_auth.py
+# backend/tests/test_auth.py
+"""
+Auth endpoint tests.
+POST /api/auth/register  → JSON body
+POST /api/auth/token     → form-encoded (OAuth2PasswordRequestForm)
+GET  /api/auth/me        → Bearer token
+POST /api/auth/logout    → Bearer token
+"""
+import uuid
 import pytest
 
 
-class TestUserCreation:
-    """Tests for user registration endpoint."""
+REGISTER = "/api/auth/register"
+TOKEN    = "/api/auth/token"
+ME       = "/api/auth/me"
+LOGOUT   = "/api/auth/logout"
 
-    def test_create_user_success(self, client, sample_user_data):
-        """Test successful user creation."""
-        response = client.post("/auth/users/", json=sample_user_data)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["username"] == sample_user_data["username"]
-        assert data["role"] == sample_user_data["role"]
+
+def make_email():
+    return f"test_{uuid.uuid4().hex[:8]}@aip.com"
+
+
+# ─────────────────────────────────────────────
+# Registration
+# ─────────────────────────────────────────────
+class TestUserRegistration:
+
+    def test_register_success(self, client):
+        email = make_email()
+        r = client.post(REGISTER, json={
+            "email": email,
+            "password": "Test@123!",
+            "full_name": "Test User",
+        })
+        assert r.status_code == 201, r.text
+        data = r.json()
+        assert data["email"] == email
         assert "id" in data
-        assert "password" not in data  # Password should not be returned
+        assert "hashed_password" not in data
 
-    def test_create_user_duplicate_username(self, client, sample_user_data):
-        """Test that duplicate usernames are rejected."""
-        # Create first user
-        client.post("/auth/users/", json=sample_user_data)
-        # Try to create duplicate
-        response = client.post("/auth/users/", json=sample_user_data)
-        assert response.status_code in [400, 422, 500]  # Should fail
+    def test_register_duplicate_email(self, client):
+        email = make_email()
+        payload = {"email": email, "password": "Test@123!", "full_name": "User"}
+        client.post(REGISTER, json=payload)          # first — OK
+        r = client.post(REGISTER, json=payload)      # second — should fail
+        assert r.status_code == 400, r.text
 
-    def test_create_user_missing_fields(self, client):
-        """Test that missing required fields are rejected."""
-        incomplete_data = {"username": "testuser"}
-        response = client.post("/auth/users/", json=incomplete_data)
-        assert response.status_code == 422  # Validation error
+    def test_register_invalid_email(self, client):
+        r = client.post(REGISTER, json={
+            "email": "not-an-email",
+            "password": "Test@123!",
+        })
+        assert r.status_code == 422
 
-    def test_create_user_empty_username(self, client):
-        """Test that empty username is rejected."""
-        data = {"username": "", "password": "password123", "role": "investor"}
-        response = client.post("/auth/users/", json=data)
-        # Should either fail validation or create with empty username
-        # depending on schema validation
-        assert response.status_code in [200, 422]
+    def test_register_short_password(self, client):
+        r = client.post(REGISTER, json={
+            "email": make_email(),
+            "password": "ab",
+        })
+        assert r.status_code == 422
 
 
+# ─────────────────────────────────────────────
+# Login  ← KEY FIX: use form data not JSON
+# ─────────────────────────────────────────────
 class TestUserLogin:
-    """Tests for user login/token endpoint."""
 
-    def test_login_success(self, client, sample_user_data):
-        """Test successful login returns a token."""
-        # First create a user
-        client.post("/auth/users/", json=sample_user_data)
+    def _register_and_login(self, client):
+        """Helper: register a fresh user and return (email, token_response)."""
+        email = make_email()
+        password = "Test@123!"
+        reg = client.post(REGISTER, json={
+            "email": email,
+            "password": password,
+            "full_name": "Login Test User",
+        })
+        assert reg.status_code == 201, f"Register failed: {reg.text}"
 
-        # Then try to login
-        login_data = {
-            "username": sample_user_data["username"],
-            "password": sample_user_data["password"]
-        }
-        response = client.post(
-            "/auth/token",
-            data=login_data,  # OAuth2 uses form data
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-        # May fail if password hashing not set up correctly
-        if response.status_code == 200:
-            data = response.json()
-            assert "access_token" in data
-            assert data["token_type"] == "bearer"
+        # ⚠️  /token uses OAuth2PasswordRequestForm → MUST be form-encoded
+        login = client.post(TOKEN, data={
+            "username": email,
+            "password": password,
+        })
+        return email, login
 
-    def test_login_wrong_password(self, client, sample_user_data):
-        """Test login with wrong password fails."""
-        # Create user
-        client.post("/auth/users/", json=sample_user_data)
+    def test_login_success(self, client):
+        _, login = self._register_and_login(client)
+        assert login.status_code == 200, f"Login failed: {login.text}"
+        data = login.json()
+        assert "access_token" in data
+        assert data["token_type"] == "bearer"
 
-        # Try login with wrong password
-        login_data = {
-            "username": sample_user_data["username"],
-            "password": "wrongpassword"
-        }
-        response = client.post(
-            "/auth/token",
-            data=login_data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-        assert response.status_code == 401
+    def test_login_wrong_password(self, client):
+        email = make_email()
+        client.post(REGISTER, json={"email": email, "password": "Correct@1!"})
+        r = client.post(TOKEN, data={
+            "username": email,
+            "password": "WrongPassword!",
+        })
+        assert r.status_code == 401, r.text
 
     def test_login_nonexistent_user(self, client):
-        """Test login with non-existent user fails."""
-        login_data = {
-            "username": "nonexistent",
-            "password": "password123"
-        }
-        response = client.post(
-            "/auth/token",
-            data=login_data,
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-        assert response.status_code == 401
+        r = client.post(TOKEN, data={
+            "username": "nobody@nowhere.com",
+            "password": "Whatever1!",
+        })
+        assert r.status_code == 401, r.text
+
+    def test_login_returns_bearer_token(self, client):
+        _, login = self._register_and_login(client)
+        assert login.status_code == 200, login.text
+        token = login.json()["access_token"]
+        assert len(token) > 20                        # real JWT is long
+        assert token.count(".") == 2                  # JWT has 3 parts
 
 
+# ─────────────────────────────────────────────
+# /me endpoint
+# ─────────────────────────────────────────────
+class TestGetMe:
+
+    def test_me_authenticated(self, client):
+        email = make_email()
+        client.post(REGISTER, json={"email": email, "password": "Test@123!"})
+        login = client.post(TOKEN, data={"username": email, "password": "Test@123!"})
+        assert login.status_code == 200
+        token = login.json()["access_token"]
+
+        r = client.get(ME, headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 200, r.text
+        assert r.json()["email"] == email
+
+    def test_me_no_token(self, client):
+        r = client.get(ME)
+        assert r.status_code == 401
+
+    def test_me_invalid_token(self, client):
+        r = client.get(ME, headers={"Authorization": "Bearer invalid.token.here"})
+        assert r.status_code == 401
+
+
+# ─────────────────────────────────────────────
+# Health check
+# ─────────────────────────────────────────────
 class TestHealthCheck:
-    """Tests for basic API health."""
 
     def test_health_endpoint(self, client):
-        """Test the health check endpoint."""
-        response = client.get("/health")
-        assert response.status_code == 200
-        assert response.json() == {"status": "healthy"}
+        r = client.get("/health")
+        assert r.status_code == 200
+        assert r.json()["status"] == "healthy"

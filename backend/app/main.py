@@ -1,4 +1,8 @@
-"""AIP Platform - FastAPI Backend (Africa Infrastructure Projects)"""
+"""
+backend/app/main.py
+Secondary app entry – legacy path kept for backward compatibility.
+Production entry point is backend/main.py
+"""
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -12,10 +16,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
-from backend.database import engine
-from backend.models import Base
-
-# Legacy routers
+from backend.database import engine, Base
 from backend.routers.analytics import router as analytics_router
 from backend.routers.airtable import router as airtable_router
 from backend.routers.auth import router as auth_router
@@ -26,23 +27,19 @@ from backend.routers.introductions import router as introductions_router
 from backend.routers.investors import router as investors_router
 from backend.routers.projects import router as projects_router
 from backend.routers.verifications import router as verifications_router
-from backend.app.routers.radar import router as radar_router
-from backend.app.routers.infrastructure_map import router as map_router
-
-# PRD v2.0 - New routers for PETFEL, EIN, Pipeline, IC, AI
 from backend.routers.petfel import router as petfel_router
 from backend.routers.ein import router as ein_router
 from backend.routers.pipeline import router as pipeline_router
 from backend.routers.ic import router as ic_router
 from backend.routers.ai import router as ai_router
-
-# New app-level routers
-from app.routers.radar import router as radar_router
-from app.routers.infrastructure_map import router as infrastructure_map_router
+from backend.routers.matching import router as matching_router
+from backend.routers.documents import router as documents_router
+from backend.routers.users import router as users_router
+from backend.routers.radar import router as radar_router
 
 logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
 )
 logger = logging.getLogger("aip")
 
@@ -50,79 +47,47 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-        logger.info("AIP API starting up")
-        try:
-                    Base.metadata.create_all(bind=engine)
-                    logger.info("Database tables created/verified")
-except Exception as exc:
-        logger.warning(
-                        "Database initialisation skipped – check DATABASE_URL: %s", exc
-        )
+async def lifespan(application: FastAPI):
+    logger.info("AIP API starting up")
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("SQLite tables created/verified")
+    except Exception as exc:
+        logger.warning("DB init skipped (race or schema issue): %s", exc)
     yield
     logger.info("AIP API shutting down")
 
 
-def _get_cors_origins():
-        env_origins = [
-                    o.strip()
-                    for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
-                    if o.strip()
-        ]
-        defaults = ["https://aip-plum.vercel.app", "http://localhost:3000"]
-        return list(dict.fromkeys(env_origins + defaults))
-
-
 app = FastAPI(
-        title="AIP API",
-        description="Africa Infrastructure Projects",
-        version="2.0.0",
-        lifespan=lifespan,
+    title="AIP Platform API",
+    version="2.0.0",
+    description="Africa Infrastructure Platform – backend API",
+    lifespan=lifespan,
 )
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+# ── CORS ──────────────────────────────────────────────────────────────────
+_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://aip-plum.vercel.app")
+origins = [o.strip() for o in _raw.split(",") if o.strip()]
+
 app.add_middleware(
-        CORSMiddleware,
-        allow_origins=_get_cors_origins(),
-        allow_credentials=True,
-        allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-        allow_headers=["*"],
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
+# ── Static files ──────────────────────────────────────────────────────────
+_static = Path(__file__).parent.parent / "static"
+if _static.exists():
+    app.mount("/static", StaticFiles(directory=str(_static)), name="static")
 
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-        logger.exception("Unhandled error on %s %s", request.method, request.url)
-        return JSONResponse(
-            status_code=500,
-            content={"detail": "An unexpected error occurred."},
-        )
-
-
-@app.get("/", tags=["Health"])
-def root():
-        return {"status": "AIP API is running", "version": "2.0.0"}
-
-
-@app.get("/health", tags=["Health"])
-def health_check():
-        return {"status": "healthy", "service": "aip-api"}
-
-
-@app.get("/ping", tags=["Health"])
-def ping():
-        return {"pong": True}
-
-
-@app.get("/favicon.ico", include_in_schema=False)
-def favicon():
-        return Response(status_code=204)
-
-
-# ── Legacy routers ────────────────────────────────────────────────────────────
+# ── Routers ───────────────────────────────────────────────────────────────
 app.include_router(auth_router)
+app.include_router(users_router)
 app.include_router(projects_router)
 app.include_router(investors_router)
 app.include_router(introductions_router)
@@ -131,31 +96,23 @@ app.include_router(deal_rooms_router)
 app.include_router(analytics_router)
 app.include_router(events_router)
 app.include_router(verifications_router)
+app.include_router(ai_router)
 app.include_router(airtable_router)
-app.include_router(radar_router, prefix="/api")
-app.include_router(map_router, prefix="/api")
+app.include_router(petfel_router)
+app.include_router(ein_router)
+app.include_router(pipeline_router)
+app.include_router(ic_router)
+app.include_router(matching_router)
+app.include_router(radar_router)
+app.include_router(documents_router)
 
-# PRD v2.0 - PETFEL, EIN, Pipeline, IC, AI routes
-app.include_router(petfel_router)  # /petfel/*
-app.include_router(ein_router)     # /ein/*
-app.include_router(pipeline_router)  # /pipeline/*
-app.include_router(ic_router)      # /ic/*
-app.include_router(ai_router)      # /ai/*
 
-# ── New feature routers ───────────────────────────────────────────────────────
-app.include_router(radar_router, prefix="/api")
-app.include_router(infrastructure_map_router, prefix="/api")
+# ── Core endpoints ────────────────────────────────────────────────────────
+@app.get("/health", tags=["system"])
+async def health():
+    return {"status": "healthy", "service": "aip-api"}
 
-# ── Static frontend ───────────────────────────────────────────────────────────
-_static_dir = Path(__file__).parent / "static"
-if _static_dir.exists():
-        app.mount(
-                    "/static",
-                    StaticFiles(directory=str(_static_dir), html=True),
-                    name="frontend",
-        )
 
-if __name__ == "__main__":
-        import uvicorn
-
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000)
+@app.get("/", tags=["system"])
+async def root():
+    return {"message": "AIP Platform API", "docs": "/docs", "health": "/health"}

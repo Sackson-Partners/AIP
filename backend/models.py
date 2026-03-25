@@ -21,6 +21,34 @@ from sqlalchemy.sql import func
 
 from backend.database import Base
 
+import enum
+
+
+class Sector(str, enum.Enum):
+    AGRICULTURE    = "agriculture"
+    ENERGY         = "energy"
+    FINANCE        = "finance"
+    HEALTHCARE     = "healthcare"
+    INFRASTRUCTURE = "infrastructure"
+    MANUFACTURING  = "manufacturing"
+    REAL_ESTATE    = "real_estate"
+    TECHNOLOGY     = "technology"
+    TRANSPORT      = "transport"
+    WATER          = "water"
+    OTHER          = "other"
+
+
+class ProjectStage(str, enum.Enum):
+    CONCEPT        = "concept"
+    FEASIBILITY    = "feasibility"
+    PREPARATION    = "preparation"
+    APPROVAL       = "approval"
+    IMPLEMENTATION = "implementation"
+    COMPLETION     = "completion"
+    OPERATIONAL    = "operational"
+    CANCELLED      = "cancelled"
+
+
 
 def _uuid() -> str:
     """Generate a new UUID string."""
@@ -323,6 +351,39 @@ class Verification(Base):
 
     # Relationships
     user = relationship("User", back_populates="verifications")
+
+
+# ---------------------------------------------------------------------------
+# AIP v2 Extended Models — import AFTER all base models are defined
+# ---------------------------------------------------------------------------
+
+
+import enum
+
+
+class Sector(str, enum.Enum):
+    AGRICULTURE    = "agriculture"
+    ENERGY         = "energy"
+    FINANCE        = "finance"
+    HEALTHCARE     = "healthcare"
+    INFRASTRUCTURE = "infrastructure"
+    MANUFACTURING  = "manufacturing"
+    REAL_ESTATE    = "real_estate"
+    TECHNOLOGY     = "technology"
+    TRANSPORT      = "transport"
+    WATER          = "water"
+    OTHER          = "other"
+
+
+class ProjectStage(str, enum.Enum):
+    CONCEPT        = "concept"
+    FEASIBILITY    = "feasibility"
+    PREPARATION    = "preparation"
+    APPROVAL       = "approval"
+    IMPLEMENTATION = "implementation"
+    COMPLETION     = "completion"
+    OPERATIONAL    = "operational"
+    CANCELLED      = "cancelled"
 
 
 # ---------------------------------------------------------------------------

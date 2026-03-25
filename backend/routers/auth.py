@@ -15,7 +15,7 @@ from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -122,3 +122,14 @@ async def logout():
     Server-side token invalidation is handled via token expiry.
     """
     return {"success": True, "message": "Logged out. Please discard your access token."}
+
+
+# Alias: /login → same as /token (frontend compatibility)
+@router.post("/login", response_model=Token, include_in_schema=True)
+async def login_alias(
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: Session = Depends(get_db),
+):
+    """Alias for /token — accepts username/password form data."""
+    from backend.routers.auth import login as _login
+    return await _login(form_data=form_data, db=db)

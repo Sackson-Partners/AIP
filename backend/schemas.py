@@ -177,7 +177,7 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
-    password: str
+    password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
 
 
 class User(UserBase):
@@ -190,7 +190,7 @@ class User(UserBase):
 # Email-based user schemas
 class UserRegister(BaseModel):
     email: str
-    password: str
+    password: str = Field(..., min_length=8, description="Password must be at least 8 characters")
     full_name: str
     phone: Optional[str] = None
 
