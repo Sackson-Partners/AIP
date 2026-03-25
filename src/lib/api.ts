@@ -287,6 +287,8 @@ export interface ProjectCreate {
 }
 
 export interface Project extends ProjectCreate {
+  id: string;
+  has_ai_brief: boolean;
   name?: string;
   stage?: string;
   estimated_capex?: number;
@@ -304,16 +306,8 @@ export interface Project extends ProjectCreate {
   land_acquisition_status?: string;
   timeline_fid?: string;
   timeline_cod?: string;
-  political_risk_mitigation?: string;
-  sovereign_support?: string;
-  esg_category?: string;
-  name?: string;          // alias for project_name
-  stage?: string;
-  estimated_capex?: number;
-  funding_gap?: number;
-  committee_id?: string;
-  id: string;
-  has_ai_brief: boolean;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface InvestorCreate {
