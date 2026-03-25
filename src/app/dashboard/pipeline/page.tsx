@@ -51,7 +51,7 @@ export default function PipelinePage() {
       await Promise.all(
         projectsData.map(async (p: Project) => {
           try {
-            const status = await pipelineApi.getProjectStatus(p.id);
+            const status = await pipelineApi.getProjectStatus(Number(p.id));
             statuses[p.id] = status;
           } catch {
             // Project may not have pipeline status yet
@@ -77,7 +77,7 @@ export default function PipelinePage() {
   const handleProjectClick = async (project: Project) => {
     setSelectedProject(project);
     try {
-      const history = await pipelineApi.getHistory(project.id);
+      const history = await pipelineApi.getHistory(Number(project.id));
       setProjectHistory(history);
     } catch (err) {
       console.error('Failed to fetch history:', err);
@@ -95,7 +95,7 @@ export default function PipelinePage() {
     if (!moveTarget) return;
     setIsMoving(true);
     try {
-      await pipelineApi.move(moveTarget.project.id, moveTarget.stage, moveNotes);
+      await pipelineApi.move(moveTarget.Number(project.id), moveTarget.stage, moveNotes);
       setShowMoveModal(false);
       setMoveTarget(null);
       fetchData(); // Refresh
@@ -190,7 +190,7 @@ export default function PipelinePage() {
               {/* Project Cards */}
               <div className="p-3 space-y-3 min-h-[200px]">
                 {stageProjects.map((project) => {
-                  const status = getStatusForProject(project.id);
+                  const status = getStatusForProject(Number(project.id));
                   return (
                     <div
                       key={project.id}
