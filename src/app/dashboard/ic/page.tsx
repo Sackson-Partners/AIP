@@ -100,7 +100,7 @@ export default function ICPage() {
         voteOption,
         voteRationale || undefined,
       );
-      const updated = await icApi.getCommittee(selectedCommittee.committee_id);
+      const updated = await icApi.getCommittee(Number(selectedCommittee.committee_id));
       setCommitteeDetail(updated);
       setVoteRationale('');
     } catch (err: any) {
@@ -114,7 +114,7 @@ export default function ICPage() {
     if (!selectedCommittee) return;
     try {
       await icApi.recordDecision(Number(selectedCommittee.committee_id), outcome);
-      const updated = await icApi.getCommittee(selectedCommittee.committee_id);
+      const updated = await icApi.getCommittee(Number(selectedCommittee.committee_id));
       setCommitteeDetail(updated);
       fetchCommittees();
     } catch (err: any) {

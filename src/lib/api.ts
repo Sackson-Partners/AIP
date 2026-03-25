@@ -287,6 +287,26 @@ export interface ProjectCreate {
 }
 
 export interface Project extends ProjectCreate {
+  name?: string;
+  stage?: string;
+  estimated_capex?: number;
+  funding_gap?: number;
+  committee_id?: string;
+  technology?: string;
+  gps_location?: string;
+  revenue_model?: string;
+  offtaker?: string;
+  tariff_mechanism?: string;
+  fx_exposure?: string;
+  concession_length?: number;
+  epc_status?: string;
+  permits_status?: string;
+  land_acquisition_status?: string;
+  timeline_fid?: string;
+  timeline_cod?: string;
+  political_risk_mitigation?: string;
+  sovereign_support?: string;
+  esg_category?: string;
   name?: string;          // alias for project_name
   stage?: string;
   estimated_capex?: number;
