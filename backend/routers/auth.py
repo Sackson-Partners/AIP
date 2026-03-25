@@ -74,7 +74,7 @@ async def register(user_in: UserCreate, db: Session = Depends(get_db)):
         )
     user = User(
         email=user_in.email,
-        hashed_password=hash_password(user_in.password),
+        hashed_password=hash_password(user_in.password[:72]),
         full_name=user_in.full_name,
         organisation=user_in.organisation,
     )
