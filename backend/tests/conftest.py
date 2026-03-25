@@ -179,3 +179,11 @@ def sample_project_data():
         "estimated_cost": "USD 1.2B",
         "description": "Phase 3 expansion of Apapa Container Terminal",
     }
+@pytest.fixture
+def sample_user_data():
+    return {
+        "email": "fixture@test.com",
+        "password": "Test@123!",
+        "full_name": "Fixture User"
+    }
+EOF
