@@ -306,8 +306,18 @@ export interface Project extends ProjectCreate {
   land_acquisition_status?: string;
   timeline_fid?: string;
   timeline_cod?: string;
+  esg_category?: string;
+  political_risk_mitigation?: string;
+  sovereign_support?: string;
   created_at?: string;
   updated_at?: string;
+  airtable_record_id?: string;
+  investors?: string;
+  developers?: string;
+  source_url?: string;
+  ai_brief?: string;
+  project_type?: string;
+  estimated_cost?: string;
 }
 
 export interface InvestorCreate {
