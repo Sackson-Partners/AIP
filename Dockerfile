@@ -1,4 +1,5 @@
-# Dockerfile for Azure Container Apps deployment (Python backend)
+# Dockerfile — AIP Platform Backend
+# Uses Python 3.11 (LTS) — all prebuilt wheels available
 FROM python:3.11-slim AS builder
 WORKDIR /build
 COPY requirements.txt .
