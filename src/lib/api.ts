@@ -482,11 +482,11 @@ export const petfelApi = {
     const response = await api.get('/petfel/criteria');
     return response.data;
   },
-  createAssessment: async (projectId: number): Promise<PETFELAssessment> => {
+  createAssessment: async (projectId: number | string): Promise<PETFELAssessment> => {
     const response = await api.post(`/petfel/assess/${projectId}`);
     return response.data;
   },
-  getAssessment: async (projectId: number): Promise<PETFELAssessment> => {
+  getAssessment: async (projectId: number | string): Promise<PETFELAssessment> => {
     const response = await api.get(`/petfel/${projectId}`);
     return response.data;
   },
@@ -569,7 +569,7 @@ export const einApi = {
     });
     return response.data;
   },
-  get: async (projectId: number): Promise<EIN> => {
+  get: async (projectId: number | string): Promise<EIN> => {
     const response = await api.get(`/ein/${projectId}`);
     return response.data;
   },
@@ -577,7 +577,7 @@ export const einApi = {
     const response = await api.get(`/ein/note/${einId}`);
     return response.data;
   },
-  getApproved: async (projectId: number): Promise<EIN> => {
+  getApproved: async (projectId: number | string): Promise<EIN> => {
     const response = await api.get(`/ein/${projectId}/approved`);
     return response.data;
   },
@@ -640,11 +640,11 @@ export interface AIEINDraft {
 }
 
 export const aiApi = {
-  analyzeProject: async (projectId: number): Promise<AIAnalysisResult> => {
+  analyzeProject: async (projectId: number | string): Promise<AIAnalysisResult> => {
     const response = await api.post(`/ai/analyze/${projectId}`);
     return response.data;
   },
-  generateEIN: async (projectId: number): Promise<AIEINDraft> => {
+  generateEIN: async (projectId: number | string): Promise<AIEINDraft> => {
     const response = await api.post(`/ai/generate-ein/${projectId}`);
     return response.data;
   },
@@ -656,7 +656,7 @@ export const aiApi = {
     const response = await api.post(`/ai/country-risk/${country}`);
     return response.data;
   },
-  runMatching: async (projectId: number): Promise<{ matches: { investor_id: number; score: number; rationale: string }[] }> => {
+  runMatching: async (projectId: number | string): Promise<{ matches: { investor_id: number; score: number; rationale: string }[] }> => {
     const response = await api.post(`/ai/matching/run/${projectId}`);
     return response.data;
   },
@@ -711,11 +711,11 @@ export const pipelineApi = {
     });
     return response.data;
   },
-  getHistory: async (projectId: number): Promise<PipelineLog[]> => {
+  getHistory: async (projectId: number | string): Promise<PipelineLog[]> => {
     const response = await api.get(`/pipeline/history/${projectId}`);
     return response.data;
   },
-  getProjectStatus: async (projectId: number): Promise<ProjectPipelineStatus> => {
+  getProjectStatus: async (projectId: number | string): Promise<ProjectPipelineStatus> => {
     const response = await api.get(`/pipeline/project/${projectId}`);
     return response.data;
   },
