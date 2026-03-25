@@ -92,3 +92,20 @@ build/
 
 # Logs
 logs/
+
+# SQLite WAL files
+*.db-shm
+*.db-wal
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Docker
+docker-compose.yml
+
+# IDE
+.vscode/
+.idea/
