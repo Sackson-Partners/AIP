@@ -43,7 +43,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
     try {
       await dataRoomsApi.create({
         project_id: Number(data.project_id),
-        name: data.name,
+        name: data.project_name || data.name || '',
         description: data.description,
         require_nda: data.require_nda,
       });
@@ -57,7 +57,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
 
   const getProjectName = (projectId: string | number) => {
     const project = projects.find(p => String(p.id) === String(projectId));
-    return project?.project_name || project?.name || `Project #${projectId}`;
+    return project?.project_name || `Project #${projectId}`;
   };
 
   return (
@@ -162,7 +162,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select project</option>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.project_name || p.name || p.id}</option>)}
                 </select>
                 {errors.project_id && <p className="text-red-500 text-sm mt-1">{errors.project_id.message}</p>}
               </div>
