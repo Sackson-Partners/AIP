@@ -9,7 +9,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError as JWTError
 from passlib.context import CryptContext
 from sqlalchemy.orm import Session
 from backend.models import User

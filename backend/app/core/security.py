@@ -4,7 +4,7 @@ from typing import Optional, Dict, Any
 import jwt  # PyJWT
 import bcrypt
 import httpx
-from jose import jwt as jose_jwt, JWTError
+import jwt as jose_jwt, JWTError
 from .config import settings
 
 

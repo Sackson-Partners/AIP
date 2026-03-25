@@ -18,6 +18,9 @@ Usage:
         ...
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import os
 import logging
 from datetime import datetime, timedelta, timezone
@@ -26,7 +29,8 @@ from typing import Optional
 import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import InvalidTokenError as JWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
