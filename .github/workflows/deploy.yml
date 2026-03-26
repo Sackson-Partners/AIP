@@ -5,38 +5,46 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  ACR_NAME: aipapiregistry
+  IMAGE_NAME: aip-api
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Login to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Build and Push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: sacksons/aip-api:latest
-          no-cache: true
-
-      - name: Deploy to Azure Container Apps
+      - name: Azure Login
         uses: azure/login@v1
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - name: Update Container App
+      - name: Login to Azure Container Registry
+        run: |
+          az acr login --name ${{ env.ACR_NAME }}
+
+      - name: Build & Push to ACR
+        run: |
+          IMAGE="${{ env.ACR_NAME }}.azurecr.io/${{ env.IMAGE_NAME }}:latest"
+          docker build --no-cache -t $IMAGE .
+          docker push $IMAGE
+          echo "IMAGE=$IMAGE" >> $GITHUB_ENV
+          echo "✅ Image pushed: $IMAGE"
+
+      - name: Deploy to Azure Container Apps
         run: |
           az containerapp update \
             --name aip-api \
             --resource-group aip-rg \
-            --image sacksons/aip-api:latest \
+            --image ${{ env.IMAGE_NAME }}.azurecr.io/aip-api:latest \
             --output none
-          echo "✅ Deployed to Azure"
+          echo "✅ Deployed to Azure Container Apps"
+
+      - name: Verify Deployment
+        run: |
+          sleep 60
+          STATUS=$(curl -s https://aip-api.politesea-b4c1d412.southafricanorth.azurecontainerapps.io/health)
+          echo "Health: $STATUS"

@@ -394,3 +394,22 @@ async def pipeline_root(
         "stages": [{"id": str(s.id), "name": s.name, "code": s.code, "sla_days": s.sla_days} for s in stages],
         "total_stages": len(stages),
     }
+
+
+@router.get("", tags=["Pipeline"])
+async def pipeline_root(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    """Pipeline root."""
+    try:
+        stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
+        return {"stages": [{"id": str(s.id), "name": s.name, "code": s.code} for s in stages], "total_stages": len(stages)}
+    except Exception as e:
+        return {"stages": [], "total_stages": 0, "error": str(e)}
+
+
+@router.get("")
+async def pipeline_root(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
+        return {"stages": [{"id": str(s.id), "name": s.name, "code": s.code} for s in stages], "total_stages": len(stages)}
+    except Exception as e:
+        return {"stages": [], "total_stages": 0, "error": str(e)}

@@ -322,3 +322,24 @@ async def matching_root(
         return {"matches": [{"id": str(m.id)} for m in matches], "count": len(matches)}
     except Exception as e:
         return {"matches": [], "count": 0, "note": str(e)}
+
+
+@router.get("", tags=["Investor Matching"])
+async def matching_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """Matching root."""
+    try:
+        from backend.models import InvestorMatch
+        items = db.query(InvestorMatch).limit(50).all()
+        return {"matches": [{"id": str(m.id)} for m in items], "count": len(items)}
+    except Exception as e:
+        return {"matches": [], "count": 0, "error": str(e)}
+
+
+@router.get("")
+async def matching_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        from backend.models import InvestorMatch
+        items = db.query(InvestorMatch).limit(50).all()
+        return {"matches": [{"id": str(m.id)} for m in items], "count": len(items)}
+    except Exception as e:
+        return {"matches": [], "count": 0}

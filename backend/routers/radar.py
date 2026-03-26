@@ -223,3 +223,24 @@ async def radar_root(
         }
     except Exception as e:
         return {"radar_results": [], "count": 0, "note": str(e)}
+
+
+@router.get("", tags=["Infrastructure Radar"])
+async def radar_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """Radar root."""
+    try:
+        from backend.models import InfrastructureProject
+        items = db.query(InfrastructureProject).limit(20).all()
+        return {"results": [{"id": str(p.id), "name": p.project_name} for p in items], "count": len(items)}
+    except Exception as e:
+        return {"results": [], "count": 0, "error": str(e)}
+
+
+@router.get("")
+async def radar_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        from backend.models import InfrastructureProject
+        items = db.query(InfrastructureProject).limit(20).all()
+        return {"results": [{"id": str(p.id), "name": p.project_name} for p in items], "count": len(items)}
+    except Exception as e:
+        return {"results": [], "count": 0}
