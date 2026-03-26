@@ -193,3 +193,33 @@ async def sector_summary(
             "project_count": count,
         })
     return {"sectors": result}
+
+
+# ── Root route fix ─────────────────────────────────────
+@router.get("", tags=["Radar"])
+async def radar_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List radar scan results."""
+    from backend.models import InfrastructureProject
+    projects = db.query(InfrastructureProject).limit(50).all()
+    return {"radar_results": projects, "count": len(projects)}
+
+
+@router.get("", tags=["Infrastructure Radar"])
+async def radar_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """Radar root — latest results."""
+    from backend.models import InfrastructureProject
+    try:
+        projects = db.query(InfrastructureProject).limit(20).all()
+        return {
+            "radar_results": [{"id": str(p.id), "name": p.project_name, "country": p.country} for p in projects],
+            "count": len(projects),
+            "engine": "Kazi v1"
+        }
+    except Exception as e:
+        return {"radar_results": [], "count": 0, "note": str(e)}

@@ -1,9 +1,13 @@
 """Alembic migration environment — AIP Platform"""
 import os
+import sys
 from logging.config import fileConfig
 
 from sqlalchemy import engine_from_config, pool
 from alembic import context
+
+# Ensure /app is in path for container
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 config = context.config
 
@@ -14,12 +18,24 @@ if config.config_file_name is not None:
 from backend.models import Base  # noqa: E402
 target_metadata = Base.metadata
 
-# Override DATABASE_URL from environment (Azure Key Vault / env var)
+# Override DATABASE_URL from environment
 DATABASE_URL = os.getenv("DATABASE_URL", "")
+
+# Strip quotes (Azure CLI bug)
+DATABASE_URL = DATABASE_URL.strip('"').strip("'")
+
+# Fix scheme — MUST use postgresql+psycopg2:// for psycopg2 driver
 if DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg2://", 1)
+elif DATABASE_URL.startswith("postgresql://") and "+psycopg2" not in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://", 1)
+
 if DATABASE_URL:
     config.set_main_option("sqlalchemy.url", DATABASE_URL)
+    host = DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else DATABASE_URL
+    print(f"✅ Alembic using DB: {host}")
+else:
+    print("⚠️  DATABASE_URL not set, using alembic.ini default")
 
 
 def run_migrations_offline() -> None:

@@ -31,7 +31,7 @@ class TrackEvent(BaseModel):
     metadata: Optional[dict] = None
 
 
-@router.get("/")
+@router.get("")
 async def list_analytics(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

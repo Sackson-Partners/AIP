@@ -73,6 +73,7 @@ def _get_cors_origins():
 
 
 app = FastAPI(
+    redirect_slashes=False,
     title="AIP API — African Infrastructure Partners",
     description=(
         "Institutional-grade deal origination, PETFEL due diligence, EIN generation, "
