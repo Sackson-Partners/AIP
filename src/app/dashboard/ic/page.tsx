@@ -132,7 +132,7 @@ export default function ICPage() {
         </div>
         <button
           onClick={() => setShowNewModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark flex items-center gap-2"
         >
           + Schedule IC Session
         </button>
@@ -227,7 +227,7 @@ export default function ICPage() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowNewModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600">Cancel</button>
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Schedule</button>
+                <button type="submit" className="px-6 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark">Schedule</button>
               </div>
             </form>
           </div>
@@ -310,7 +310,7 @@ export default function ICPage() {
                     <button
                       onClick={handleVote}
                       disabled={isVoting}
-                      className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                      className="w-full py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark disabled:opacity-50"
                     >
                       {isVoting ? 'Submitting...' : 'Submit Vote'}
                     </button>

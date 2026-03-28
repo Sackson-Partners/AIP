@@ -91,7 +91,7 @@ function AdminSettingsContent() {
               onClick={() => setSelectedTemplate(i)}
               className={`text-sm px-3 py-1.5 rounded-lg transition-colors ${
                 selectedTemplate === i
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-brand-gold text-brand-navy'
                   : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
               }`}
             >

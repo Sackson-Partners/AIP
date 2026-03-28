@@ -23,7 +23,7 @@ const SCORE_LABELS: Record<number, { label: string; color: string }> = {
 
 const RATING_COLORS: Record<string, string> = {
   A: 'bg-green-600 text-white',
-  B: 'bg-blue-600 text-white',
+  B: 'bg-brand-gold text-brand-navy',
   C: 'bg-yellow-500 text-gray-900',
   D: 'bg-red-600 text-white',
 };
@@ -245,7 +245,7 @@ export default function PETFELPage() {
   if (isLoading && !projects.length) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
       </div>
     );
   }
@@ -258,7 +258,7 @@ export default function PETFELPage() {
         <select
           value={selectedProjectId || ''}
           onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-64"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
         >
           <option value="">Select a Project</option>
           {projects.map((p) => (
@@ -284,7 +284,7 @@ export default function PETFELPage() {
           <button
             onClick={handleCreateAssessment}
             disabled={isSaving}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+            className="bg-brand-gold text-brand-navy px-6 py-3 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
           >
             {isSaving ? 'Creating...' : 'Start PETFEL Assessment'}
           </button>
@@ -349,7 +349,7 @@ export default function PETFELPage() {
                 <button
                   onClick={handleSaveScores}
                   disabled={isSaving || assessment.status !== 'draft'}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
                 >
                   {isSaving ? 'Saving...' : 'Save'}
                 </button>

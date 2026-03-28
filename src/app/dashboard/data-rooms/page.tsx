@@ -66,7 +66,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
         <h1 className="text-3xl font-bold text-gray-900">Data Rooms</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           New Data Room
@@ -75,7 +75,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -115,7 +115,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <button
                     onClick={() => setSelectedRoom(room)}
-                    className="w-full px-4 py-2 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition"
+                    className="w-full px-4 py-2 text-sm text-brand-gold border border-brand-gold rounded-lg hover:bg-brand-gold/5 transition"
                   >
                     View Data Room
                   </button>
@@ -150,7 +150,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                   {...register('name', { required: 'Name is required' })}
                   type="text"
                   placeholder="Enter data room name"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                 />
                 {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
               </div>
@@ -159,7 +159,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                 <label className="block text-sm font-medium text-gray-700 mb-1">Project *</label>
                 <select
                   {...register('project_id', { required: 'Project is required' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                 >
                   <option value="">Select project</option>
                   {projects.map(p => <option key={p.id} value={p.id}>{p.project_name || String(p.id)}</option>)}
@@ -173,7 +173,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                   {...register('description')}
                   placeholder="Enter description (optional)"
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                 />
               </div>
 
@@ -182,7 +182,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                   {...register('require_nda')}
                   type="checkbox"
                   id="require_nda"
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-brand-gold/50"
                   defaultChecked
                 />
                 <label htmlFor="require_nda" className="text-sm text-gray-700">
@@ -200,7 +200,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
                 >
                   Create Data Room
                 </button>
@@ -250,7 +250,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                           <DocumentIcon className="w-5 h-5 text-gray-400" />
                           <span className="text-gray-900">{name}</span>
                         </div>
-                        <a href={String(url)} className="text-blue-600 hover:text-blue-700 text-sm">
+                        <a href={String(url)} className="text-brand-gold hover:text-brand-gold-dark text-sm">
                           Download
                         </a>
                       </div>

@@ -142,7 +142,7 @@ export default function UsersPage() {
         </div>
         <button
           onClick={() => setShowNewModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark flex items-center gap-2"
         >
           + Add User
         </button>
@@ -232,7 +232,7 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <button onClick={() => openEdit(u)} className="text-xs text-blue-600 hover:underline">Edit</button>
+                      <button onClick={() => openEdit(u)} className="text-xs text-brand-gold hover:text-brand-gold-dark">Edit</button>
                       <button onClick={() => toggleActive(u)} className="text-xs text-orange-600 hover:underline">
                         {u.is_active ? 'Deactivate' : 'Activate'}
                       </button>
@@ -282,7 +282,7 @@ export default function UsersPage() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowNewModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600">Cancel</button>
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Create User</button>
+                <button type="submit" className="px-6 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark">Create User</button>
               </div>
             </form>
           </div>
@@ -318,7 +318,7 @@ export default function UsersPage() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600">Cancel</button>
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Save Changes</button>
+                <button type="submit" className="px-6 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark">Save Changes</button>
               </div>
             </form>
           </div>

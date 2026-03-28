@@ -97,7 +97,7 @@ export default function VerificationsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Verifications</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           New Verification
@@ -120,7 +120,7 @@ export default function VerificationsPage() {
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
         </div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -153,7 +153,7 @@ export default function VerificationsPage() {
                         <div className="flex items-center gap-2">
                           <div className="w-16 bg-gray-200 rounded-full h-2">
                             <div
-                              className="bg-blue-600 h-2 rounded-full"
+                              className="bg-brand-gold h-2 rounded-full"
                               style={{ width: `${verification.bankability.overall_score}%` }}
                             />
                           </div>
@@ -206,7 +206,7 @@ export default function VerificationsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Project *</label>
                 <select
                   {...register('project_id', { required: 'Project is required' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                 >
                   <option value="">Select project</option>
                   {projects.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
@@ -218,7 +218,7 @@ export default function VerificationsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Verification Level *</label>
                 <select
                   {...register('level', { required: 'Level is required' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                 >
                   <option value="">Select level</option>
                   {VERIFICATION_LEVELS.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
@@ -237,7 +237,7 @@ export default function VerificationsPage() {
                         type="number"
                         min="0"
                         max="100"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                       />
                     </div>
                     <div>
@@ -247,7 +247,7 @@ export default function VerificationsPage() {
                         type="number"
                         min="0"
                         max="100"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                       />
                     </div>
                     <div>
@@ -257,7 +257,7 @@ export default function VerificationsPage() {
                         type="number"
                         min="0"
                         max="100"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                       />
                     </div>
                     <div>
@@ -267,7 +267,7 @@ export default function VerificationsPage() {
                         type="number"
                         min="0"
                         max="100"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                       />
                     </div>
                   </div>
@@ -284,7 +284,7 @@ export default function VerificationsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
                 >
                   Create Verification
                 </button>

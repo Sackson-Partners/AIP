@@ -84,12 +84,12 @@ function AdminUsersContent() {
           placeholder="Search name, email, org, country..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="flex-1 px-4 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold/50"
         />
         <select
           value={roleFilter}
           onChange={(e) => setRoleFilter(e.target.value)}
-          className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-gold/50"
         >
           <option value="">All roles</option>
           {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
@@ -97,7 +97,7 @@ function AdminUsersContent() {
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white focus:outline-none focus:ring-2 focus:ring-brand-gold/50"
         >
           <option value="">All statuses</option>
           <option value="active">Active</option>
@@ -170,7 +170,7 @@ function AdminUsersContent() {
                         value={u.role ?? ''}
                         disabled={updating === u.id}
                         onChange={(e) => updateUser(u.id, { role: e.target.value })}
-                        className="px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-xs text-white focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 w-full max-w-[140px]"
+                        className="px-2 py-1.5 bg-gray-900 border border-gray-700 rounded text-xs text-white focus:outline-none focus:ring-1 focus:ring-brand-gold/50 disabled:opacity-50 w-full max-w-[140px]"
                       >
                         <option value="">No role</option>
                         {ROLES.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}

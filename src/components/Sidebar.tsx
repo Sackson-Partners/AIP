@@ -80,7 +80,7 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
   investor:           'bg-orange-500',
 };
 
-export default function Sidebar() {
+export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
   const { logout, user, profile } = useAuth();
   const { role, canAny } = useRBAC();
@@ -141,6 +141,7 @@ export default function Sidebar() {
             <Link
               key={item.href}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
                   ? 'bg-brand-gold text-brand-navy font-medium'

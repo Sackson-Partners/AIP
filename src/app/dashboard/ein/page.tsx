@@ -284,7 +284,7 @@ export default function EINPage() {
   if (isLoading && !projects.length) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
       </div>
     );
   }
@@ -297,7 +297,7 @@ export default function EINPage() {
         <select
           value={selectedProjectId || ''}
           onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-64"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
         >
           <option value="">Select a Project</option>
           {projects.map((p) => (
@@ -324,7 +324,7 @@ export default function EINPage() {
             <button
               onClick={handleCreateEIN}
               disabled={isSaving}
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+              className="bg-brand-gold text-brand-navy px-6 py-3 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
             >
               {isSaving ? 'Creating...' : 'Create EIN'}
             </button>
@@ -382,7 +382,7 @@ export default function EINPage() {
                   <button
                     onClick={handleSubmit}
                     disabled={isSaving}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                    className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
                   >
                     Submit for Review
                   </button>
@@ -455,7 +455,7 @@ export default function EINPage() {
                   </h2>
                   <button
                     onClick={() => setShowTemplateModal(true)}
-                    className="text-blue-600 hover:text-blue-700 text-sm flex items-center gap-1"
+                    className="text-brand-gold hover:text-brand-gold-dark text-sm flex items-center gap-1"
                   >
                     <InfoIcon className="w-4 h-4" />
                     View Template
@@ -526,7 +526,7 @@ export default function EINPage() {
                       <button
                         onClick={handleSaveSummary}
                         disabled={isSaving || ein.status !== 'draft'}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                        className="bg-brand-gold text-brand-navy px-6 py-2 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
                       >
                         {isSaving ? 'Saving...' : 'Save Summary'}
                       </button>
@@ -546,7 +546,7 @@ export default function EINPage() {
                         id="save-btn"
                         onClick={() => handleSaveSection(true)}
                         disabled={isSaving || ein.status !== 'draft'}
-                        className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                        className="bg-brand-gold text-brand-navy px-6 py-2 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
                       >
                         {isSaving ? 'Saving...' : 'Save Section'}
                       </button>

@@ -114,7 +114,7 @@ export default function PipelinePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
       </div>
     );
   }
@@ -374,7 +374,7 @@ export default function PipelinePage() {
               <button
                 onClick={confirmMove}
                 disabled={isMoving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark disabled:opacity-50"
               >
                 {isMoving ? 'Moving...' : 'Confirm Move'}
               </button>

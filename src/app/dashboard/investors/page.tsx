@@ -72,7 +72,7 @@ export default function InvestorsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Investors</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           New Investor
@@ -81,7 +81,7 @@ export default function InvestorsPage() {
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -147,7 +147,7 @@ export default function InvestorsPage() {
                 <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
                   <button
                     onClick={() => setSelectedInvestor(investor)}
-                    className="flex-1 px-3 py-2 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition"
+                    className="flex-1 px-3 py-2 text-sm text-brand-gold border border-brand-gold rounded-lg hover:bg-brand-gold/5 transition"
                   >
                     View Details
                   </button>
@@ -186,7 +186,7 @@ export default function InvestorsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fund Name *</label>
                   <input
                     {...register('fund_name', { required: 'Fund name is required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                   {errors.fund_name && <p className="text-red-500 text-sm mt-1">{errors.fund_name.message}</p>}
                 </div>
@@ -195,7 +195,7 @@ export default function InvestorsPage() {
                   <input
                     {...register('aum', { valueAsNumber: true })}
                     type="number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -204,7 +204,7 @@ export default function InvestorsPage() {
                     {...register('target_irr', { valueAsNumber: true })}
                     type="number"
                     step="0.1"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -212,7 +212,7 @@ export default function InvestorsPage() {
                   <input
                     {...register('ticket_size_min', { required: 'Required', valueAsNumber: true })}
                     type="number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                   {errors.ticket_size_min && <p className="text-red-500 text-sm mt-1">{errors.ticket_size_min.message}</p>}
                 </div>
@@ -221,7 +221,7 @@ export default function InvestorsPage() {
                   <input
                     {...register('ticket_size_max', { required: 'Required', valueAsNumber: true })}
                     type="number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                   {errors.ticket_size_max && <p className="text-red-500 text-sm mt-1">{errors.ticket_size_max.message}</p>}
                 </div>
@@ -230,7 +230,7 @@ export default function InvestorsPage() {
                   <select
                     {...register('instruments', { required: 'Required' })}
                     multiple
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 h-24"
                   >
                     {INSTRUMENTS.map(i => <option key={i} value={i}>{i}</option>)}
                   </select>
@@ -241,7 +241,7 @@ export default function InvestorsPage() {
                   <select
                     {...register('sector_focus', { required: 'Required' })}
                     multiple
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 h-24"
                   >
                     {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -250,7 +250,7 @@ export default function InvestorsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Country Focus *</label>
                   <input
                     {...register('country_focus', { required: 'Required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                     placeholder="e.g., Kenya, Nigeria, South Africa (comma-separated)"
                   />
                   {errors.country_focus && <p className="text-red-500 text-sm mt-1">{errors.country_focus.message}</p>}
@@ -260,7 +260,7 @@ export default function InvestorsPage() {
                   <textarea
                     {...register('esg_constraints')}
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                     placeholder="Describe any ESG requirements..."
                   />
                 </div>
@@ -275,7 +275,7 @@ export default function InvestorsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
                 >
                   Add Investor
                 </button>
