@@ -16,7 +16,8 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { login } = useAuth();
-  const [error, setError] = useState<string | null>(null);
+  const callbackError = searchParams.get('error');
+  const [error, setError] = useState<string | null>(callbackError);
   const [isLoading, setIsLoading] = useState(false);
 
   const onSubmit = async (data: LoginForm) => {
