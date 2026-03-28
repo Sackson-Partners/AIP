@@ -107,7 +107,7 @@ export default function EINPage() {
   };
 
   const loadSectionContent = (einData: EIN, sectionCode: number) => {
-    const section = einData.sections?.find((s) => s.section_code === sectionCode);
+    const section = einData.sections?.find((s) => String(s.section_code) === String(sectionCode));
     setSectionContent(section?.content || '');
   };
 
@@ -138,14 +138,14 @@ export default function EINPage() {
   };
 
   const getSection = (einData: EIN, sectionCode: number): EINSection | undefined => {
-    return einData.sections?.find((s) => s.section_code === sectionCode);
+    return einData.sections?.find((s) => String(s.section_code) === String(sectionCode));
   };
 
   const handleSaveSection = async (showAlert = true) => {
     if (!ein) return;
     setIsSaving(true);
     try {
-      await einApi.updateSection(ein.id, activeSection, sectionContent);
+      await einApi.updateSection(ein.id, activeSection, { content: sectionContent });
       // Refresh EIN
       const updated = await einApi.getById(ein.id);
       setEin(updated);
@@ -189,7 +189,7 @@ export default function EINPage() {
     if (!confirm('Generate EIN content using AI? This will replace any existing draft content.')) return;
     setIsGenerating(true);
     try {
-      const result = await aiApi.generateEIN(selectedProjectId);
+      const result = await aiApi.generateEIN({ project_id: selectedProjectId });
       // Create EIN if doesn't exist
       let currentEin = ein;
       if (!currentEin) {
@@ -198,7 +198,7 @@ export default function EINPage() {
       // Update all sections with AI content
       if (result.sections) {
         for (const [code, content] of Object.entries(result.sections)) {
-          await einApi.updateSection(currentEin.id, parseInt(code), content as string, 'ai');
+          await einApi.updateSection(currentEin.id, parseInt(code), { content: content as string, generated_by: 'ai' });
         }
       }
       // Update summary
@@ -279,7 +279,7 @@ export default function EINPage() {
     }
   };
 
-  const activeTemplate = templates.find((t) => t.code === activeSection);
+  const activeTemplate = templates.find((t) => String(t.code) === String(activeSection));
 
   if (isLoading && !projects.length) {
     return (

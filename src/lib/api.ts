@@ -1,33 +1,33 @@
-import axios from 'axios';
+import axios, { AxiosInstance } from 'axios';
+import { supabase } from './supabase';
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ||
   'https://aip-api.politesea-b4c1d412.southafricanorth.azurecontainerapps.io';
 
-export const api = axios.create({
+export const AUTH_PROVIDER = 'supabase';
+
+export const api: AxiosInstance = axios.create({
   baseURL: `${API_BASE}/api`,
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach token to every request
-api.interceptors.request.use((config) => {
-  const token = typeof window !== 'undefined'
-    ? localStorage.getItem('aip_token')
-    : null;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+api.interceptors.request.use(async (config) => {
+  if (typeof window !== 'undefined') {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      config.headers.Authorization = `Bearer ${session.access_token}`;
+    }
   }
   return config;
 });
 
-// Handle 401
 api.interceptors.response.use(
   (r) => r,
-  (error) => {
+  async (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('aip_token');
-      localStorage.removeItem('aip_user');
+      await supabase.auth.signOut();
       if (typeof window !== 'undefined') {
         window.location.href = '/login';
       }
@@ -36,105 +36,533 @@ api.interceptors.response.use(
   }
 );
 
-// Auth
+// Helper that unwraps AxiosResponse.data
+const get  = <T>(url: string, params?: object) => api.get<T>(url, params ? { params } : {}).then(r => r.data);
+const post = <T>(url: string, data?: unknown) => api.post<T>(url, data).then(r => r.data);
+const patch = <T>(url: string, data?: unknown) => api.patch<T>(url, data).then(r => r.data);
+const del  = <T>(url: string) => api.delete<T>(url).then(r => r.data);
+
+// ─── Interfaces ──────────────────────────────────────────────────────────────
+
+export interface Project {
+  id: string | number;
+  project_name: string;
+  name?: string;
+  sector: string;
+  country: string;
+  region?: string;
+  stage: string;
+  description?: string;
+  project_type?: string;
+  capex?: number;
+  estimated_capex?: number;
+  estimated_cost?: number;
+  funding_gap?: number;
+  currency?: string;
+  status?: string;
+  technology?: string;
+  gps_location?: string;
+  revenue_model?: string;
+  offtaker?: string;
+  tariff_mechanism?: string;
+  fx_exposure?: string;
+  concession_length?: number;
+  epc_status?: string;
+  permits_status?: string;
+  land_acquisition_status?: string;
+  timeline_fid?: string;
+  timeline_cod?: string;
+  esg_category?: string;
+  political_risk_mitigation?: string;
+  sovereign_support?: string;
+  strategic_notes?: string;
+  source_url?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface ProjectCreate {
+  project_name: string;
+  sector: string;
+  country: string;
+  region?: string;
+  stage?: string;
+  description?: string;
+  project_type?: string;
+  capex?: number;
+  estimated_cost?: number;
+  currency?: string;
+  status?: string;
+  strategic_notes?: string;
+  source_url?: string;
+}
+
+export interface Investor {
+  id: string | number;
+  fund_name: string;
+  ticket_size_min: number;
+  ticket_size_max: number;
+  instruments: string[];
+  sectors?: string[];
+  geographies?: string[];
+  sector_focus?: string[];
+  country_focus?: string[];
+  esg_constraints?: string;
+  aum?: number;
+  target_irr?: number;
+  created_at?: string;
+}
+
+export interface InvestorCreate {
+  fund_name: string;
+  ticket_size_min: number;
+  ticket_size_max: number;
+  instruments: string[];
+  sectors?: string[];
+  geographies?: string[];
+  sector_focus?: string[];
+  country_focus?: string[];
+  esg_constraints?: string;
+  aum?: number;
+  target_irr?: number;
+}
+
+export interface Event {
+  id: string | number;
+  name: string;
+  description?: string;
+  event_date: string;
+  location?: string;
+  type?: string;
+  project_id?: string | number;
+  projects_involved?: (string | number)[];
+  created_at?: string;
+}
+
+export interface EventCreate {
+  name: string;
+  description?: string;
+  event_date: string;
+  location?: string;
+  type?: string;
+  project_id?: string | number;
+  projects_involved?: (string | number)[];
+}
+
+export interface Verification {
+  id: string | number;
+  project_id: string | number;
+  level: string;
+  status?: string;
+  bankability?: {
+    overall_score: number;
+    technical_readiness: number;
+    financial_robustness: number;
+    legal_clarity: number;
+    esg_compliance: number;
+  };
+  created_at?: string;
+}
+
+export interface VerificationCreate {
+  project_id: string | number;
+  level: string;
+  technical_readiness?: number;
+  financial_robustness?: number;
+  legal_clarity?: number;
+  esg_compliance?: number;
+  bankability?: {
+    overall_score: number;
+    technical_readiness: number;
+    financial_robustness: number;
+    legal_clarity: number;
+    esg_compliance: number;
+    risk_flags?: unknown[];
+    last_verified?: string;
+  };
+}
+
+export interface PipelineStage {
+  id: string | number;
+  name: string;
+  code?: string;
+  order: number;
+  description?: string;
+  sla_days?: number;
+}
+
+export interface ProjectPipelineStatus {
+  id: string | number;
+  project_id: string | number;
+  project_name?: string;
+  stage_id: string | number;
+  stage_name?: string;
+  current_stage?: string;
+  entered_at?: string;
+  days_in_stage?: number;
+  sla_status?: string;
+  sla_remaining?: number;
+  sla_days?: number;
+  notes?: string;
+}
+
+export interface PipelineLog {
+  id: string | number;
+  project_id: string | number;
+  from_stage?: string;
+  to_stage: string;
+  moved_at: string;
+  timestamp?: string;
+  moved_by?: string;
+  notes?: string;
+  days_in_previous_stage?: number;
+  sla_breached?: boolean;
+}
+
+export interface DataRoom {
+  id: string | number;
+  name: string;
+  project_id: string | number;
+  description?: string;
+  require_nda?: boolean;
+  files?: DataRoomFile[];
+  documents?: Record<string, string>;
+  access_users?: string[];
+  created_at?: string;
+}
+
+export interface DataRoomFile {
+  id: string | number;
+  name: string;
+  url: string;
+  size?: number;
+  uploaded_at?: string;
+}
+
+export interface DealRoom {
+  id: string | number;
+  name: string;
+  project_id: string | number;
+  description?: string | null;
+  status?: string;
+  deal_value?: number | null;
+  deal_currency?: string;
+  target_close_date?: string | null;
+  is_video_enabled?: boolean;
+  is_chat_enabled?: boolean;
+  require_nda?: boolean;
+  participants?: string[];
+  member_count?: number;
+  document_count?: number;
+  created_at?: string;
+}
+
+export interface EIN {
+  id: string | number;
+  project_id: string | number;
+  title?: string;
+  status?: string;
+  sections?: EINSection[];
+  template?: EINTemplate;
+  executive_summary?: string;
+  recommendation?: string;
+  key_gaps?: string;
+  next_steps?: string;
+  petfel_score?: number;
+  red_flags_count?: number;
+  version?: number;
+  is_valid?: boolean;
+  issues?: string[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface EINSection {
+  id: string | number;
+  title: string;
+  section_name?: string;
+  content: string;
+  section_code?: string;
+  is_reviewed?: boolean;
+  generated_by?: string;
+  order?: number;
+}
+
+export interface EINTemplate {
+  id: string | number;
+  name: string;
+  code?: string;
+  sections: string[];
+  objective?: string;
+  key_questions?: string[];
+  output_guidance?: string;
+}
+
+export interface PETFELAssessment {
+  id: string | number;
+  project_id: string | number;
+  overall_score?: number;
+  status?: string;
+  rating?: string;
+  gating_result?: string;
+  criteria?: PETFELCriterion[];
+  scores?: ScoreInput[];
+  augmented_scores?: ScoreInput[];
+  pillar_scores?: Record<string, number>;
+  flags?: Array<{ id?: string | number; pillar: string; criterion: string; message: string; description?: string; severity?: string; is_resolved?: boolean }>;
+  created_at?: string;
+}
+
+export interface PETFELCriterion {
+  id: string | number;
+  name: string;
+  category: string;
+  code?: string;
+  score?: number;
+  weight?: number;
+  notes?: string;
+}
+
+export interface ScoreInput {
+  criterion_id: string | number;
+  score: number;
+  notes?: string;
+  pillar?: string;
+  sub_criterion?: string;
+  evidence_notes?: string;
+  mitigation?: string;
+  owner?: string;
+}
+
+export interface ICCommittee {
+  id: string | number;
+  committee_id?: string | number;
+  name: string;
+  project_id?: string | number;
+  status?: string;
+  meeting_date?: string;
+  members?: string[];
+  votes?: ICVote[];
+  decision?: string;
+  created_at?: string;
+}
+
+export interface ICVote {
+  id: string | number;
+  committee_id: string | number;
+  member_id: string;
+  vote: 'approve' | 'reject' | 'abstain';
+  comments?: string;
+  voted_at?: string;
+}
+
+export interface AnalyticReport {
+  id: string | number;
+  title: string;
+  type: string;
+  sector?: string;
+  country?: string;
+  content?: string;
+  data?: Record<string, unknown>;
+  created_at?: string;
+}
+
+export interface AnalyticReportCreate {
+  title: string;
+  type: string;
+  sector?: string;
+  country?: string;
+  content?: string;
+  data?: Record<string, unknown>;
+}
+
+export interface User {
+  id: string;
+  email: string;
+  full_name?: string;
+  role?: string;
+  organisation?: string;
+  is_active?: boolean;
+  created_at?: string;
+}
+
+// ─── API Objects ──────────────────────────────────────────────────────────────
+
 export const authAPI = {
-  login: async (email: string, password: string) => {
-    const form = new URLSearchParams();
-    form.append('username', email);
-    form.append('password', password);
-    const { data } = await api.post('/auth/token', form.toString(), {
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    });
-    localStorage.setItem('aip_token', data.access_token);
-    return data;
-  },
-  me: () => api.get('/auth/me'),
-  logout: () => {
-    localStorage.removeItem('aip_token');
-    localStorage.removeItem('aip_user');
-    window.location.href = '/login';
-  },
+  me: () => get<User>('/auth/me'),
 };
 
-// Resources
 export const projectsAPI = {
-  list:   (p?: object) => api.get('/projects', { params: p }),
-  get:    (id: string) => api.get(`/projects/${id}`),
-  create: (d: object) => api.post('/projects', d),
-  update: (id: string, d: object) => api.patch(`/projects/${id}`, d),
-  delete: (id: string) => api.delete(`/projects/${id}`),
+  list:   (params?: object) => get<Project[]>('/projects', params),
+  get:    (id: string | number) => get<Project>(`/projects/${id}`),
+  create: (d: ProjectCreate) => post<Project>('/projects', d),
+  update: (id: string | number, d: Partial<ProjectCreate>) => patch<Project>(`/projects/${id}`, d),
+  delete: (id: string | number) => del<void>(`/projects/${id}`),
 };
+export const projectsApi = projectsAPI;
 
 export const investorsAPI = {
-  list:   (p?: object) => api.get('/investors', { params: p }),
-  get:    (id: string) => api.get(`/investors/${id}`),
-  create: (d: object) => api.post('/investors', d),
-  update: (id: string, d: object) => api.patch(`/investors/${id}`, d),
+  list:   (params?: object) => get<Investor[]>('/investors', params),
+  get:    (id: string | number) => get<Investor>(`/investors/${id}`),
+  create: (d: InvestorCreate) => post<Investor>('/investors', d),
+  update: (id: string | number, d: Partial<InvestorCreate>) => patch<Investor>(`/investors/${id}`, d),
 };
+export const investorsApi = investorsAPI;
 
-export const pipelineAPI = {
-  stages:   () => api.get('/pipeline/stages'),
-  overview: () => api.get('/pipeline/overview'),
-  seed:     () => api.post('/pipeline/init'),
-  move:     (projectId: string, d: object) => api.post(`/pipeline/move`, { project_id: projectId, ...d }),
+export const verificationsAPI = {
+  list:         (params?: object) => get<Verification[]>('/verifications', params),
+  get:          (id: string | number) => get<Verification>(`/verifications/${id}`),
+  getByProject: (projectId: string | number) => get<Verification[]>(`/verifications?project_id=${projectId}`),
+  create:       (d: VerificationCreate) => post<Verification>('/verifications', d),
+  update:       (id: string | number, d: Partial<VerificationCreate>) => patch<Verification>(`/verifications/${id}`, d),
 };
-
-export const analyticsAPI = {
-  summary: () => api.get('/analytics'),
-  track:   (d: object) => api.post('/analytics/track', d),
-};
+export const verificationsApi = verificationsAPI;
 
 export const eventsAPI = {
-  list:   (p?: object) => api.get('/events', { params: p }),
-  create: (d: object) => api.post('/events', d),
+  list:   (params?: object) => get<Event[]>('/events', params),
+  get:    (id: string | number) => get<Event>(`/events/${id}`),
+  create: (d: EventCreate) => post<Event>('/events', d),
+  update: (id: string | number, d: Partial<EventCreate>) => patch<Event>(`/events/${id}`, d),
+  delete: (id: string | number) => del<void>(`/events/${id}`),
 };
+export const eventsApi = eventsAPI;
+
+export const pipelineAPI = {
+  stages:           () => get<PipelineStage[]>('/pipeline/stages'),
+  getStages:        () => get<PipelineStage[]>('/pipeline/stages'),
+  overview:         () => get<unknown>('/pipeline/overview'),
+  seed:             () => post<unknown>('/pipeline/init'),
+  statuses:         () => get<ProjectPipelineStatus[]>('/pipeline/statuses'),
+  getProjectStatus: (projectId: string | number) => get<ProjectPipelineStatus>(`/pipeline/statuses/${projectId}`),
+  getSLAAlerts:     () => get<ProjectPipelineStatus[]>('/pipeline/sla-alerts'),
+  logs:             (projectId?: string | number) => get<PipelineLog[]>('/pipeline/logs', projectId ? { project_id: projectId } : {}),
+  getHistory:       (projectId: string | number) => get<PipelineLog[]>(`/pipeline/logs?project_id=${projectId}`),
+  move:             (projectId: string | number, d: object) => post<unknown>('/pipeline/move', { project_id: projectId, ...d }),
+};
+export const pipelineApi = pipelineAPI;
+
+export const analyticsAPI = {
+  list:    () => get<AnalyticReport[]>('/analytics/reports'),
+  summary: () => get<unknown>('/analytics'),
+  reports: () => get<AnalyticReport[]>('/analytics/reports'),
+  get:     (id: string | number) => get<AnalyticReport>(`/analytics/reports/${id}`),
+  create:  (d: AnalyticReportCreate) => post<AnalyticReport>('/analytics/reports', d),
+  track:   (d: object) => post<unknown>('/analytics/track', d),
+};
+export const analyticsApi = analyticsAPI;
+
+export interface UserStats {
+  total: number;
+  active: number;
+  by_role?: Record<string, number>;
+}
 
 export const usersAPI = {
-  list:   () => api.get('/users'),
-  get:    (id: string) => api.get(`/users/${id}`),
-  update: (id: string, d: object) => api.patch(`/users/${id}`, d),
+  list:           (params?: object) => get<User[]>('/users', params),
+  listUsers:      (params?: object) => get<User[]>('/users', params),
+  get:            (id: string) => get<User>(`/users/${id}`),
+  getStats:       () => get<UserStats>('/users/stats'),
+  create:         (d: object) => post<User>('/users', d),
+  createUser:     (d: object) => post<User>('/users', d),
+  update:         (id: string, d: Partial<User>) => patch<User>(`/users/${id}`, d),
+  updateUser:     (id: string, d: Partial<User>) => patch<User>(`/users/${id}`, d),
+  delete:         (id: string) => del<void>(`/users/${id}`),
+  deleteUser:     (id: string) => del<void>(`/users/${id}`),
+  deactivateUser: (id: string) => post<User>(`/users/${id}/deactivate`),
+  activateUser:   (id: string) => post<User>(`/users/${id}/activate`),
+  verifyUser:     (id: string) => post<User>(`/users/${id}/verify`),
 };
+export const usersApi = usersAPI;
 
 export const dataRoomsAPI = {
-  list:   () => api.get('/data-rooms'),
-  get:    (id: string) => api.get(`/data-rooms/${id}`),
-  create: (d: object) => api.post('/data-rooms', d),
+  list:   () => get<DataRoom[]>('/data-rooms'),
+  get:    (id: string | number) => get<DataRoom>(`/data-rooms/${id}`),
+  create: (d: object) => post<DataRoom>('/data-rooms', d),
+  delete: (id: string | number) => del<void>(`/data-rooms/${id}`),
 };
+export const dataRoomsApi = dataRoomsAPI;
 
 export const dealRoomsAPI = {
-  list:   () => api.get('/deal-rooms'),
-  get:    (id: string) => api.get(`/deal-rooms/${id}`),
-  create: (d: object) => api.post('/deal-rooms', d),
+  list:   () => get<DealRoom[]>('/deal-rooms'),
+  get:    (id: string | number) => get<DealRoom>(`/deal-rooms/${id}`),
+  create: (d: object) => post<DealRoom>('/deal-rooms', d),
+  delete: (id: string | number) => del<void>(`/deal-rooms/${id}`),
 };
+export const dealRoomsApi = dealRoomsAPI;
 
 export const petfelAPI = {
-  list:   () => api.get('/petfel'),
-  get:    (id: string) => api.get(`/petfel/${id}`),
-  assess: (projectId: string, d: object) => api.post(`/petfel/assess/${projectId}`, d),
+  list:             () => get<PETFELAssessment[]>('/petfel'),
+  get:              (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
+  getAssessment:    (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
+  getByProject:     (projectId: string | number) => get<PETFELAssessment>(`/petfel/project/${projectId}`),
+  getCriteria:      (projectId?: string | number) => get<PETFELCriterion[]>(projectId ? `/petfel/criteria/${projectId}` : '/petfel/criteria'),
+  assess:           (projectId: string | number, d: object) => post<PETFELAssessment>(`/petfel/assess/${projectId}`, d),
+  createAssessment: (projectId: string | number, d?: object) => post<PETFELAssessment>(`/petfel/assess/${projectId}`, d ?? {}),
+  score:            (assessmentId: string | number, scores: ScoreInput[]) => post<PETFELAssessment>(`/petfel/${assessmentId}/scores`, { scores }),
+  updateScores:     (assessmentId: string | number, scores: ScoreInput[]) => post<PETFELAssessment>(`/petfel/${assessmentId}/scores`, { scores }),
+  calculate:        (assessmentId: string | number) => post<PETFELAssessment>(`/petfel/${assessmentId}/calculate`),
+  submit:           (assessmentId: string | number) => post<PETFELAssessment>(`/petfel/${assessmentId}/submit`),
 };
+export const petfelApi = petfelAPI;
 
 export const einAPI = {
-  list:   () => api.get('/ein'),
-  get:    (projectId: string) => api.get(`/ein/${projectId}`),
-  create: (projectId: string) => api.post(`/ein/${projectId}`, {}),
+  list:          () => get<EIN[]>('/ein'),
+  get:           (projectId: string | number) => get<EIN>(`/ein/${projectId}`),
+  getById:       (id: string | number) => get<EIN>(`/ein/${id}`),
+  create:        (projectId: string | number) => post<EIN>(`/ein/${projectId}`, {}),
+  update:        (id: string | number, d: Partial<EIN>) => patch<EIN>(`/ein/${id}`, d),
+  updateSection: (einId: string | number, sectionId: string | number, d: Partial<EINSection>) => patch<EINSection>(`/ein/${einId}/sections/${sectionId}`, d),
+  updateSummary: (id: string | number, d: Partial<EIN>) => patch<EIN>(`/ein/${id}`, d),
+  validate:      (id: string | number) => post<EIN>(`/ein/${id}/validate`),
+  submit:        (id: string | number) => post<EIN>(`/ein/${id}/submit`),
+  approve:       (id: string | number) => post<EIN>(`/ein/${id}/approve`),
+  templates:     () => get<EINTemplate[]>('/ein/templates'),
+  getTemplates:  () => get<EINTemplate[]>('/ein/templates'),
+  generate:      (projectId: string | number) => post<EIN>(`/ein/generate/${projectId}`, {}),
 };
+export const einApi = einAPI;
 
 export const icAPI = {
-  list:   () => api.get('/ic'),
-  committees: () => api.get('/ic/committees'),
-  create: (d: object) => api.post('/ic/committees', d),
+  list:            () => get<ICCommittee[]>('/ic'),
+  committees:      () => get<ICCommittee[]>('/ic/committees'),
+  listCommittees:  () => get<ICCommittee[]>('/ic/committees'),
+  get:             (id: string | number) => get<ICCommittee>(`/ic/committees/${id}`),
+  getCommittee:    (id: string | number) => get<ICCommittee>(`/ic/committees/${id}`),
+  create:          (d: object) => post<ICCommittee>('/ic/committees', d),
+  createCommittee: (d: object) => post<ICCommittee>('/ic/committees', d),
+  vote:            (id: string | number, d: object) => post<ICVote>(`/ic/committees/${id}/vote`, d),
+  submitVote:      (id: string | number, vote: string, rationale?: string) => post<ICVote>(`/ic/committees/${id}/vote`, { vote, rationale }),
+  recordDecision:  (id: string | number, outcome: string | object) => post<ICCommittee>(`/ic/committees/${id}/decision`, typeof outcome === 'string' ? { outcome } : outcome),
 };
+export const icApi = icAPI;
 
 export const matchingAPI = {
-  list:  () => api.get('/matching'),
-  run:   (projectId: string) => api.post(`/matching/run/${projectId}`, {}),
-  get:   (projectId: string) => api.get(`/matching/${projectId}`),
+  list: () => get<unknown[]>('/matching'),
+  run:  (projectId: string | number) => post<unknown>(`/matching/run/${projectId}`, {}),
+  get:  (projectId: string | number) => get<unknown>(`/matching/${projectId}`),
 };
+export const matchingApi = matchingAPI;
 
 export const radarAPI = {
-  list:   () => api.get('/radar'),
-  results: () => api.get('/radar/results'),
-  scan:   () => api.post('/radar/scan', {}),
+  list:    () => get<unknown[]>('/radar'),
+  results: () => get<unknown[]>('/radar/results'),
+  scan:    () => post<unknown>('/radar/scan', {}),
+};
+export const radarApi = radarAPI;
+
+export interface EINGenerated {
+  sections?: Record<string, string>;
+  executive_summary?: string;
+  recommendation?: string;
+  key_gaps?: string;
+  next_steps?: string;
+}
+
+export const aiApi = {
+  analyze:       (d: object) => post<unknown>('/ai/analyze', d),
+  generate:      (d: object) => post<unknown>('/ai/generate', d),
+  generateEIN:   (d: object) => post<EINGenerated>('/ai/generate-ein', d),
+  augmentPETFEL: (d: object) => post<PETFELAssessment>('/ai/augment-petfel', d),
 };
 
 export default api;

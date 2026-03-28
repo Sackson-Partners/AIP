@@ -27,10 +27,10 @@ export default function Dashboard() {
         ]);
 
         setStats({
-          projects: projects.length,
-          investors: investors.length,
+          projects:      projects.length,
+          investors:     investors.length,
           verifications: verifications.length,
-          events: events.length,
+          events:        events.length,
         });
 
         setRecentProjects(projects.slice(0, 5));

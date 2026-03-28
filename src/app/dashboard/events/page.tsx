@@ -54,7 +54,7 @@ export default function EventsPage() {
     }
   };
 
-  const getProjectName = (projectId: number) => {
+  const getProjectName = (projectId: string | number) => {
     const project = projects.find(p => String(p.id) === String(projectId));
     return project?.project_name || `Project #${projectId}`;
   };

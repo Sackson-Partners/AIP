@@ -1,18 +1,23 @@
-import type { Metadata } from 'next';
-import { AuthProvider } from '../context/AuthContext';
-import './globals.css';
+import type { Metadata } from 'next'
+import { Inter } from 'next/font/google'
+import './globals.css'
+import { AuthProvider } from '@/context/AuthContext'
+
+const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'AIP Platform - Africa Infrastructure Projects',
-  description: 'Connect infrastructure projects with investors',
-};
+  title: 'AIP Platform',
+  description: 'Africa Infrastructure Pipeline',
+}
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="antialiased">
-        <AuthProvider>{children}</AuthProvider>
+      <body className={inter.className}>
+        <AuthProvider>
+          {children}
+        </AuthProvider>
       </body>
     </html>
-  );
+  )
 }

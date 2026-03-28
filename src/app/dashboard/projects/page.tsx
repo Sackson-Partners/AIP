@@ -24,8 +24,8 @@ export default function ProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [filter, setFilter] = useState({ sector: '', country: '', status: '' });
-  const [newForm, setNewForm] = useState<ProjectCreate>({ project_name: '', country: '', sector: '', status: 'planned' });
-  const [editForm, setEditForm] = useState<ProjectCreate>({ project_name: '' });
+  const [newForm, setNewForm] = useState<ProjectCreate>({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
+  const [editForm, setEditForm] = useState<ProjectCreate>({ project_name: '', sector: '', country: '', stage: '' });
 
   const fetchProjects = async () => {
     try {
@@ -51,7 +51,7 @@ export default function ProjectsPage() {
     try {
       await projectsApi.create(newForm);
       setShowModal(false);
-      setNewForm({ project_name: '', country: '', sector: '', status: 'planned' });
+      setNewForm({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
       fetchProjects();
     } catch (error: any) {
       alert(error?.response?.data?.detail || 'Failed to create project. Please try again.');
@@ -65,8 +65,9 @@ export default function ProjectsPage() {
       country:         project.country || '',
       region:          project.region || '',
       sector:          project.sector || '',
+      stage:           project.stage || '',
       project_type:    project.project_type || '',
-      estimated_cost:  project.estimated_cost || '',
+      estimated_cost:  project.estimated_cost,
       status:          project.status || 'planned',
       description:     project.description || '',
       strategic_notes: project.strategic_notes || '',
@@ -88,7 +89,7 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string | number) => {
     if (!confirm('Are you sure you want to delete this project?')) return;
     try {
       await projectsApi.delete(id as any);
@@ -294,7 +295,7 @@ export default function ProjectsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost</label>
                   <input
                     value={newForm.estimated_cost}
-                    onChange={(e) => setNewForm({ ...newForm, estimated_cost: e.target.value })}
+                    onChange={(e) => setNewForm({ ...newForm, estimated_cost: e.target.value ? Number(e.target.value) : undefined })}
                     placeholder="e.g., $500M, USD 1.2B"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
@@ -410,7 +411,7 @@ export default function ProjectsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost</label>
                   <input
                     value={editForm.estimated_cost}
-                    onChange={(e) => setEditForm({ ...editForm, estimated_cost: e.target.value })}
+                    onChange={(e) => setEditForm({ ...editForm, estimated_cost: e.target.value ? Number(e.target.value) : undefined })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -472,7 +473,7 @@ export default function ProjectsPage() {
                 <DetailItem label="Region" value={selectedProject.region || '—'} />
                 <DetailItem label="Stage" value={selectedProject.status || '—'} />
                 <DetailItem label="Project Type" value={selectedProject.project_type || '—'} />
-                <DetailItem label="Estimated Cost" value={selectedProject.estimated_cost || '—'} />
+                <DetailItem label="Estimated Cost" value={String(selectedProject.estimated_cost ?? '—')} />
                 {selectedProject.description && (
                   <div className="col-span-2">
                     <p className="text-sm text-gray-500">Description</p>

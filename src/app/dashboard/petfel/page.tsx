@@ -50,7 +50,13 @@ export default function PETFELPage() {
           petfelApi.getCriteria(),
         ]);
         setProjects(projectsData);
-        setCriteria(criteriaData);
+        const criteriaMap: Record<string, PETFELCriterion[]> = {};
+        criteriaData.forEach((c) => {
+          const key = c.category || 'default';
+          if (!criteriaMap[key]) criteriaMap[key] = [];
+          criteriaMap[key].push(c);
+        });
+        setCriteria(criteriaMap);
         // Expand first pillar by default
         setExpandedPillars({ political: true });
       } catch (err) {
@@ -80,7 +86,8 @@ export default function PETFELPage() {
         const scoreMap: Record<string, Record<string, ScoreInput>> = {};
         data.scores?.forEach((s) => {
           if (!scoreMap[s.pillar]) scoreMap[s.pillar] = {};
-          scoreMap[s.pillar][s.sub_criterion] = {
+          scoreMap[s.pillar!][s.sub_criterion!] = {
+            criterion_id: s.criterion_id,
             pillar: s.pillar,
             sub_criterion: s.sub_criterion,
             score: s.score,
@@ -121,12 +128,13 @@ export default function PETFELPage() {
   };
 
   const handleScoreChange = (pillar: string, criterion: string, score: number) => {
-    setScores((prev) => ({
+    setScores((prev): Record<string, Record<string, ScoreInput>> => ({
       ...prev,
       [pillar]: {
         ...(prev[pillar] || {}),
         [criterion]: {
-          ...(prev[pillar]?.[criterion] || { pillar, sub_criterion: criterion }),
+          criterion_id: criterion,
+          ...(prev[pillar]?.[criterion] || {}),
           pillar,
           sub_criterion: criterion,
           score,
@@ -136,12 +144,16 @@ export default function PETFELPage() {
   };
 
   const handleNotesChange = (pillar: string, criterion: string, field: 'evidence_notes' | 'mitigation' | 'owner', value: string) => {
-    setScores((prev) => ({
+    setScores((prev): Record<string, Record<string, ScoreInput>> => ({
       ...prev,
       [pillar]: {
         ...(prev[pillar] || {}),
         [criterion]: {
-          ...(prev[pillar]?.[criterion] || { pillar, sub_criterion: criterion, score: 0 }),
+          criterion_id: criterion,
+          score: 0,
+          ...(prev[pillar]?.[criterion] || {}),
+          pillar,
+          sub_criterion: criterion,
           [field]: value,
         },
       },
@@ -203,7 +215,7 @@ export default function PETFELPage() {
     if (!assessment) return;
     setIsAugmenting(true);
     try {
-      const result = await aiApi.augmentPETFEL(assessment.id);
+      const result = await aiApi.augmentPETFEL({ assessment_id: assessment.id });
       // Apply AI suggestions to scores
       if (result.augmented_scores) {
         const newScores = { ...scores };

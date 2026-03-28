@@ -26,8 +26,8 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
             dataRoomsApi.list(),
             projectsApi.list(),
           ]);
-              if (roomsResult.status === 'fulfilled') setDataRooms(roomsResult.value);
-              if (projectsResult.status === 'fulfilled') setProjects(projectsResult.value);
+              if (roomsResult.status === 'fulfilled') setDataRooms(roomsResult.value ?? []);
+              if (projectsResult.status === 'fulfilled') setProjects(projectsResult.value ?? []);
     } catch (error) {
       console.error('Failed to fetch data:', error);
     } finally {

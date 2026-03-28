@@ -1,88 +1,115 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ||
-  'https://aip-api.politesea-b4c1d412.southafricanorth.azurecontainerapps.io';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from 'react';
+import { User, Session } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
 
-interface AIPUser {
-  id: string;
+interface SignUpData {
   email: string;
-  full_name: string;
+  password: string;
+  fullName: string;
   role: string;
-  organisation: string | null;
-  is_active: boolean;
+  organization: string;
 }
 
 interface AuthContextType {
-  user: AIPUser | null;
+  user: User | null;
+  session: Session | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => void;
   token: string | null;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, fullName: string, phone?: string) => Promise<void>;
+  signUp: (data: SignUpData) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
-const AuthContext = createContext(undefined);
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser]       = useState(null);
-  const [token, setToken]     = useState(null);
-  const [isLoading, setLoading] = useState(true);
+  const [user, setUser]           = useState<User | null>(null);
+  const [session, setSession]     = useState<Session | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load token from localStorage on mount
   useEffect(() => {
-    const stored = localStorage.getItem('aip_token');
-    const storedUser = localStorage.getItem('aip_user');
-    if (stored && storedUser) {
-      setToken(stored);
-      setUser(JSON.parse(storedUser));
-    }
-    setLoading(false);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user ?? null);
+        setIsLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const login = async (email: string, password: string) => {
-    const form = new URLSearchParams();
-    form.append('username', email);
-    form.append('password', password);
-
-    const res = await fetch(`${API_URL}/api/auth/token`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString(),
-    });
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Login failed');
-    }
-
-    const data = await res.json();
-    const newToken = data.access_token;
-
-    // Fetch user profile
-    const meRes = await fetch(`${API_URL}/api/auth/me`, {
-      headers: { Authorization: `Bearer ${newToken}` },
-    });
-    const userData = await meRes.json();
-
-    localStorage.setItem('aip_token', newToken);
-    localStorage.setItem('aip_user', JSON.stringify(userData));
-    setToken(newToken);
-    setUser(userData);
+  const login = async (email: string, password: string): Promise<void> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
   };
 
-  const logout = () => {
-    localStorage.removeItem('aip_token');
-    localStorage.removeItem('aip_user');
-    setToken(null);
-    setUser(null);
+  const register = async (
+    email: string,
+    password: string,
+    fullName: string,
+    phone?: string
+  ): Promise<void> => {
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { full_name: fullName, phone: phone ?? null } },
+    });
+    if (error) throw error;
+  };
+
+  const signUp = async (data: SignUpData): Promise<void> => {
+    const { error } = await supabase.auth.signUp({
+      email: data.email,
+      password: data.password,
+      options: {
+        data: {
+          full_name: data.fullName,
+          role: data.role,
+          organization: data.organization,
+        },
+      },
+    });
+    if (error) throw error;
+  };
+
+  const logout = async (): Promise<void> => {
+    await supabase.auth.signOut();
     window.location.href = '/login';
   };
 
   return (
-    
+    <AuthContext.Provider
+      value={{
+        user,
+        session,
+        isAuthenticated: !!user,
+        isLoading,
+        token: session?.access_token ?? null,
+        login,
+        register,
+        signUp,
+        logout,
+      }}
+    >
       {children}
-    
+    </AuthContext.Provider>
   );
 }
 
