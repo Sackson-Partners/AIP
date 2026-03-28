@@ -6,8 +6,21 @@ import { AuthProvider } from '@/context/AuthContext'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'AIP Platform',
-  description: 'Africa Infrastructure Pipeline',
+  title: 'AIP — Africa Infrastructure Partners',
+  description: 'African Infrastructure Intelligence Platform. Deal-flow, analysis, and pipeline management for infrastructure investors, DFIs, and government stakeholders across Africa.',
+  openGraph: {
+    title: 'AIP — Africa Infrastructure Partners',
+    description: 'African Infrastructure Intelligence Platform for investors, DFIs, and government stakeholders.',
+    url: 'https://www.africa-infra.com',
+    siteName: 'AIP Platform',
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'AIP — Africa Infrastructure Partners',
+    description: 'African Infrastructure Intelligence Platform.',
+  },
+  metadataBase: new URL('https://www.africa-infra.com'),
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

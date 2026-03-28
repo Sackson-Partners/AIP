@@ -193,6 +193,11 @@ export default function Register() {
             )}
           </button>
         </form>
+
+        <p className="mt-8 text-center text-xs text-gray-600">
+          <a href="https://www.africa-infra.com" className="hover:text-gray-500 transition-colors">www.africa-infra.com</a>
+          {' · '}AIP — Africa Infrastructure Partners
+        </p>
       </div>
     </div>
   );
