@@ -21,6 +21,7 @@ export const metadata: Metadata = {
     description: 'African Infrastructure Intelligence Platform.',
   },
   metadataBase: new URL('https://www.africa-infra.com'),
+  icons: { icon: '/logo.png', apple: '/logo.png' },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

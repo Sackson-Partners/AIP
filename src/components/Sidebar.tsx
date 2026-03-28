@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -35,13 +36,7 @@ const ICONS: Record<string, string> = {
 
 function SvgIcon({ iconKey, className }: { iconKey: string; className?: string }) {
   return (
-    <svg
-      className={className}
-      fill="none"
-      viewBox="0 0 24 24"
-      strokeWidth={1.5}
-      stroke="currentColor"
-    >
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d={ICONS[iconKey]} />
     </svg>
   );
@@ -54,24 +49,24 @@ function makeIcon(iconKey: string) {
 }
 
 const navigation: NavItem[] = [
-  { name: 'Dashboard',     href: '/dashboard',               icon: makeIcon('home') },
-  { name: 'Projects',      href: '/dashboard/projects',      icon: makeIcon('folder'),   requiredPermissions: ['view_all_projects','view_own_projects','view_curated_projects','view_approved_projects'] },
-  { name: 'PIS',           href: '/dashboard/pis',           icon: makeIcon('file'),     requiredPermissions: ['view_all_projects','view_own_projects','view_curated_projects','view_approved_projects'] },
-  { name: 'PESTEL',        href: '/dashboard/pestel',        icon: makeIcon('clip'),     requiredPermissions: ['run_pestel','view_pestel_full','view_pestel_summary'] },
-  { name: 'EIN',           href: '/dashboard/ein',           icon: makeIcon('doc'),      requiredPermissions: ['generate_ein','edit_ein','view_approved_ein','view_ein_approved_only'] },
-  { name: 'Pipeline',      href: '/dashboard/pipeline',      icon: makeIcon('bolt'),     requiredPermissions: ['view_pipeline'] },
-  { name: 'IC',            href: '/dashboard/ic',            icon: makeIcon('gavel'),    requiredPermissions: ['vote_ic','manage_ic'] },
-  { name: 'Investors',     href: '/dashboard/investors',     icon: makeIcon('users'),    requiredPermissions: ['view_all_projects','view_curated_projects'] },
-  { name: 'Verifications', href: '/dashboard/verifications', icon: makeIcon('shield'),   requiredPermissions: ['view_all_projects','run_pestel'] },
-  { name: 'Data Rooms',    href: '/dashboard/data-rooms',    icon: makeIcon('database'), requiredPermissions: ['upload_documents','upload_own_documents'] },
-  { name: 'Deal Rooms',    href: '/dashboard/deal-rooms',    icon: makeIcon('deal'),     requiredPermissions: ['view_all_projects','view_approved_projects'] },
-  { name: 'Analytics',     href: '/dashboard/analytics',     icon: makeIcon('chart'),    requiredPermissions: ['view_analytics','view_all_projects'] },
-  { name: 'Events',        href: '/dashboard/events',        icon: makeIcon('calendar'), requiredPermissions: ['view_all_projects','view_approved_projects'] },
-  { name: 'Users',         href: '/dashboard/users',          icon: makeIcon('group'),    requiredPermissions: ['manage_users'],        adminOnly: true },
-  { name: 'Integrations',  href: '/dashboard/integrations',   icon: makeIcon('puzzle'),   requiredPermissions: ['manage_integrations'], adminOnly: true },
-  { name: 'Admin Users',   href: '/dashboard/admin/users',    icon: makeIcon('group'),    requiredPermissions: ['manage_users'],        adminOnly: true },
-  { name: 'Admin Settings',href: '/dashboard/admin/settings', icon: makeIcon('database'), requiredPermissions: ['manage_users'],        adminOnly: true },
-  { name: 'Admin Setup',   href: '/dashboard/admin/setup',    icon: makeIcon('shield'),   requiredPermissions: ['manage_users'],        adminOnly: true },
+  { name: 'Dashboard',      href: '/dashboard',                icon: makeIcon('home') },
+  { name: 'Projects',       href: '/dashboard/projects',       icon: makeIcon('folder'),   requiredPermissions: ['view_all_projects','view_own_projects','view_curated_projects','view_approved_projects'] },
+  { name: 'PIS',            href: '/dashboard/pis',            icon: makeIcon('file'),     requiredPermissions: ['view_all_projects','view_own_projects','view_curated_projects','view_approved_projects'] },
+  { name: 'PESTEL',         href: '/dashboard/pestel',         icon: makeIcon('clip'),     requiredPermissions: ['run_pestel','view_pestel_full','view_pestel_summary'] },
+  { name: 'EIN',            href: '/dashboard/ein',            icon: makeIcon('doc'),      requiredPermissions: ['generate_ein','edit_ein','view_approved_ein','view_ein_approved_only'] },
+  { name: 'Pipeline',       href: '/dashboard/pipeline',       icon: makeIcon('bolt'),     requiredPermissions: ['view_pipeline'] },
+  { name: 'IC',             href: '/dashboard/ic',             icon: makeIcon('gavel'),    requiredPermissions: ['vote_ic','manage_ic'] },
+  { name: 'Investors',      href: '/dashboard/investors',      icon: makeIcon('users'),    requiredPermissions: ['view_all_projects','view_curated_projects'] },
+  { name: 'Verifications',  href: '/dashboard/verifications',  icon: makeIcon('shield'),   requiredPermissions: ['view_all_projects','run_pestel'] },
+  { name: 'Data Rooms',     href: '/dashboard/data-rooms',     icon: makeIcon('database'), requiredPermissions: ['upload_documents','upload_own_documents'] },
+  { name: 'Deal Rooms',     href: '/dashboard/deal-rooms',     icon: makeIcon('deal'),     requiredPermissions: ['view_all_projects','view_approved_projects'] },
+  { name: 'Analytics',      href: '/dashboard/analytics',      icon: makeIcon('chart'),    requiredPermissions: ['view_analytics','view_all_projects'] },
+  { name: 'Events',         href: '/dashboard/events',         icon: makeIcon('calendar'), requiredPermissions: ['view_all_projects','view_approved_projects'] },
+  { name: 'Users',          href: '/dashboard/users',          icon: makeIcon('group'),    requiredPermissions: ['manage_users'],        adminOnly: true },
+  { name: 'Integrations',   href: '/dashboard/integrations',   icon: makeIcon('puzzle'),   requiredPermissions: ['manage_integrations'], adminOnly: true },
+  { name: 'Admin Users',    href: '/dashboard/admin/users',    icon: makeIcon('group'),    requiredPermissions: ['manage_users'],        adminOnly: true },
+  { name: 'Admin Settings', href: '/dashboard/admin/settings', icon: makeIcon('database'), requiredPermissions: ['manage_users'],        adminOnly: true },
+  { name: 'Admin Setup',    href: '/dashboard/admin/setup',    icon: makeIcon('shield'),   requiredPermissions: ['manage_users'],        adminOnly: true },
 ];
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
@@ -98,29 +93,36 @@ export default function Sidebar() {
   }, [canAny]);
 
   const roleInfo = USER_ROLES[role];
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email || 'User';
 
   return (
-    <aside className="w-64 bg-gray-950 border-r border-gray-800 flex flex-col h-full shrink-0">
+    <aside className="w-64 bg-brand-navy border-r border-brand-navy-light flex flex-col h-full shrink-0">
 
-      <div className="flex items-center gap-3 px-4 py-5 border-b border-gray-800">
-        <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center font-bold text-white text-sm">
-          A
+      {/* Logo */}
+      <div className="flex items-center px-4 py-4 border-b border-brand-navy-light">
+        <div className="bg-white rounded px-2 py-1">
+          <Image
+            src="/logo.png"
+            alt="Africa Infrastructure Partners"
+            width={120}
+            height={32}
+            className="h-8 w-auto"
+            priority
+          />
         </div>
-        <span className="font-semibold text-white">AIP Platform</span>
       </div>
 
+      {/* User info */}
       {user && (
-        <div className="px-4 py-3 border-b border-gray-800">
+        <div className="px-4 py-3 border-b border-brand-navy-light">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center shrink-0">
-              <span className="text-sm font-medium text-white">
-                {(profile?.full_name || user.user_metadata?.full_name || user.email || 'U').charAt(0).toUpperCase()}
+            <div className="w-8 h-8 rounded-full bg-brand-gold/20 border border-brand-gold/40 flex items-center justify-center shrink-0">
+              <span className="text-sm font-semibold text-brand-gold">
+                {displayName.charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="min-w-0">
-              <p className="text-sm font-medium text-white truncate">
-                {profile?.full_name || user.user_metadata?.full_name || user.email}
-              </p>
+              <p className="text-sm font-medium text-white truncate">{displayName}</p>
               {roleInfo && (
                 <span className={`inline-block text-xs text-white px-1.5 py-0.5 rounded mt-0.5 ${ROLE_BADGE_COLORS[role] ?? 'bg-gray-500'}`}>
                   {roleInfo.label}
@@ -131,7 +133,8 @@ export default function Sidebar() {
         </div>
       )}
 
-      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
         {visibleNavigation.map((item) => {
           const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
           return (
@@ -140,24 +143,25 @@ export default function Sidebar() {
               href={item.href}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 isActive
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-400 hover:bg-gray-800 hover:text-white'
+                  ? 'bg-brand-gold text-brand-navy font-medium'
+                  : 'text-gray-400 hover:bg-brand-navy-light hover:text-white'
               }`}
             >
               <item.icon className="w-5 h-5 shrink-0" />
               <span className="flex-1">{item.name}</span>
               {item.adminOnly && (
-                <span className="text-xs bg-red-600 text-white px-1.5 py-0.5 rounded">Admin</span>
+                <span className="text-xs bg-red-600/80 text-white px-1.5 py-0.5 rounded">Admin</span>
               )}
             </Link>
           );
         })}
       </nav>
 
-      <div className="px-3 py-3 border-t border-gray-800">
+      {/* Sign out */}
+      <div className="px-3 py-3 border-t border-brand-navy-light">
         <button
           onClick={logout}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-brand-navy-light hover:text-white transition-colors"
         >
           <SvgIcon iconKey="logout" className="w-5 h-5 shrink-0" />
           <span>Sign Out</span>
