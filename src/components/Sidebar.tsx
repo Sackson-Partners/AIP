@@ -57,7 +57,7 @@ const navigation: NavItem[] = [
   { name: 'Dashboard',     href: '/dashboard',               icon: makeIcon('home') },
   { name: 'Projects',      href: '/dashboard/projects',      icon: makeIcon('folder'),   requiredPermissions: ['view_all_projects','view_own_projects','view_curated_projects','view_approved_projects'] },
   { name: 'PIS',           href: '/dashboard/pis',           icon: makeIcon('file'),     requiredPermissions: ['view_all_projects','view_own_projects','view_curated_projects','view_approved_projects'] },
-  { name: 'PESTEL',        href: '/dashboard/petfel',        icon: makeIcon('clip'),     requiredPermissions: ['run_pestel','view_pestel_full','view_pestel_summary'] },
+  { name: 'PESTEL',        href: '/dashboard/pestel',        icon: makeIcon('clip'),     requiredPermissions: ['run_pestel','view_pestel_full','view_pestel_summary'] },
   { name: 'EIN',           href: '/dashboard/ein',           icon: makeIcon('doc'),      requiredPermissions: ['generate_ein','edit_ein','view_approved_ein','view_ein_approved_only'] },
   { name: 'Pipeline',      href: '/dashboard/pipeline',      icon: makeIcon('bolt'),     requiredPermissions: ['view_pipeline'] },
   { name: 'IC',            href: '/dashboard/ic',            icon: makeIcon('gavel'),    requiredPermissions: ['vote_ic','manage_ic'] },
@@ -72,13 +72,14 @@ const navigation: NavItem[] = [
 ];
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
-  admin:       'bg-red-500',
-  analyst:     'bg-blue-500',
-  ic_member:   'bg-purple-500',
-  gov_partner: 'bg-green-500',
-  epc:         'bg-yellow-500',
-  investor:    'bg-teal-500',
-  viewer:      'bg-gray-500',
+  super_admin:        'bg-red-600',
+  private_fund:       'bg-teal-600',
+  dfi:                'bg-blue-600',
+  epc_contractor:     'bg-yellow-600',
+  government:         'bg-green-600',
+  academic:           'bg-purple-600',
+  journalist_analyst: 'bg-gray-500',
+  investor:           'bg-orange-500',
 };
 
 export default function Sidebar() {
