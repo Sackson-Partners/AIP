@@ -131,15 +131,12 @@ jobs:
           echo "revision=${PREV}" >> $GITHUB_OUTPUT
           echo "Current revision (rollback target): $PREV"
 
-      - name: Deploy image + secrets (single revision update)
+      - name: Deploy image
         run: |
           az containerapp update \
             --name ${{ env.AZURE_CONTAINER_APP }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --image ${{ env.DOCKER_IMAGE }}:latest \
-            --set-env-vars \
-              "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" \
-              "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" \
             --output none
           echo "Deployed ${{ env.DOCKER_IMAGE }}:latest"
 
