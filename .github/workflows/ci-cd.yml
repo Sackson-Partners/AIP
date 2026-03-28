@@ -12,11 +12,28 @@ on:
 env:
   DOCKER_IMAGE: sacksons/aip-api
   AZURE_CONTAINER_APP: aip-api
-  AZURE_RESOURCE_GROUP: aip-rg
+  AZURE_RESOURCE_GROUP: AIP-RG
 
 jobs:
+  # ── Frontend TypeScript check ────────────────────────────────
+  frontend-check:
+    name: Frontend TypeScript Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - name: Install dependencies
+        run: npm ci
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+  # ── Backend smoke test ───────────────────────────────────────
   test:
-    name: Test
+    name: Backend Test
     runs-on: ubuntu-latest
     env:
       DATABASE_URL: sqlite:///./aip_test.db
@@ -36,10 +53,11 @@ jobs:
       - name: Verify app imports cleanly
         run: python -c "from backend.main import app; print('App OK')"
 
+  # ── Docker Hub build + push ──────────────────────────────────
   docker:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
-    needs: test
+    needs: [frontend-check, test]
     if: github.event_name == 'push'
     steps:
       - uses: actions/checkout@v4
@@ -87,6 +105,7 @@ jobs:
           docker stop smoke || true
           docker rm smoke || true
 
+  # ── Azure Container Apps deploy ──────────────────────────────
   deploy:
     name: Deploy to Azure Container Apps
     runs-on: ubuntu-latest
@@ -95,25 +114,42 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+
       - name: Azure Login
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
-      - name: Deploy image + set env vars (single revision)
+
+      - name: Record current revision (for rollback)
+        id: prev
+        run: |
+          PREV=$(az containerapp revision list \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --query "sort_by(@, &properties.createdTime)[-1].name" \
+            -o tsv 2>/dev/null || echo "")
+          echo "revision=${PREV}" >> $GITHUB_OUTPUT
+          echo "Current revision (rollback target): $PREV"
+
+      - name: Deploy image + secrets (single revision update)
         run: |
           az containerapp update \
             --name ${{ env.AZURE_CONTAINER_APP }} \
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --image ${{ env.DOCKER_IMAGE }}:latest \
             --set-env-vars \
-              "SUPABASE_URL=https://evpbetmgmhwhhhgwvnfb.supabase.co" \
-              "SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV2cGJldG1nbWh3aGhoZ3d2bmZiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk0NTk5NTYsImV4cCI6MjA4NTAzNTk1Nn0.hfOyt0P-LOQ-t6MNMMCmF9dzAedSf1HNhG3BI9aPQ8E"
-          echo "Deployed new image + Supabase env vars in one revision (DATABASE_URL preserved from Azure secrets)"
+              "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" \
+              "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" \
+            --output none
+          echo "Deployed ${{ env.DOCKER_IMAGE }}:latest"
+
       - name: Fix health probe ports to 8000
         run: |
           python3 - <<'EOF'
           import json, subprocess
-          r = subprocess.run(['az','containerapp','show','-n','aip-api','-g','aip-rg','-o','json'], capture_output=True, text=True)
+          r = subprocess.run(
+              ['az','containerapp','show','-n','aip-api','-g','AIP-RG','-o','json'],
+              capture_output=True, text=True)
           app = json.loads(r.stdout)
           changed = False
           for c in app['properties']['template']['containers']:
@@ -127,7 +163,7 @@ jobs:
                   json.dump(patch, f)
               result = subprocess.run([
                   'az', 'rest', '--method', 'patch',
-                  '--url', 'https://management.azure.com/subscriptions/e919967a-c8ff-4896-977b-360167fa1a84/resourceGroups/aip-rg/providers/Microsoft.App/containerApps/aip-api?api-version=2024-03-01',
+                  '--url', 'https://management.azure.com/subscriptions/e919967a-c8ff-4896-977b-360167fa1a84/resourceGroups/AIP-RG/providers/Microsoft.App/containerApps/aip-api?api-version=2024-03-01',
                   '--body', '@/tmp/probe_patch.json',
                   '--headers', 'Content-Type=application/json',
                   '-o', 'none'
@@ -136,6 +172,7 @@ jobs:
           else:
               print('Probe ports already correct (8000)')
           EOF
+
       - name: Show container startup logs
         if: always()
         run: |
@@ -155,6 +192,7 @@ jobs:
             --format text 2>&1 | tee /tmp/clogs.txt || echo "Could not fetch logs"
           echo "=== ERROR / EXCEPTION lines ==="
           grep -iE "(error|exception|traceback|critical)" /tmp/clogs.txt | head -30 || true
+
       - name: Health check
         run: |
           echo "Waiting 90s for Azure to route traffic to the new revision..."
@@ -172,3 +210,16 @@ jobs:
             "https://${URL}/health" \
             && echo "Health check passed!" \
             || (echo "Health check failed" && exit 1)
+
+      - name: Rollback on failure
+        if: failure() && steps.prev.outputs.revision != ''
+        run: |
+          PREV="${{ steps.prev.outputs.revision }}"
+          echo "Deployment failed — rolling back to revision: $PREV"
+          az containerapp ingress traffic set \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --revision-weight "$PREV=100" \
+            --output none \
+            && echo "Rollback successful: $PREV now handling 100% of traffic" \
+            || echo "WARNING: Rollback failed — manual intervention required"

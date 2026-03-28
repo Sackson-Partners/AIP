@@ -1,25 +1,25 @@
-name: Build and Deploy AIP API
+name: Emergency Deploy via ACR (Manual Only)
+# Use this for emergency rollouts or hotfixes when the main ci-cd.yml is bypassed.
+# Triggers ONLY on manual dispatch to avoid duplicate deploys with ci-cd.yml.
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'backend/**'
-      - 'alembic/**'
-      - 'Dockerfile'
-      - 'start.sh'
-      - 'requirements.txt'
   workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'ACR image tag to deploy (leave blank for fresh build)'
+        required: false
+        default: ''
 
 env:
   ACR_NAME: aipapiregistry
   ACR_SERVER: aipapiregistry.azurecr.io
   IMAGE_NAME: aip-api
   CONTAINER_APP: aip-api
-  RESOURCE_GROUP: aip-rg
+  RESOURCE_GROUP: AIP-RG
 
 jobs:
   build-and-deploy:
+    name: Build via ACR and Deploy
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,13 +31,16 @@ jobs:
 
       - name: Build and Push to ACR
         run: |
-          TAG="ci$(date +%m%d%H%M%S)"
+          TAG="${{ github.event.inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="ci$(date +%m%d%H%M%S)"
+          fi
           az acr build \
             --registry ${{ env.ACR_NAME }} \
             --image ${{ env.IMAGE_NAME }}:$TAG \
             --image ${{ env.IMAGE_NAME }}:latest \
             --file Dockerfile \
-            . 2>&1 | tail -5
+            . 2>&1 | tail -10
           echo "IMAGE_TAG=$TAG" >> $GITHUB_ENV
 
       - name: Deploy to Azure Container Apps
@@ -47,9 +50,17 @@ jobs:
             --resource-group ${{ env.RESOURCE_GROUP }} \
             --image ${{ env.ACR_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }} \
             --output none
-          echo "Deployed: ${{ env.IMAGE_TAG }}"
+          echo "Deployed: ${{ env.ACR_SERVER }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}"
 
       - name: Health Check
         run: |
+          echo "Waiting 60s for revision to start..."
           sleep 60
-          curl -sf https://aip-api.politesea-b4c1d412.southafricanorth.azurecontainerapps.io/health && echo "Health OK"
+          URL=$(az containerapp show \
+            --name ${{ env.CONTAINER_APP }} \
+            --resource-group ${{ env.RESOURCE_GROUP }} \
+            --query "properties.configuration.ingress.fqdn" -o tsv)
+          curl -sf --max-time 30 --retry 5 --retry-delay 15 \
+            "https://${URL}/health" \
+            && echo "Health OK" \
+            || (echo "Health check failed" && exit 1)
