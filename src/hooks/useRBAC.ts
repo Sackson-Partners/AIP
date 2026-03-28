@@ -103,8 +103,12 @@ export function hasAllPermissions(role: UserRole, permissions: Permission[]): bo
 }
 
 export function useRBAC() {
-  const { user, isAuthenticated } = useAuth();
-  const rawRole = user?.user_metadata?.role as string | undefined;
+  const { user, profile, isAuthenticated } = useAuth();
+  // Prefer the verified profiles.role (DB source of truth).
+  // Fall back to user_metadata.role (set at signup, before trigger fires).
+  const rawRole: string | undefined =
+    (profile?.role) ||
+    (user?.user_metadata?.role as string | undefined);
   // Fall back to journalist_analyst (most restricted) for unknown roles
   const role: UserRole = (rawRole && rawRole in USER_ROLES)
     ? rawRole as UserRole

@@ -87,7 +87,7 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { logout, user } = useAuth();
+  const { logout, user, profile } = useAuth();
   const { role, canAny } = useRBAC();
 
   const visibleNavigation = useMemo(() => {
@@ -114,12 +114,12 @@ export default function Sidebar() {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center shrink-0">
               <span className="text-sm font-medium text-white">
-                {(user.user_metadata?.full_name || user.email || 'U').charAt(0).toUpperCase()}
+                {(profile?.full_name || user.user_metadata?.full_name || user.email || 'U').charAt(0).toUpperCase()}
               </span>
             </div>
             <div className="min-w-0">
               <p className="text-sm font-medium text-white truncate">
-                {user.user_metadata?.full_name || user.email}
+                {profile?.full_name || user.user_metadata?.full_name || user.email}
               </p>
               {roleInfo && (
                 <span className={`inline-block text-xs text-white px-1.5 py-0.5 rounded mt-0.5 ${ROLE_BADGE_COLORS[role] ?? 'bg-gray-500'}`}>

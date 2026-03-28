@@ -379,11 +379,18 @@ export interface AnalyticReportCreate {
 export interface User {
   id: string;
   email: string;
-  full_name?: string;
-  role?: string;
-  organisation?: string;
+  full_name?: string | null;
+  role?: string | null;
+  user_type_slug?: string | null;
+  organization?: string | null;
+  phone?: string | null;
+  country?: string | null;
+  is_verified?: boolean;
   is_active?: boolean;
+  avatar_url?: string | null;
+  subscription_tier?: string;
   created_at?: string;
+  updated_at?: string;
 }
 
 // ─── API Objects ──────────────────────────────────────────────────────────────

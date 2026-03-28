@@ -65,21 +65,22 @@ export async function POST(request: NextRequest) {
     process.env.SUPABASE_SERVICE_KEY!
   );
 
-  // Find user by email
-  const { data: { users }, error: listError } = await adminSupabase.auth.admin.listUsers();
-  if (listError) {
-    return NextResponse.json({ error: 'Failed to list users' }, { status: 500 });
-  }
+  // Look up the user's ID from the profiles table by email (service role bypasses RLS)
+  const { data: profileData, error: profileError } = await adminSupabase
+    .from('profiles')
+    .select('id')
+    .eq('email', email)
+    .single();
 
-  const target = users.find((u) => u.email === email);
-  if (!target) {
+  if (profileError || !profileData) {
     return NextResponse.json({ error: `No user found with email: ${email}` }, { status: 404 });
   }
 
-  // Update role in user metadata
-  const { error: updateError } = await adminSupabase.auth.admin.updateUserById(target.id, {
-    user_metadata: { ...target.user_metadata, role },
-  });
+  // Update the role in user_metadata via the admin API
+  const { error: updateError } = await adminSupabase.auth.admin.updateUserById(
+    (profileData as { id: string }).id,
+    { user_metadata: { role } }
+  );
 
   if (updateError) {
     return NextResponse.json({ error: updateError.message }, { status: 500 });
@@ -88,6 +89,6 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     message: `User ${email} promoted to ${role}`,
-    userId: target.id,
+    userId: (profileData as { id: string }).id,
   });
 }
