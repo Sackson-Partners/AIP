@@ -183,8 +183,8 @@ export default function AdminSetupPage() {
       <div className="bg-yellow-900/30 border border-yellow-700/50 rounded-xl p-5">
         <h3 className="text-sm font-semibold text-yellow-300 mb-2">Supabase Configuration Checklist</h3>
         <ul className="text-sm text-yellow-200/80 space-y-1 list-disc list-inside">
-          <li>Auth → URL Configuration → Site URL set to <code className="text-yellow-100">https://aip-plum.vercel.app</code></li>
-          <li>Auth → URL Configuration → Redirect URLs includes <code className="text-yellow-100">https://aip-plum.vercel.app/auth/callback</code></li>
+          <li>Auth → URL Configuration → Site URL set to <code className="text-yellow-100">https://app.africa-infra.com</code></li>
+          <li>Auth → URL Configuration → Redirect URLs includes <code className="text-yellow-100">https://app.africa-infra.com/auth/callback</code></li>
           <li>Auth → Email Templates → Confirm signup → confirm URL uses <code className="text-yellow-100">{`{{ .SiteURL }}/auth/callback?code={{ .Code }}`}</code></li>
           <li>Database → RLS policies enabled on all tables</li>
         </ul>

@@ -68,7 +68,7 @@ def _get_cors_origins():
         for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
         if o.strip()
     ]
-    defaults = ["https://aip-plum.vercel.app", "http://localhost:3000"]
+    defaults = ["https://app.africa-infra.com", "https://www.africa-infra.com", "http://localhost:3000"]
     return list(dict.fromkeys(env_origins + defaults))
 
 

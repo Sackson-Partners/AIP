@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     JWT_EXPIRATION_MINUTES: int = 1440
 
     # CORS
-    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000,https://aip-plum.vercel.app,https://aip-env-aip-sacksons-projects.vercel.app"
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:8000,https://app.africa-infra.com,https://www.africa-infra.com"
 
     # Supabase
     SUPABASE_URL: str = ""

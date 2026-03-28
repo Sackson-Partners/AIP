@@ -67,9 +67,11 @@ const navigation: NavItem[] = [
   { name: 'Deal Rooms',    href: '/dashboard/deal-rooms',    icon: makeIcon('deal'),     requiredPermissions: ['view_all_projects','view_approved_projects'] },
   { name: 'Analytics',     href: '/dashboard/analytics',     icon: makeIcon('chart'),    requiredPermissions: ['view_analytics','view_all_projects'] },
   { name: 'Events',        href: '/dashboard/events',        icon: makeIcon('calendar'), requiredPermissions: ['view_all_projects','view_approved_projects'] },
-  { name: 'Users',         href: '/dashboard/users',         icon: makeIcon('group'),    requiredPermissions: ['manage_users'],        adminOnly: true },
-  { name: 'Integrations',  href: '/dashboard/integrations',  icon: makeIcon('puzzle'),   requiredPermissions: ['manage_integrations'], adminOnly: true },
-  { name: 'Admin Setup',   href: '/dashboard/admin/setup',   icon: makeIcon('shield'),   requiredPermissions: ['manage_users'],        adminOnly: true },
+  { name: 'Users',         href: '/dashboard/users',          icon: makeIcon('group'),    requiredPermissions: ['manage_users'],        adminOnly: true },
+  { name: 'Integrations',  href: '/dashboard/integrations',   icon: makeIcon('puzzle'),   requiredPermissions: ['manage_integrations'], adminOnly: true },
+  { name: 'Admin Users',   href: '/dashboard/admin/users',    icon: makeIcon('group'),    requiredPermissions: ['manage_users'],        adminOnly: true },
+  { name: 'Admin Settings',href: '/dashboard/admin/settings', icon: makeIcon('database'), requiredPermissions: ['manage_users'],        adminOnly: true },
+  { name: 'Admin Setup',   href: '/dashboard/admin/setup',    icon: makeIcon('shield'),   requiredPermissions: ['manage_users'],        adminOnly: true },
 ];
 
 const ROLE_BADGE_COLORS: Record<string, string> = {
