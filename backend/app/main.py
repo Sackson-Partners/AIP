@@ -69,7 +69,7 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ── CORS ──────────────────────────────────────────────────────────────────
-_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://app.africa-infra.com,https://www.africa-infra.com")
+_raw = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,https://www.app.africa-infra.com,https://www.africa-infra.com,https://aip-plum.vercel.app")
 origins = [o.strip() for o in _raw.split(",") if o.strip()]
 
 app.add_middleware(

@@ -41,7 +41,7 @@ The AIP (African Infrastructure Partners) platform is an institutional-grade dea
 - AI-powered analysis via Claude (primary) / OpenAI (fallback)
 
 **Technology stack:**
-- Frontend: Next.js (React) — deployed on Vercel (`aip-plum.vercel.app`)
+- Frontend: Next.js (React) — deployed on Vercel (`www.app.africa-infra.com` · legacy: `aip-plum.vercel.app`)
 - Backend: FastAPI (Python) — deployed on Railway
 - Database: PostgreSQL (Supabase) / SQLite (local dev)
 - Auth: Supabase Auth + optional Azure AD B2C

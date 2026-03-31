@@ -39,7 +39,7 @@ const EMAIL_TEMPLATES = [
 const SYSTEM_CHECKS = [
   { label: 'Supabase Auth',     status: 'ok',      detail: 'Email/password + confirmation active' },
   { label: 'API Connection',    status: 'unknown',  detail: 'Check /health endpoint' },
-  { label: 'CORS Origins',      status: 'ok',      detail: 'app.africa-infra.com allowed' },
+  { label: 'CORS Origins',      status: 'ok',      detail: 'www.app.africa-infra.com + aip-plum.vercel.app allowed' },
   { label: 'Auth Callback',     status: 'ok',      detail: '/auth/callback route active' },
   { label: 'RLS Policies',      status: 'warning', detail: 'Verify enabled on all tables in Supabase' },
 ];
@@ -123,7 +123,7 @@ function AdminSettingsContent() {
         <div className="mt-4 p-3 bg-yellow-900/20 border border-yellow-800/40 rounded-lg">
           <p className="text-xs text-yellow-300/80">
             Set these URLs in <strong>Supabase Dashboard → Auth → Email Templates</strong>.
-            The Site URL must be <code>https://app.africa-infra.com</code>.
+            The Site URL must be <code>https://www.app.africa-infra.com</code>.
           </p>
         </div>
       </div>
@@ -166,8 +166,8 @@ function AdminSettingsContent() {
         <h2 className="text-lg font-semibold text-white mb-4">Supabase Configuration Checklist</h2>
         <ul className="space-y-2 text-sm text-gray-300">
           {[
-            ['Site URL', 'https://app.africa-infra.com'],
-            ['Redirect URLs', 'https://app.africa-infra.com/auth/callback'],
+            ['Site URL', 'https://www.app.africa-infra.com'],
+            ['Redirect URLs', 'https://www.app.africa-infra.com/auth/callback, https://aip-plum.vercel.app/auth/callback'],
             ['Email confirm template', '{{ .SiteURL }}/auth/callback?code={{ .Code }}'],
             ['RLS enabled', 'All tables (profiles, projects, etc.)'],
           ].map(([label, value]) => (

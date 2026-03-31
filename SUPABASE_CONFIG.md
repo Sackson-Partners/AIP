@@ -1,6 +1,6 @@
 # Supabase Configuration — AIP Platform
 
-## Required settings for app.africa-infra.com
+## Required settings for www.app.africa-infra.com
 
 ---
 
@@ -8,8 +8,9 @@
 
 | Setting | Value |
 |---------|-------|
-| **Site URL** | `https://app.africa-infra.com` |
-| **Redirect URLs** | `https://app.africa-infra.com/auth/callback` |
+| **Site URL** | `https://www.app.africa-infra.com` |
+| **Redirect URLs** | `https://www.app.africa-infra.com/auth/callback` |
+| | `https://aip-plum.vercel.app/auth/callback` |
 | | `https://www.africa-infra.com/auth/callback` |
 | | `http://localhost:3000/auth/callback` (dev) |
 
@@ -40,7 +41,7 @@ Set the **Confirm signup** email template's confirmation URL to:
 ```
 User registers
   → Supabase sends email with link:
-    https://app.africa-infra.com/auth/callback?code=XXXX
+    https://www.app.africa-infra.com/auth/callback?code=XXXX
   → /auth/callback route handler:
     1. Calls exchangeCodeForSession(code)
     2. Sets session cookies on the redirect response (NOT via next/headers)
@@ -89,7 +90,7 @@ WHERE email = 'your-email@example.com';
 
 Or use the API endpoint (requires existing super_admin session):
 ```bash
-curl -X POST https://app.africa-infra.com/api/admin/promote \
+curl -X POST https://www.app.africa-infra.com/api/admin/promote \
   -H "Content-Type: application/json" \
   -H "Cookie: <your-session-cookie>" \
   -d '{"email": "target@example.com", "role": "super_admin"}'
@@ -116,7 +117,7 @@ in Vercel environment variables (not `NEXT_PUBLIC_*`, as it must stay server-sid
 | `SUPABASE_URL` | Same as `NEXT_PUBLIC_SUPABASE_URL` |
 | `SUPABASE_ANON_KEY` | Same as `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
 | `SUPABASE_SERVICE_KEY` | Same as `SUPABASE_SERVICE_KEY` |
-| `ALLOWED_ORIGINS` | `https://app.africa-infra.com,https://www.africa-infra.com` |
+| `ALLOWED_ORIGINS` | `https://www.app.africa-infra.com,https://www.africa-infra.com,https://aip-plum.vercel.app` |
 
 ---
 
