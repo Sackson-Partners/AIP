@@ -3,53 +3,39 @@
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import {
-  TYPE_COLORS,
-  STATUS_COLORS,
-  TYPE_ICONS,
-} from '../../data/infrastructure'
+import { animate } from 'framer-motion'
+import { CATEGORIES, STATUS_COLORS } from '@/data/infrastructure'
+import type { FilterState, CategoryId } from '@/types'
 
-const ALL_TYPES = ['port', 'airport', 'road', 'railway', 'dam', 'hospital', 'water'] as const
-const ALL_STATUSES = ['planned', 'construction', 'operational'] as const
-const CATEGORIES = ['all', 'coastal', 'inland'] as const
+// ── Animated stat counter ────────────────────────────────────────────────────
 
-interface Props {
-  activeTypes: Set<string>
-  onTypeToggle: (type: string) => void
-  activeStatus: string
-  onStatusChange: (status: string) => void
-  activeCategory: string
-  onCategoryChange: (cat: string) => void
-  selectedCountry: string
-  onCountryChange: (country: string) => void
-  filteredCount: number
-  countries: string[]
-}
-
-function AnimatedStat({ target, suffix = '' }: { target: number; suffix?: string }) {
+function AnimatedCounter({
+  target,
+  prefix = '',
+  suffix = '',
+}: {
+  target: number
+  prefix?: string
+  suffix?: string
+}) {
   const ref = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    let start = 0
-    const duration = 1400
-    const startTime = performance.now()
+    if (!ref.current) return
+    const controls = animate(0, target, {
+      duration: 1.6,
+      ease: [0.16, 1, 0.3, 1], // spring-like ease-out
+      onUpdate(v) {
+        if (ref.current) ref.current.textContent = prefix + Math.round(v).toLocaleString() + suffix
+      },
+    })
+    return controls.stop
+  }, [target, prefix, suffix])
 
-    const tick = (now: number) => {
-      const elapsed = now - startTime
-      const progress = Math.min(elapsed / duration, 1)
-      // ease-out cubic
-      const eased = 1 - Math.pow(1 - progress, 3)
-      const current = Math.round(eased * target)
-      el.textContent = current + suffix
-      if (progress < 1) requestAnimationFrame(tick)
-    }
-    requestAnimationFrame(tick)
-  }, [target, suffix])
-
-  return <span ref={ref}>0{suffix}</span>
+  return <span ref={ref}>{prefix}0{suffix}</span>
 }
+
+// ── Constants ────────────────────────────────────────────────────────────────
 
 const STATUS_LABELS: Record<string, string> = {
   planned:      'Planned',
@@ -57,222 +43,237 @@ const STATUS_LABELS: Record<string, string> = {
   operational:  'Operational',
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  all:     'All',
-  coastal: 'Coastal',
-  inland:  'Inland',
+const INFRA_TYPES = CATEGORIES.filter(c => !['coastal', 'inland'].includes(c.id))
+const LOCATION_CATS = CATEGORIES.filter(c => ['coastal', 'inland'].includes(c.id))
+
+// ── Props ────────────────────────────────────────────────────────────────────
+
+interface Props {
+  filters: FilterState
+  onFiltersChange: (f: FilterState) => void
+  filteredCount: number
+  totalCount: number
+  countries: string[]
 }
 
+// ── Component ────────────────────────────────────────────────────────────────
+
 export default function LeftPanel({
-  activeTypes,
-  onTypeToggle,
-  activeStatus,
-  onStatusChange,
-  activeCategory,
-  onCategoryChange,
-  selectedCountry,
-  onCountryChange,
+  filters,
+  onFiltersChange,
   filteredCount,
+  totalCount,
   countries,
 }: Props) {
-  const allTypesActive = activeTypes.size === 0
+  const toggleCategory = (id: CategoryId) => {
+    const next = filters.categories.includes(id)
+      ? filters.categories.filter(c => c !== id)
+      : [...filters.categories, id]
+    onFiltersChange({ ...filters, categories: next })
+  }
+
+  const allActive = filters.categories.length === 0
 
   return (
     <aside className="flex flex-col h-full bg-white border-r border-gray-200 shadow-xl overflow-y-auto">
 
-      {/* Logo + Brand */}
+      {/* ── Brand ── */}
       <div className="px-5 pt-20 pb-4 border-b border-gray-100">
-        <div className="flex items-center gap-2 mb-1">
-          <div className="bg-brand-navy rounded px-2 py-1 shrink-0">
-            <Image src="/logo.png" alt="AIP" width={80} height={22} className="h-5 w-auto" />
-          </div>
+        <div className="bg-brand-navy rounded px-2 py-1 inline-block mb-3">
+          <Image src="/logo.png" alt="AIP" width={80} height={22} className="h-5 w-auto" />
         </div>
-        <h1 className="text-base font-bold text-brand-navy mt-3 leading-tight">
+        <h1 className="text-[15px] font-bold text-brand-navy leading-tight">
           Africa Infrastructure Map
         </h1>
-        <p className="text-xs text-gray-500 mt-0.5">
-          {filteredCount} project{filteredCount !== 1 ? 's' : ''} shown
+        <p className="text-[11px] text-gray-400 mt-0.5">
+          {filteredCount} / {totalCount} projects
         </p>
       </div>
 
-      {/* Filters */}
       <div className="flex-1 px-5 py-4 space-y-5">
 
-        {/* Infrastructure Type */}
-        <div>
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+        {/* ── Infrastructure Type ── */}
+        <section>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
             Infrastructure Type
           </p>
-          <div className="space-y-1.5">
-            {/* All toggle */}
-            <button
-              onClick={() => ALL_TYPES.forEach((t) => activeTypes.has(t) && onTypeToggle(t))}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                allTypesActive
-                  ? 'bg-brand-navy text-white'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <span className="text-base">🌍</span>
-              <span>All Types</span>
-            </button>
 
-            {ALL_TYPES.map((type) => {
-              const active = activeTypes.has(type)
-              const color  = TYPE_COLORS[type]
+          {/* All toggle */}
+          <button
+            onClick={() => onFiltersChange({ ...filters, categories: [] })}
+            className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all mb-1 ${
+              allActive ? 'bg-brand-navy text-white' : 'text-gray-500 hover:bg-gray-50'
+            }`}
+          >
+            <span>🌍</span>
+            <span>All Types</span>
+          </button>
+
+          <div className="space-y-1">
+            {INFRA_TYPES.map(cat => {
+              const active = filters.categories.includes(cat.id as CategoryId)
               return (
                 <button
-                  key={type}
-                  onClick={() => onTypeToggle(type)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:bg-gray-50"
-                  style={
-                    active
-                      ? { background: `${color}18`, color: color, outline: `1.5px solid ${color}50` }
-                      : {}
-                  }
+                  key={cat.id}
+                  onClick={() => toggleCategory(cat.id as CategoryId)}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all hover:bg-gray-50"
+                  style={active ? {
+                    background: `${cat.color}15`,
+                    color: cat.color,
+                    outline: `1.5px solid ${cat.color}40`,
+                  } : {}}
                 >
-                  <span className="text-base">{TYPE_ICONS[type]}</span>
-                  <span className={active ? '' : 'text-gray-600'}>
-                    {type.charAt(0).toUpperCase() + type.slice(1)}
-                    {type === 'dam' ? ' / Energy' : ''}
-                  </span>
+                  <span className="text-base">{cat.icon}</span>
+                  <span className={active ? 'font-semibold' : 'text-gray-600'}>{cat.label}</span>
                   {active && (
-                    <span
-                      className="ml-auto w-2 h-2 rounded-full shrink-0"
-                      style={{ background: color }}
-                    />
+                    <span className="ml-auto w-1.5 h-1.5 rounded-full" style={{ background: cat.color }} />
                   )}
                 </button>
               )
             })}
           </div>
-        </div>
+        </section>
 
-        {/* Category */}
-        <div>
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+        {/* ── Location ── */}
+        <section>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
             Location
           </p>
           <div className="flex gap-1.5">
-            {CATEGORIES.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => onCategoryChange(cat)}
-                className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-                  activeCategory === cat
-                    ? 'bg-brand-navy text-white'
-                    : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
-                }`}
-              >
-                {CATEGORY_LABELS[cat]}
-              </button>
-            ))}
-          </div>
-        </div>
+            {(['all', 'coastal', 'inland'] as const).map(cat => {
+              const isAll    = cat === 'all'
+              const locCat   = LOCATION_CATS.find(c => c.id === cat)
+              const active   = isAll
+                ? !filters.categories.some(c => ['coastal', 'inland'].includes(c))
+                : filters.categories.includes(cat as CategoryId)
 
-        {/* Status */}
-        <div>
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
-            Project Status
-          </p>
-          <div className="space-y-1.5">
-            <button
-              onClick={() => onStatusChange('all')}
-              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                activeStatus === 'all'
-                  ? 'bg-brand-navy text-white'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              <span className="w-2 h-2 rounded-full bg-gray-400 shrink-0" />
-              All Statuses
-            </button>
-            {ALL_STATUSES.map((status) => {
-              const color = STATUS_COLORS[status]
+              const handleClick = () => {
+                if (isAll) {
+                  onFiltersChange({
+                    ...filters,
+                    categories: filters.categories.filter(c => !['coastal', 'inland'].includes(c)),
+                  })
+                } else {
+                  toggleCategory(cat as CategoryId)
+                }
+              }
+
               return (
                 <button
-                  key={status}
-                  onClick={() => onStatusChange(status)}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all hover:bg-gray-50"
-                  style={
-                    activeStatus === status
-                      ? { background: `${color}18`, color: color, outline: `1.5px solid ${color}50` }
-                      : {}
-                  }
+                  key={cat}
+                  onClick={handleClick}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                    active ? 'bg-brand-navy text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                  }`}
+                >
+                  {isAll ? 'All' : locCat?.label ?? cat}
+                </button>
+              )
+            })}
+          </div>
+        </section>
+
+        {/* ── Status ── */}
+        <section>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            Status
+          </p>
+          <div className="space-y-1">
+            {(['all', 'planned', 'construction', 'operational'] as const).map(s => {
+              const active = filters.status === s
+              const color  = s !== 'all' ? STATUS_COLORS[s] : undefined
+              return (
+                <button
+                  key={s}
+                  onClick={() => onFiltersChange({ ...filters, status: s })}
+                  className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm transition-all hover:bg-gray-50"
+                  style={active && color ? {
+                    background: `${color}15`,
+                    color,
+                    outline: `1.5px solid ${color}40`,
+                  } : active ? { background: '#0B122015', color: '#0B1220', outline: '1.5px solid #0B122030' } : {}}
                 >
                   <span
                     className="w-2 h-2 rounded-full shrink-0"
-                    style={{ background: color }}
+                    style={{ background: color ?? '#9CA3AF' }}
                   />
-                  <span className={activeStatus === status ? '' : 'text-gray-600'}>
-                    {STATUS_LABELS[status]}
+                  <span className={active ? 'font-semibold' : 'text-gray-600'}>
+                    {s === 'all' ? 'All Statuses' : STATUS_LABELS[s]}
                   </span>
                 </button>
               )
             })}
           </div>
-        </div>
+        </section>
 
-        {/* Country */}
-        <div>
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
+        {/* ── Country ── */}
+        <section>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
             Country
           </p>
           <select
-            value={selectedCountry}
-            onChange={(e) => onCountryChange(e.target.value)}
+            value={filters.country}
+            onChange={e => onFiltersChange({ ...filters, country: e.target.value })}
             className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-gold/40 focus:border-brand-gold transition-colors"
           >
             <option value="all">All Countries</option>
-            {countries.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
+            {countries.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
-        </div>
+        </section>
 
-        {/* Legend */}
-        <div>
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2.5">
-            Status Legend
+        {/* ── Status Legend ── */}
+        <section>
+          <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
+            Legend
           </p>
           <div className="space-y-1.5">
-            {ALL_STATUSES.map((s) => (
+            {(['planned', 'construction', 'operational'] as const).map(s => (
               <div key={s} className="flex items-center gap-2 text-xs text-gray-500">
-                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: STATUS_COLORS[s] }} />
+                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: STATUS_COLORS[s] }} />
                 {STATUS_LABELS[s]}
-                <span className="ml-auto text-[10px] text-gray-400 italic">
-                  {s === 'construction' ? 'pulsing' : ''}
-                </span>
+                {s === 'construction' && (
+                  <span className="ml-auto text-[10px] text-gray-300 italic">pulse</span>
+                )}
               </div>
             ))}
           </div>
-        </div>
+        </section>
       </div>
 
-      {/* Stats */}
+      {/* ── Animated Stats ── */}
       <div className="mx-5 mb-4 rounded-xl bg-brand-navy p-4">
         <p className="text-[10px] font-semibold text-brand-gold/70 uppercase tracking-widest mb-3">
           Platform Stats
         </p>
         <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: 'Projects',   value: 27,  suffix: '' },
-            { label: 'Pipeline',   value: 45,  suffix: 'B+' },
-            { label: 'Countries',  value: 18,  suffix: '' },
-            { label: 'Sectors',    value: 7,   suffix: '' },
-          ].map(({ label, value, suffix }) => (
-            <div key={label}>
-              <div className="text-xl font-black text-brand-gold leading-none">
-                {label === 'Pipeline' ? '$' : ''}
-                <AnimatedStat target={value} suffix={suffix} />
-              </div>
-              <div className="text-[10px] text-gray-400 mt-0.5">{label}</div>
+          <div>
+            <div className="text-2xl font-black text-brand-gold leading-none">
+              <AnimatedCounter target={49} suffix="+" />
             </div>
-          ))}
+            <div className="text-[10px] text-gray-400 mt-0.5">Projects</div>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-brand-gold leading-none">
+              $<AnimatedCounter target={120} suffix="B+" />
+            </div>
+            <div className="text-[10px] text-gray-400 mt-0.5">Pipeline</div>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-brand-gold leading-none">
+              <AnimatedCounter target={19} />
+            </div>
+            <div className="text-[10px] text-gray-400 mt-0.5">Countries</div>
+          </div>
+          <div>
+            <div className="text-2xl font-black text-brand-gold leading-none">
+              <AnimatedCounter target={9} />
+            </div>
+            <div className="text-[10px] text-gray-400 mt-0.5">Sectors</div>
+          </div>
         </div>
       </div>
 
-      {/* CTA */}
+      {/* ── CTAs ── */}
       <div className="px-5 pb-6 space-y-2">
         <Link
           href="/login"
@@ -286,7 +287,7 @@ export default function LeftPanel({
         >
           Request Access
         </Link>
-        <p className="text-center text-[11px] text-gray-400 pt-1">
+        <p className="text-center text-[10px] text-gray-400 pt-1">
           Full platform access for verified members
         </p>
       </div>

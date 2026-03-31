@@ -10,7 +10,7 @@
 |---------|-------|
 | **Site URL** | `https://www.app.africa-infra.com` |
 | **Redirect URLs** | `https://www.app.africa-infra.com/auth/callback` |
-| | `https://aip-plum.vercel.app/auth/callback` |
+| | `https://www.africa-infra.com/auth/callback` |
 | | `https://www.africa-infra.com/auth/callback` |
 | | `http://localhost:3000/auth/callback` (dev) |
 
@@ -117,7 +117,7 @@ in Vercel environment variables (not `NEXT_PUBLIC_*`, as it must stay server-sid
 | `SUPABASE_URL` | Same as `NEXT_PUBLIC_SUPABASE_URL` |
 | `SUPABASE_ANON_KEY` | Same as `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
 | `SUPABASE_SERVICE_KEY` | Same as `SUPABASE_SERVICE_KEY` |
-| `ALLOWED_ORIGINS` | `https://www.app.africa-infra.com,https://www.africa-infra.com,https://aip-plum.vercel.app` |
+| `ALLOWED_ORIGINS` | `https://www.app.africa-infra.com,https://www.africa-infra.com,https://www.africa-infra.com` |
 
 ---
 

@@ -86,7 +86,7 @@ This can also be set as an environment variable in Azure Container Apps:
 az containerapp update \
   --name aip-api \
   --resource-group AIP-RG \
-  --set-env-vars CORS_ORIGINS="https://www.app.africa-infra.com,https://www.africa-infra.com,https://africa-infra.com,https://aip-plum.vercel.app"
+  --set-env-vars CORS_ORIGINS="https://www.app.africa-infra.com,https://www.africa-infra.com,https://africa-infra.com,https://www.africa-infra.com"
 ```
 
 ---

@@ -39,7 +39,7 @@ const EMAIL_TEMPLATES = [
 const SYSTEM_CHECKS = [
   { label: 'Supabase Auth',     status: 'ok',      detail: 'Email/password + confirmation active' },
   { label: 'API Connection',    status: 'unknown',  detail: 'Check /health endpoint' },
-  { label: 'CORS Origins',      status: 'ok',      detail: 'www.app.africa-infra.com + aip-plum.vercel.app allowed' },
+  { label: 'CORS Origins',      status: 'ok',      detail: 'www.app.africa-infra.com + www.africa-infra.com allowed' },
   { label: 'Auth Callback',     status: 'ok',      detail: '/auth/callback route active' },
   { label: 'RLS Policies',      status: 'warning', detail: 'Verify enabled on all tables in Supabase' },
 ];
@@ -167,7 +167,7 @@ function AdminSettingsContent() {
         <ul className="space-y-2 text-sm text-gray-300">
           {[
             ['Site URL', 'https://www.app.africa-infra.com'],
-            ['Redirect URLs', 'https://www.app.africa-infra.com/auth/callback, https://aip-plum.vercel.app/auth/callback'],
+            ['Redirect URLs', 'https://www.app.africa-infra.com/auth/callback, https://www.africa-infra.com/auth/callback'],
             ['Email confirm template', '{{ .SiteURL }}/auth/callback?code={{ .Code }}'],
             ['RLS enabled', 'All tables (profiles, projects, etc.)'],
           ].map(([label, value]) => (
