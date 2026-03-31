@@ -27,3 +27,51 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ── Leaflet map: ensure full-height containers work ── */
+html, body, #__next {
+  height: 100%;
+}
+
+/* ── Construction-site pulse animation for map markers ── */
+@keyframes aip-ping {
+  75%, 100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+
+/* ── Custom Leaflet popup styling ── */
+.aip-popup .leaflet-popup-content-wrapper {
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.aip-popup .leaflet-popup-content {
+  margin: 14px 16px;
+}
+
+.aip-popup .leaflet-popup-tip-container {
+  margin-top: -1px;
+}
+
+/* ── Leaflet cluster custom styles ── */
+.leaflet-cluster-anim .leaflet-marker-icon,
+.leaflet-cluster-anim .leaflet-marker-shadow {
+  transition: transform 0.3s ease-out, opacity 0.3s ease-in;
+}
+
+/* ── Scrollbar styling for left panel ── */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 4px;
+}
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 2px;
+}

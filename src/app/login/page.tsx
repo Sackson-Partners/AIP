@@ -12,7 +12,7 @@ interface LoginForm {
   password: string;
 }
 
-function LoginForm() {
+function LoginFormInner() {
   const { register, handleSubmit, formState: { errors } } = useForm<LoginForm>();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -112,7 +112,7 @@ function LoginForm() {
             >
               {isLoading ? (
                 <span className="flex items-center justify-center gap-2">
-                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-navy"></span>
+                  <span className="animate-spin rounded-full h-4 w-4 border-b-2 border-brand-navy" />
                   Signing in...
                 </span>
               ) : (
@@ -143,10 +143,10 @@ export default function Login() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-gold"></div>
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-gold" />
       </div>
     }>
-      <LoginForm />
+      <LoginFormInner />
     </Suspense>
   );
 }
