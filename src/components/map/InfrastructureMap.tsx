@@ -38,7 +38,12 @@ function createPopupHTML(p: Project): string {
 
 // ── Marker helpers ───────────────────────────────────────────────────────────
 
-function addMarkers(L: typeof import('leaflet'), mcg: any, projects: Project[]) {
+function addMarkers(
+  L: typeof import('leaflet'),
+  mcg: any,
+  projects: Project[],
+  onProjectClick?: (p: Project) => void,
+) {
   projects.forEach(p => {
     const cat   = CATEGORIES.find(c => c.id === p.type)
     const color = cat?.color ?? '#666'
@@ -58,11 +63,17 @@ function addMarkers(L: typeof import('leaflet'), mcg: any, projects: Project[]) 
     })
 
     const marker = L.marker(p.coordinates, { icon: divIcon })
-    marker.bindPopup(createPopupHTML(p), {
-      maxWidth: 285,
-      className: 'aip-popup',
-      closeButton: true,
-    })
+
+    if (onProjectClick) {
+      marker.on('click', () => onProjectClick(p))
+    } else {
+      marker.bindPopup(createPopupHTML(p), {
+        maxWidth: 285,
+        className: 'aip-popup',
+        closeButton: true,
+      })
+    }
+
     mcg.addLayer(marker)
   })
 }
@@ -71,13 +82,16 @@ function addMarkers(L: typeof import('leaflet'), mcg: any, projects: Project[]) 
 
 interface Props {
   projects: Project[]
+  onProjectClick?: (project: Project) => void
 }
 
-export default function InfrastructureMap({ projects }: Props) {
+export default function InfrastructureMap({ projects, onProjectClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef       = useRef<any>(null)
   const clusterRef   = useRef<any>(null)
   const LRef         = useRef<any>(null)
+  const onClickRef   = useRef(onProjectClick)
+  onClickRef.current = onProjectClick
 
   // ── Init map (once) ────────────────────────────────────────────────────
   useEffect(() => {
@@ -144,7 +158,7 @@ export default function InfrastructureMap({ projects }: Props) {
       LRef.current      = L
       mapRef.current    = map
       clusterRef.current = mcg
-      addMarkers(L, mcg, projects)
+      addMarkers(L, mcg, projects, onClickRef.current)
     })()
 
     return () => {
@@ -162,7 +176,7 @@ export default function InfrastructureMap({ projects }: Props) {
   useEffect(() => {
     if (!clusterRef.current || !LRef.current) return
     clusterRef.current.clearLayers()
-    addMarkers(LRef.current, clusterRef.current, projects)
+    addMarkers(LRef.current, clusterRef.current, projects, onClickRef.current)
   }, [projects])
 
   return (

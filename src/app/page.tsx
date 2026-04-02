@@ -8,8 +8,8 @@ import Image from 'next/image'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import LeftPanel from '../components/map/LeftPanel'
-import { projects, ALL_COUNTRIES } from '../data/infrastructure'
-import type { FilterState } from '../types'
+import { projects, ALL_COUNTRIES, CATEGORIES, STATUS_COLORS, COUNTRY_FLAGS } from '../data/infrastructure'
+import type { FilterState, Project } from '../types'
 
 // Leaflet must never render on the server — all imports happen inside the component
 const InfrastructureMap = dynamic(
@@ -39,8 +39,9 @@ const DEFAULT_FILTERS: FilterState = {
 export default function Home() {
   const { isAuthenticated, isLoading } = useAuth()
   const router = useRouter()
-  const [filters, setFilters]         = useState<FilterState>(DEFAULT_FILTERS)
-  const [mobileOpen, setMobileOpen]   = useState(false)
+  const [filters, setFilters]           = useState<FilterState>(DEFAULT_FILTERS)
+  const [mobileOpen, setMobileOpen]     = useState(false)
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null)
 
   // Redirect authenticated users straight to dashboard
   useEffect(() => {
@@ -146,7 +147,7 @@ export default function Home() {
 
         {/* Map */}
         <div className="flex-1 h-full relative">
-          <InfrastructureMap projects={filteredProjects} />
+          <InfrastructureMap projects={filteredProjects} onProjectClick={setSelectedProject} />
 
           {/* Project count badge */}
           <div className="absolute bottom-8 right-4 z-[998] bg-white/90 backdrop-blur-sm rounded-lg shadow-lg px-3 py-2 text-center">
@@ -169,6 +170,96 @@ export default function Home() {
           </div>
         </div>
       </div>
+
+      {/* ── Project slide panel ───────────────────────────────────────── */}
+      <AnimatePresence>
+        {selectedProject && (() => {
+          const p = selectedProject
+          const cat = CATEGORIES.find(c => c.id === p.type)
+          const statusColor = STATUS_COLORS[p.status] ?? '#666'
+          const flag = COUNTRY_FLAGS[p.country] ?? '🌍'
+          return (
+            <>
+              {/* Backdrop */}
+              <motion.div
+                className="fixed inset-0 z-[1003] bg-black/40 backdrop-blur-sm"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedProject(null)}
+              />
+              {/* Panel */}
+              <motion.aside
+                className="fixed right-0 top-0 bottom-0 z-[1004] w-full max-w-sm bg-white shadow-2xl flex flex-col overflow-hidden"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', damping: 30, stiffness: 280 }}
+              >
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                  <span
+                    className="text-xs font-semibold px-2.5 py-1 rounded-full"
+                    style={{ background: `${cat?.color ?? '#666'}22`, color: cat?.color ?? '#666', border: `1px solid ${cat?.color ?? '#666'}50` }}
+                  >
+                    {cat?.icon ?? '📍'} {cat?.label ?? p.type}
+                  </span>
+                  <button
+                    onClick={() => setSelectedProject(null)}
+                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors text-lg leading-none"
+                    aria-label="Close panel"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                {/* Body */}
+                <div className="flex-1 overflow-y-auto p-5 space-y-5">
+                  <div>
+                    <h2 className="text-xl font-bold text-brand-navy leading-snug">{p.name}</h2>
+                    <p className="text-sm text-gray-500 mt-1">{flag} {p.country} · {p.region}</p>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-400 mb-1">Value</p>
+                      <p className="text-lg font-bold text-brand-gold">{p.value}</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-xl p-3">
+                      <p className="text-xs text-gray-400 mb-1">Year</p>
+                      <p className="text-lg font-bold text-brand-navy">{p.year}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="text-xs font-semibold px-3 py-1 rounded-full capitalize"
+                      style={{ background: `${statusColor}22`, color: statusColor, border: `1px solid ${statusColor}50` }}
+                    >
+                      {p.status}
+                    </span>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Description</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{p.description}</p>
+                  </div>
+                </div>
+
+                {/* Footer CTA */}
+                <div className="px-5 py-4 border-t border-gray-100">
+                  <Link
+                    href="/login"
+                    className="block w-full text-center py-2.5 bg-brand-gold hover:bg-brand-gold-dark text-brand-navy text-sm font-semibold rounded-lg transition-colors"
+                  >
+                    Sign in to view full details →
+                  </Link>
+                </div>
+              </motion.aside>
+            </>
+          )
+        })()}
+      </AnimatePresence>
 
       {/* ── Mobile bottom drawer ───────────────────────────────────────── */}
       <AnimatePresence>

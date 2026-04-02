@@ -1,14 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
 import { supabase } from './supabase';
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ||
-  'https://aip-api.politesea-b4c1d412.southafricanorth.azurecontainerapps.io';
-
 export const AUTH_PROVIDER = 'supabase';
 
+// Use relative /api path so all requests route through the Next.js rewrite
+// (next.config.ts: /api/* → NEXT_PUBLIC_API_URL/api/*).
+// This avoids CORS entirely and keeps the backend URL server-side only.
 export const api: AxiosInstance = axios.create({
-  baseURL: `${API_BASE}/api`,
+  baseURL: '/api',
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -23,15 +22,42 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Statuses that are worth retrying (server-side transient errors)
+const RETRYABLE_STATUSES = new Set([500, 502, 503, 504]);
+// Statuses that should never be retried
+const NO_RETRY_STATUSES  = new Set([400, 401, 403, 404, 422]);
+
+const MAX_RETRIES = 3;
+
 api.interceptors.response.use(
   (r) => r,
   async (error) => {
-    if (error.response?.status === 401) {
+    const status: number | undefined = error.response?.status;
+
+    // Auth error — sign out and redirect
+    if (status === 401) {
       await supabase.auth.signOut();
       if (typeof window !== 'undefined') {
         window.location.href = '/login';
       }
+      return Promise.reject(error);
     }
+
+    // Retry logic for transient server errors
+    const config = error.config as typeof error.config & { _retryCount?: number };
+    if (
+      config &&
+      RETRYABLE_STATUSES.has(status ?? 0) &&
+      !NO_RETRY_STATUSES.has(status ?? 0)
+    ) {
+      config._retryCount = (config._retryCount ?? 0) + 1;
+      if (config._retryCount <= MAX_RETRIES) {
+        const delay = Math.min(1000 * 2 ** (config._retryCount - 1), 8000); // 1s, 2s, 4s
+        await new Promise(resolve => setTimeout(resolve, delay));
+        return api(config);
+      }
+    }
+
     return Promise.reject(error);
   }
 );

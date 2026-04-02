@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-const PUBLIC_ROUTES = ['/', '/login', '/register', '/auth/callback', '/auth/confirm']
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/auth/callback', '/auth/confirm', '/forgot-password', '/auth/reset-password']
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
@@ -36,7 +36,10 @@ export async function middleware(request: NextRequest) {
   if (!isPublicRoute && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    url.searchParams.set('redirectTo', pathname)
+    // Only allow internal paths to prevent open redirect attacks
+    if (pathname.startsWith('/') && !pathname.startsWith('//')) {
+      url.searchParams.set('redirectTo', pathname)
+    }
     return NextResponse.redirect(url)
   }
 

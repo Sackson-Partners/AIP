@@ -2,6 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { projectsApi, Project, ProjectCreate } from '../../../lib/api';
+import { TableSkeleton } from '@/components/ui/Skeleton';
+import { PermissionGuard } from '@/components/PermissionGuard';
+import { useToast } from '@/context/ToastContext';
 
 const SECTORS = ['Energy', 'Mining', 'Water', 'Transport', 'Ports', 'Rail', 'Roads', 'Agriculture', 'Health', 'ICT', 'Social'];
 const STAGES = ['planned', 'pre-feasibility', 'feasibility', 'procurement', 'construction', 'operational', 'decommissioned'];
@@ -17,6 +20,7 @@ const STAGE_COLORS: Record<string, string> = {
 };
 
 export default function ProjectsPage() {
+  const { error: toastError, success: toastSuccess } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -52,9 +56,10 @@ export default function ProjectsPage() {
       await projectsApi.create(newForm);
       setShowModal(false);
       setNewForm({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
+      toastSuccess('Project created successfully.');
       fetchProjects();
     } catch (error: any) {
-      alert(error?.response?.data?.detail || 'Failed to create project. Please try again.');
+      toastError(error?.response?.data?.detail || 'Failed to create project. Please try again.');
     }
   };
 
@@ -83,9 +88,10 @@ export default function ProjectsPage() {
       await projectsApi.update(editingProject.id as any, editForm);
       setShowEditModal(false);
       setEditingProject(null);
+      toastSuccess('Project updated successfully.');
       fetchProjects();
     } catch (error: any) {
-      alert(error?.response?.data?.detail || 'Failed to update project. Please try again.');
+      toastError(error?.response?.data?.detail || 'Failed to update project. Please try again.');
     }
   };
 
@@ -93,9 +99,10 @@ export default function ProjectsPage() {
     if (!confirm('Are you sure you want to delete this project?')) return;
     try {
       await projectsApi.delete(id as any);
+      toastSuccess('Project deleted.');
       fetchProjects();
     } catch (error: any) {
-      alert(error?.response?.data?.detail || 'Failed to delete project. Please try again.');
+      toastError(error?.response?.data?.detail || 'Failed to delete project. Please try again.');
     }
   };
 
@@ -105,13 +112,15 @@ export default function ProjectsPage() {
     <div>
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
-        >
-          <PlusIcon className="w-5 h-5" />
-          New Project
-        </button>
+        <PermissionGuard require="create_project">
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
+          >
+            <PlusIcon className="w-5 h-5" />
+            New Project
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Filters */}
@@ -146,9 +155,7 @@ export default function ProjectsPage() {
 
       {/* Projects Table */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
-        </div>
+        <TableSkeleton rows={6} cols={5} />
       ) : (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">
@@ -195,18 +202,22 @@ export default function ProjectsPage() {
                       >
                         View
                       </button>
-                      <button
-                        onClick={() => openEdit(project)}
-                        className="text-green-600 hover:text-green-800 text-sm"
-                      >
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDelete(project.id)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                      >
-                        Delete
-                      </button>
+                      <PermissionGuard require="edit_project">
+                        <button
+                          onClick={() => openEdit(project)}
+                          className="text-green-600 hover:text-green-800 text-sm"
+                        >
+                          Edit
+                        </button>
+                      </PermissionGuard>
+                      <PermissionGuard require="delete_project">
+                        <button
+                          onClick={() => handleDelete(project.id)}
+                          className="text-red-600 hover:text-red-800 text-sm"
+                        >
+                          Delete
+                        </button>
+                      </PermissionGuard>
                     </td>
                   </tr>
                 ))

@@ -13,7 +13,7 @@ Endpoints:
 import logging
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field, EmailStr
 from sqlalchemy.orm import Session
@@ -27,6 +27,7 @@ from backend.security.auth import (
     create_access_token,
     get_current_user,
     hash_password,
+    limiter,
 )
 
 logger = logging.getLogger(__name__)
@@ -86,7 +87,9 @@ async def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/token", response_model=Token)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
@@ -126,10 +129,12 @@ async def logout():
 
 # Alias: /login → same as /token (frontend compatibility)
 @router.post("/login", response_model=Token, include_in_schema=True)
+@limiter.limit("10/minute")
 async def login_alias(
+    request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db),
 ):
     """Alias for /token — accepts username/password form data."""
     from backend.routers.auth import login as _login
-    return await _login(form_data=form_data, db=db)
+    return await _login(request=request, form_data=form_data, db=db)

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { projectsApi, pipelineApi, Project, PipelineStage, ProjectPipelineStatus, PipelineLog } from '../../../lib/api';
+import { KanbanSkeleton } from '@/components/ui/Skeleton';
+import { useToast } from '@/context/ToastContext';
 
 const STAGE_COLORS: Record<string, string> = {
   sourcing: 'bg-blue-500',
@@ -18,6 +20,7 @@ const SLA_STATUS_COLORS: Record<string, string> = {
 };
 
 export default function PipelinePage() {
+  const { error: toastError, success: toastSuccess } = useToast();
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectStatuses, setProjectStatuses] = useState<Record<number, ProjectPipelineStatus>>({});
@@ -98,10 +101,11 @@ export default function PipelinePage() {
       await pipelineApi.move(Number(moveTarget.project.id), { stage: moveTarget.stage, notes: moveNotes });
       setShowMoveModal(false);
       setMoveTarget(null);
+      toastSuccess(`Project moved to ${moveTarget.stage}.`);
       fetchData(); // Refresh
     } catch (err) {
       console.error('Failed to move project:', err);
-      alert('Failed to move project');
+      toastError('Failed to move project. Please try again.');
     } finally {
       setIsMoving(false);
     }
@@ -113,8 +117,9 @@ export default function PipelinePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
+      <div className="space-y-6">
+        <div className="h-8 w-48 animate-pulse rounded-md bg-gray-200" />
+        <KanbanSkeleton cols={5} />
       </div>
     );
   }

@@ -33,10 +33,15 @@ import jwt
 from jwt.exceptions import InvalidTokenError as JWTError
 from passlib.context import CryptContext
 from pydantic import BaseModel
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import User
+
+# Shared rate limiter — imported by main.py and routers/auth.py
+limiter = Limiter(key_func=get_remote_address)
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +79,26 @@ class Token(BaseModel):
     expires_in: int
 
 
+# Maps Supabase role names → backend RBAC roles
+SUPABASE_TO_BACKEND_ROLE: dict[str, str] = {
+    "super_admin": "admin",
+    "admin": "admin",
+    "ic_member": "ic_member",
+    "private_fund": "analyst",
+    "dfi": "analyst",
+    "epc_contractor": "analyst",
+    "government": "analyst",
+    "academic": "analyst",
+    "journalist_analyst": "analyst",
+    "investor": "analyst",
+}
+DEFAULT_ROLE = "analyst"
+
+
 class TokenData(BaseModel):
     email: Optional[str] = None
     user_id: Optional[str] = None
+    role: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -155,8 +177,14 @@ def _decode_supabase_token_offline(token: str) -> Optional[TokenData]:
         user_id: str = payload.get("sub")
         if not email and user_id and "@" in user_id:
             email = user_id
+        raw_role = (
+            (payload.get("user_metadata") or {}).get("role")
+            or (payload.get("app_metadata") or {}).get("role")
+            or payload.get("role")
+        )
+        backend_role = SUPABASE_TO_BACKEND_ROLE.get(raw_role or "", DEFAULT_ROLE)
         if email:
-            return TokenData(email=email, user_id=user_id)
+            return TokenData(email=email, user_id=user_id, role=backend_role)
     except JWTError:
         pass
     return None
@@ -188,8 +216,13 @@ async def _verify_supabase_token_api(token: str) -> Optional[TokenData]:
             data = resp.json()
             email: str = data.get("email")
             user_id: str = data.get("id")
+            raw_role = (
+                (data.get("user_metadata") or {}).get("role")
+                or (data.get("app_metadata") or {}).get("role")
+            )
+            backend_role = SUPABASE_TO_BACKEND_ROLE.get(raw_role or "", DEFAULT_ROLE)
             if email:
-                return TokenData(email=email, user_id=user_id)
+                return TokenData(email=email, user_id=user_id, role=backend_role)
         else:
             logger.debug(
                 "Supabase API token check: %s %s",
@@ -263,17 +296,19 @@ async def get_current_user(
     # 4. Look up user in local DB
     user = db.query(User).filter(User.email == token_data.email).first()
 
-    # 5. Auto-provision Supabase users on first login
+    # 5. Auto-provision Supabase users on first login (role from JWT claims)
     if user is None:
+        provisioned_role = token_data.role or DEFAULT_ROLE
         logger.info(
-            "Auto-provisioning local user for Supabase account: %s",
+            "Auto-provisioning local user for Supabase account: %s (role: %s)",
             token_data.email,
+            provisioned_role,
         )
         user = User(
             email=token_data.email,
             full_name=token_data.email.split("@")[0],
             hashed_password=hash_password(os.urandom(32).hex()),
-            role="analyst",
+            role=provisioned_role,
             is_active=True,
             is_verified=True,
         )
@@ -281,18 +316,26 @@ async def get_current_user(
         try:
             db.commit()
             db.refresh(user)
-            logger.info(
-                "Auto-provisioned user: %s with role: analyst",
-                token_data.email,
-            )
         except Exception as e:
             db.rollback()
-            logger.warning(
-                "Race condition on user provision: %s", e
-            )
+            logger.warning("Race condition on user provision: %s", e)
             user = db.query(User).filter(
                 User.email == token_data.email
             ).first()
+    elif token_data.role and user.role != token_data.role:
+        # Keep backend role in sync with Supabase role changes
+        logger.info(
+            "Syncing role for %s: %s → %s",
+            token_data.email,
+            user.role,
+            token_data.role,
+        )
+        user.role = token_data.role
+        try:
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            logger.warning("Role sync failed: %s", e)
 
     if user is None:
         raise credentials_exception

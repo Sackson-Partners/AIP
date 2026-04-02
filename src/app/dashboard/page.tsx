@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { projectsApi, investorsApi, verificationsApi, eventsApi, Project } from '../../lib/api';
 import { useAuth } from '../../context/AuthContext';
 import { useRBAC, USER_ROLES, UserRole } from '../../hooks/useRBAC';
+import { StatCardsSkeleton } from '@/components/ui/Skeleton';
 
 function Icon({ d, className = 'w-5 h-5' }: { d: string; className?: string }) {
   return (
@@ -223,8 +224,20 @@ export default function Dashboard() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-gold" />
+      <div className="space-y-8">
+        <div className="h-8 w-64 animate-pulse rounded-md bg-gray-200" />
+        <StatCardsSkeleton />
+        <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center gap-4">
+              <div className="w-9 h-9 rounded-lg bg-gray-200 animate-pulse shrink-0" />
+              <div className="space-y-1.5 flex-1">
+                <div className="h-3.5 w-32 animate-pulse rounded bg-gray-200" />
+                <div className="h-3 w-24 animate-pulse rounded bg-gray-100" />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

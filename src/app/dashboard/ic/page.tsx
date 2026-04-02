@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { icApi, projectsApi, einApi, ICCommittee, Project } from '../../../lib/api';
+import { icApi, projectsApi, ICCommittee, Project } from '../../../lib/api';
+import { CardListSkeleton } from '@/components/ui/Skeleton';
+import { useToast } from '@/context/ToastContext';
 
 type VoteOption = 'approve' | 'reject' | 'abstain' | 'defer';
 
@@ -25,6 +27,7 @@ const OUTCOME_COLORS: Record<string, string> = {
 };
 
 export default function ICPage() {
+  const { error: toastError, success: toastSuccess } = useToast();
   const [committees, setCommittees] = useState<ICCommittee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -46,23 +49,25 @@ export default function ICPage() {
       setCommittees(data);
     } catch (err) {
       console.error('Failed to fetch IC sessions:', err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const fetchProjects = async () => {
-    try {
-      const data = await projectsApi.list();
-      setProjects(data);
-    } catch (err) {
-      console.error('Failed to fetch projects:', err);
     }
   };
 
   useEffect(() => {
-    fetchCommittees();
-    fetchProjects();
+    const fetchData = async () => {
+      try {
+        const [committeesData, projectsData] = await Promise.all([
+          icApi.listCommittees(),
+          projectsApi.list(),
+        ]);
+        setCommittees(committeesData);
+        setProjects(projectsData);
+      } catch (err) {
+        console.error('Failed to load IC page data:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
   }, []);
 
   const openCommittee = async (committee: ICCommittee) => {
@@ -85,9 +90,10 @@ export default function ICPage() {
       });
       setShowNewModal(false);
       setNewForm({ project_id: '', scheduled_date: '', quorum_required: 3 });
+      toastSuccess('IC session scheduled.');
       fetchCommittees();
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to schedule IC session');
+      toastError(err?.response?.data?.detail || 'Failed to schedule IC session');
     }
   };
 
@@ -102,9 +108,10 @@ export default function ICPage() {
       );
       const updated = await icApi.getCommittee(Number(selectedCommittee.committee_id));
       setCommitteeDetail(updated);
+      toastSuccess('Vote submitted.');
       setVoteRationale('');
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to submit vote');
+      toastError(err?.response?.data?.detail || 'Failed to submit vote');
     } finally {
       setIsVoting(false);
     }
@@ -116,9 +123,10 @@ export default function ICPage() {
       await icApi.recordDecision(Number(selectedCommittee.committee_id), outcome);
       const updated = await icApi.getCommittee(Number(selectedCommittee.committee_id));
       setCommitteeDetail(updated);
+      toastSuccess('Decision recorded.');
       fetchCommittees();
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to record decision');
+      toastError(err?.response?.data?.detail || 'Failed to record decision');
     }
   };
 
@@ -140,7 +148,7 @@ export default function ICPage() {
 
       {/* Sessions list */}
       {isLoading ? (
-        <div className="text-center py-12 text-gray-400">Loading IC sessions...</div>
+        <CardListSkeleton cards={3} />
       ) : committees.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-xl border border-gray-200">
           <p className="text-gray-400 text-lg">No IC sessions scheduled yet.</p>

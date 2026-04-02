@@ -26,7 +26,9 @@ function LoginFormInner() {
     setError(null);
     try {
       await login(data.email, data.password);
-      const redirectTo = searchParams.get('redirectTo') || '/dashboard';
+      const raw = searchParams.get('redirectTo') || '/dashboard';
+      // Only follow internal paths — never redirect to external URLs
+      const redirectTo = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/dashboard';
       router.push(redirectTo);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid email or password');
@@ -100,7 +102,7 @@ function LoginFormInner() {
             </div>
 
             <div className="flex items-center justify-end">
-              <Link href="#" className="text-sm text-brand-gold hover:text-brand-gold-dark transition-colors">
+              <Link href="/forgot-password" className="text-sm text-brand-gold hover:text-brand-gold-dark transition-colors">
                 Forgot your password?
               </Link>
             </div>

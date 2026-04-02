@@ -8,12 +8,12 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
 from backend.database import engine
 from backend.database import Base
+from backend.security.auth import limiter
 from backend.routers.analytics import router as analytics_router
 from backend.routers.airtable import router as airtable_router
 from backend.routers.auth import router as auth_router
@@ -41,7 +41,6 @@ logging.basicConfig(
 )
 logger = logging.getLogger("aip")
 
-limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 
 
 @asynccontextmanager
@@ -93,7 +92,7 @@ app.add_middleware(
     allow_origins=_get_cors_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
 
 

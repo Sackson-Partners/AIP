@@ -72,6 +72,13 @@ export default function LeftPanel({
     onFiltersChange({ ...filters, categories: next })
   }
 
+  const clearFilters = () => onFiltersChange({ categories: [], status: 'all', country: 'all' })
+
+  const hasActiveFilters =
+    filters.categories.length > 0 ||
+    filters.status !== 'all' ||
+    filters.country !== 'all'
+
   const allActive = filters.categories.length === 0
 
   return (
@@ -85,9 +92,19 @@ export default function LeftPanel({
         <h1 className="text-[15px] font-bold text-brand-navy leading-tight">
           Africa Infrastructure Map
         </h1>
-        <p className="text-[11px] text-gray-400 mt-0.5">
-          {filteredCount} / {totalCount} projects
-        </p>
+        <div className="flex items-center justify-between mt-0.5">
+          <p className="text-[11px] text-gray-400">
+            {filteredCount} / {totalCount} projects
+          </p>
+          {hasActiveFilters && (
+            <button
+              onClick={clearFilters}
+              className="text-[11px] text-brand-gold hover:text-brand-gold-dark font-medium transition-colors"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex-1 px-5 py-4 space-y-5">

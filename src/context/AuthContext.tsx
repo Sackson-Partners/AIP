@@ -9,6 +9,7 @@ import React, {
   ReactNode,
 } from 'react';
 import { User, Session } from '@supabase/supabase-js';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 // Matches the confirmed profiles table schema
@@ -56,6 +57,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const router = useRouter();
   const [user, setUser]       = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -141,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async (): Promise<void> => {
     await supabase.auth.signOut();
     setProfile(null);
-    window.location.href = '/login';
+    router.push('/login');
   };
 
   return (
