@@ -24,8 +24,8 @@ export default function ProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [filter, setFilter] = useState({ sector: '', country: '', status: '' });
-  const [newForm, setNewForm] = useState<ProjectCreate>({ project_name: '', country: '', sector: '', status: 'planned' });
-  const [editForm, setEditForm] = useState<ProjectCreate>({ project_name: '' });
+  const [newForm, setNewForm] = useState<ProjectCreate>({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
+  const [editForm, setEditForm] = useState<ProjectCreate>({ project_name: '', sector: '', country: '', stage: '' });
 
   const fetchProjects = async () => {
     try {
@@ -51,7 +51,7 @@ export default function ProjectsPage() {
     try {
       await projectsApi.create(newForm);
       setShowModal(false);
-      setNewForm({ project_name: '', country: '', sector: '', status: 'planned' });
+      setNewForm({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
       fetchProjects();
     } catch (error: any) {
       alert(error?.response?.data?.detail || 'Failed to create project. Please try again.');
@@ -65,8 +65,9 @@ export default function ProjectsPage() {
       country:         project.country || '',
       region:          project.region || '',
       sector:          project.sector || '',
+      stage:           project.stage || '',
       project_type:    project.project_type || '',
-      estimated_cost:  project.estimated_cost || '',
+      estimated_cost:  project.estimated_cost,
       status:          project.status || 'planned',
       description:     project.description || '',
       strategic_notes: project.strategic_notes || '',
@@ -88,7 +89,7 @@ export default function ProjectsPage() {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (id: string | number) => {
     if (!confirm('Are you sure you want to delete this project?')) return;
     try {
       await projectsApi.delete(id as any);
@@ -106,7 +107,7 @@ export default function ProjectsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Projects</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           New Project
@@ -119,7 +120,7 @@ export default function ProjectsPage() {
           <select
             value={filter.sector}
             onChange={(e) => setFilter({ ...filter, sector: e.target.value })}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
           >
             <option value="">All Sectors</option>
             {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -127,7 +128,7 @@ export default function ProjectsPage() {
           <select
             value={filter.status}
             onChange={(e) => setFilter({ ...filter, status: e.target.value })}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
           >
             <option value="">All Stages</option>
             {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
@@ -135,7 +136,7 @@ export default function ProjectsPage() {
           <select
             value={filter.country}
             onChange={(e) => setFilter({ ...filter, country: e.target.value })}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
           >
             <option value="">All Countries</option>
             {countries.map(c => <option key={c} value={c!}>{c}</option>)}
@@ -146,7 +147,7 @@ export default function ProjectsPage() {
       {/* Projects Table */}
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
         </div>
       ) : (
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
@@ -190,7 +191,7 @@ export default function ProjectsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
                       <button
                         onClick={() => setSelectedProject(project)}
-                        className="text-blue-600 hover:text-blue-800 text-sm"
+                        className="text-brand-gold hover:text-brand-gold-dark text-sm"
                       >
                         View
                       </button>
@@ -241,7 +242,7 @@ export default function ProjectsPage() {
                     value={newForm.project_name}
                     onChange={(e) => setNewForm({ ...newForm, project_name: e.target.value })}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -249,7 +250,7 @@ export default function ProjectsPage() {
                   <select
                     value={newForm.sector}
                     onChange={(e) => setNewForm({ ...newForm, sector: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   >
                     <option value="">Select sector</option>
                     {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -260,7 +261,7 @@ export default function ProjectsPage() {
                   <input
                     value={newForm.country}
                     onChange={(e) => setNewForm({ ...newForm, country: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -268,7 +269,7 @@ export default function ProjectsPage() {
                   <input
                     value={newForm.region}
                     onChange={(e) => setNewForm({ ...newForm, region: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -277,7 +278,7 @@ export default function ProjectsPage() {
                     value={newForm.project_type}
                     onChange={(e) => setNewForm({ ...newForm, project_type: e.target.value })}
                     placeholder="e.g., PPP, Greenfield, Brownfield"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -285,7 +286,7 @@ export default function ProjectsPage() {
                   <select
                     value={newForm.status}
                     onChange={(e) => setNewForm({ ...newForm, status: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   >
                     {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -294,9 +295,9 @@ export default function ProjectsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost</label>
                   <input
                     value={newForm.estimated_cost}
-                    onChange={(e) => setNewForm({ ...newForm, estimated_cost: e.target.value })}
+                    onChange={(e) => setNewForm({ ...newForm, estimated_cost: e.target.value ? Number(e.target.value) : undefined })}
                     placeholder="e.g., $500M, USD 1.2B"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -305,7 +306,7 @@ export default function ProjectsPage() {
                     value={newForm.description}
                     onChange={(e) => setNewForm({ ...newForm, description: e.target.value })}
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -314,7 +315,7 @@ export default function ProjectsPage() {
                     value={newForm.strategic_notes}
                     onChange={(e) => setNewForm({ ...newForm, strategic_notes: e.target.value })}
                     rows={2}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
               </div>
@@ -328,7 +329,7 @@ export default function ProjectsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
                 >
                   Create Project
                 </button>
@@ -358,7 +359,7 @@ export default function ProjectsPage() {
                     value={editForm.project_name}
                     onChange={(e) => setEditForm({ ...editForm, project_name: e.target.value })}
                     required
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -366,7 +367,7 @@ export default function ProjectsPage() {
                   <select
                     value={editForm.sector}
                     onChange={(e) => setEditForm({ ...editForm, sector: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   >
                     <option value="">Select sector</option>
                     {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -377,7 +378,7 @@ export default function ProjectsPage() {
                   <input
                     value={editForm.country}
                     onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -385,7 +386,7 @@ export default function ProjectsPage() {
                   <input
                     value={editForm.region}
                     onChange={(e) => setEditForm({ ...editForm, region: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -393,7 +394,7 @@ export default function ProjectsPage() {
                   <input
                     value={editForm.project_type}
                     onChange={(e) => setEditForm({ ...editForm, project_type: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -401,7 +402,7 @@ export default function ProjectsPage() {
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   >
                     {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -410,8 +411,8 @@ export default function ProjectsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost</label>
                   <input
                     value={editForm.estimated_cost}
-                    onChange={(e) => setEditForm({ ...editForm, estimated_cost: e.target.value })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    onChange={(e) => setEditForm({ ...editForm, estimated_cost: e.target.value ? Number(e.target.value) : undefined })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -420,7 +421,7 @@ export default function ProjectsPage() {
                     value={editForm.description}
                     onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div className="md:col-span-2">
@@ -429,7 +430,7 @@ export default function ProjectsPage() {
                     value={editForm.strategic_notes}
                     onChange={(e) => setEditForm({ ...editForm, strategic_notes: e.target.value })}
                     rows={2}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
               </div>
@@ -443,7 +444,7 @@ export default function ProjectsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
                 >
                   Save Changes
                 </button>
@@ -472,7 +473,7 @@ export default function ProjectsPage() {
                 <DetailItem label="Region" value={selectedProject.region || '—'} />
                 <DetailItem label="Stage" value={selectedProject.status || '—'} />
                 <DetailItem label="Project Type" value={selectedProject.project_type || '—'} />
-                <DetailItem label="Estimated Cost" value={selectedProject.estimated_cost || '—'} />
+                <DetailItem label="Estimated Cost" value={String(selectedProject.estimated_cost ?? '—')} />
                 {selectedProject.description && (
                   <div className="col-span-2">
                     <p className="text-sm text-gray-500">Description</p>

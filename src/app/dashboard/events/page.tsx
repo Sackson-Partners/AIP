@@ -54,9 +54,9 @@ export default function EventsPage() {
     }
   };
 
-  const getProjectName = (projectId: number) => {
-    const project = projects.find(p => p.id === projectId);
-    return project?.name || `Project #${projectId}`;
+  const getProjectName = (projectId: string | number) => {
+    const project = projects.find(p => String(p.id) === String(projectId));
+    return project?.project_name || `Project #${projectId}`;
   };
 
   const filteredEvents = events.filter(event => {
@@ -92,7 +92,7 @@ export default function EventsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Events</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           New Event
@@ -104,7 +104,7 @@ export default function EventsPage() {
         <button
           onClick={() => setFilter('all')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-            filter === 'all' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            filter === 'all' ? 'bg-brand-gold text-brand-navy' : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
           All Events
@@ -112,7 +112,7 @@ export default function EventsPage() {
         <button
           onClick={() => setFilter('upcoming')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-            filter === 'upcoming' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            filter === 'upcoming' ? 'bg-brand-gold text-brand-navy' : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
           Upcoming
@@ -120,7 +120,7 @@ export default function EventsPage() {
         <button
           onClick={() => setFilter('past')}
           className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-            filter === 'past' ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+            filter === 'past' ? 'bg-brand-gold text-brand-navy' : 'text-gray-600 hover:bg-gray-100'
           }`}
         >
           Past
@@ -129,7 +129,7 @@ export default function EventsPage() {
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
         </div>
       ) : (
         <div className="space-y-4">
@@ -146,12 +146,12 @@ export default function EventsPage() {
                     isUpcoming(event.event_date) ? 'bg-blue-100' : 'bg-gray-100'
                   }`}>
                     <span className={`text-2xl font-bold ${
-                      isUpcoming(event.event_date) ? 'text-blue-600' : 'text-gray-600'
+                      isUpcoming(event.event_date) ? 'text-brand-gold' : 'text-gray-600'
                     }`}>
                       {new Date(event.event_date).getDate()}
                     </span>
                     <span className={`text-xs uppercase ${
-                      isUpcoming(event.event_date) ? 'text-blue-600' : 'text-gray-600'
+                      isUpcoming(event.event_date) ? 'text-brand-gold' : 'text-gray-600'
                     }`}>
                       {new Date(event.event_date).toLocaleString('default', { month: 'short' })}
                     </span>
@@ -225,7 +225,7 @@ export default function EventsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Event Name *</label>
                 <input
                   {...register('name', { required: 'Name is required' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   placeholder="e.g., Africa Investment Forum 2024"
                 />
                 {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
@@ -236,7 +236,7 @@ export default function EventsPage() {
                 <textarea
                   {...register('description', { required: 'Description is required' })}
                   rows={3}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   placeholder="Describe the event..."
                 />
                 {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description.message}</p>}
@@ -248,7 +248,7 @@ export default function EventsPage() {
                   <input
                     {...register('event_date', { required: 'Date is required' })}
                     type="date"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                   {errors.event_date && <p className="text-red-500 text-sm mt-1">{errors.event_date.message}</p>}
                 </div>
@@ -256,7 +256,7 @@ export default function EventsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Event Type *</label>
                   <select
                     {...register('type', { required: 'Type is required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   >
                     <option value="">Select type</option>
                     {EVENT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
@@ -270,9 +270,9 @@ export default function EventsPage() {
                 <select
                   {...register('projects_involved')}
                   multiple
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 h-24"
                 >
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
                 </select>
                 <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
               </div>
@@ -287,7 +287,7 @@ export default function EventsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
                 >
                   Create Event
                 </button>
@@ -315,12 +315,12 @@ export default function EventsPage() {
                   isUpcoming(selectedEvent.event_date) ? 'bg-blue-100' : 'bg-gray-100'
                 }`}>
                   <span className={`text-2xl font-bold ${
-                    isUpcoming(selectedEvent.event_date) ? 'text-blue-600' : 'text-gray-600'
+                    isUpcoming(selectedEvent.event_date) ? 'text-brand-gold' : 'text-gray-600'
                   }`}>
                     {new Date(selectedEvent.event_date).getDate()}
                   </span>
                   <span className={`text-xs uppercase ${
-                    isUpcoming(selectedEvent.event_date) ? 'text-blue-600' : 'text-gray-600'
+                    isUpcoming(selectedEvent.event_date) ? 'text-brand-gold' : 'text-gray-600'
                   }`}>
                     {new Date(selectedEvent.event_date).toLocaleString('default', { month: 'short', year: 'numeric' })}
                   </span>

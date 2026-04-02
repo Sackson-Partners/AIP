@@ -68,11 +68,12 @@ def _get_cors_origins():
         for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
         if o.strip()
     ]
-    defaults = ["https://aip-plum.vercel.app", "http://localhost:3000"]
+    defaults = ["https://www.app.africa-infra.com", "https://www.africa-infra.com", "http://localhost:3000"]
     return list(dict.fromkeys(env_origins + defaults))
 
 
 app = FastAPI(
+    redirect_slashes=False,
     title="AIP API — African Infrastructure Partners",
     description=(
         "Institutional-grade deal origination, PETFEL due diligence, EIN generation, "

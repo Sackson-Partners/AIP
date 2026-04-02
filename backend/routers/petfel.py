@@ -651,3 +651,50 @@ async def submit_assessment(
     db.commit()
     logger.info("PETFEL assessment submitted | id=%s by %s", assessment_id, current_user.email)
     return {"status": "submitted", "assessment_id": assessment_id}
+
+
+# ── Root route fix ─────────────────────────────────────
+@router.get("", tags=["PETFEL"])
+async def petfel_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List all PETFEL assessments."""
+    from backend.models import PetfelAssessment
+    assessments = db.query(PetfelAssessment).limit(50).all()
+    return {"assessments": assessments, "count": len(assessments)}
+
+
+@router.get("", tags=["PETFEL DD Engine"])
+async def petfel_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List all PETFEL assessments."""
+    from backend.models import PetfelAssessment
+    try:
+        assessments = db.query(PetfelAssessment).limit(50).all()
+        return {"assessments": [{"id": str(a.id)} for a in assessments], "count": len(assessments)}
+    except Exception as e:
+        return {"assessments": [], "count": 0, "note": str(e)}
+
+
+@router.get("", tags=["PETFEL DD Engine"])
+async def petfel_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """PETFEL root."""
+    try:
+        from backend.models import PetfelAssessment
+        items = db.query(PetfelAssessment).limit(50).all()
+        return {"assessments": [{"id": str(a.id)} for a in items], "count": len(items)}
+    except Exception as e:
+        return {"assessments": [], "count": 0, "error": str(e)}
+
+
+@router.get("")
+async def petfel_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        from backend.models import PetfelAssessment
+        items = db.query(PetfelAssessment).limit(50).all()
+        return {"assessments": [{"id": str(a.id)} for a in items], "count": len(items)}
+    except Exception as e:
+        return {"assessments": [], "count": 0}

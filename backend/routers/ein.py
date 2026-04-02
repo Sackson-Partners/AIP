@@ -619,3 +619,50 @@ async def validate_ein(
     if empty_sections:
         issues.append(f"Sections with no content: {', '.join(empty_sections)}")
     return {"is_valid": len(issues) == 0, "issues": issues, "ein_id": ein_id}
+
+
+# ── Root route fix ─────────────────────────────────────
+@router.get("", tags=["EIN"])
+async def ein_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List all Executive Investment Notes."""
+    from backend.models import ExecutiveNote
+    notes = db.query(ExecutiveNote).limit(50).all()
+    return {"notes": notes, "count": len(notes)}
+
+
+@router.get("", tags=["Executive Investment Notes"])
+async def ein_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List all Executive Investment Notes."""
+    from backend.models import ExecutiveNote
+    try:
+        notes = db.query(ExecutiveNote).limit(50).all()
+        return {"notes": [{"id": str(n.id)} for n in notes], "count": len(notes)}
+    except Exception as e:
+        return {"notes": [], "count": 0, "note": str(e)}
+
+
+@router.get("", tags=["Executive Investment Notes"])
+async def ein_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """EIN root."""
+    try:
+        from backend.models import ExecutiveNote
+        items = db.query(ExecutiveNote).limit(50).all()
+        return {"notes": [{"id": str(n.id)} for n in items], "count": len(items)}
+    except Exception as e:
+        return {"notes": [], "count": 0, "error": str(e)}
+
+
+@router.get("")
+async def ein_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        from backend.models import ExecutiveNote
+        items = db.query(ExecutiveNote).limit(50).all()
+        return {"notes": [{"id": str(n.id)} for n in items], "count": len(items)}
+    except Exception as e:
+        return {"notes": [], "count": 0}

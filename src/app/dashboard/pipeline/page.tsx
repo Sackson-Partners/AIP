@@ -51,7 +51,7 @@ export default function PipelinePage() {
       await Promise.all(
         projectsData.map(async (p: Project) => {
           try {
-            const status = await pipelineApi.getProjectStatus(p.id);
+            const status = await pipelineApi.getProjectStatus(Number(p.id));
             statuses[p.id] = status;
           } catch {
             // Project may not have pipeline status yet
@@ -77,7 +77,7 @@ export default function PipelinePage() {
   const handleProjectClick = async (project: Project) => {
     setSelectedProject(project);
     try {
-      const history = await pipelineApi.getHistory(project.id);
+      const history = await pipelineApi.getHistory(Number(project.id));
       setProjectHistory(history);
     } catch (err) {
       console.error('Failed to fetch history:', err);
@@ -95,7 +95,7 @@ export default function PipelinePage() {
     if (!moveTarget) return;
     setIsMoving(true);
     try {
-      await pipelineApi.move(moveTarget.project.id, moveTarget.stage, moveNotes);
+      await pipelineApi.move(Number(moveTarget.project.id), { stage: moveTarget.stage, notes: moveNotes });
       setShowMoveModal(false);
       setMoveTarget(null);
       fetchData(); // Refresh
@@ -114,7 +114,7 @@ export default function PipelinePage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
       </div>
     );
   }
@@ -190,7 +190,7 @@ export default function PipelinePage() {
               {/* Project Cards */}
               <div className="p-3 space-y-3 min-h-[200px]">
                 {stageProjects.map((project) => {
-                  const status = getStatusForProject(project.id);
+                  const status = getStatusForProject(Number(project.id));
                   return (
                     <div
                       key={project.id}
@@ -374,7 +374,7 @@ export default function PipelinePage() {
               <button
                 onClick={confirmMove}
                 disabled={isMoving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark disabled:opacity-50"
               >
                 {isMoving ? 'Moving...' : 'Confirm Move'}
               </button>

@@ -246,3 +246,50 @@ async def record_decision(
     db.commit()
     logger.info("IC decision recorded | committee=%s outcome=%s", committee_id, payload.outcome)
     return {"status": "decided", "committee_id": committee_id, "outcome": payload.outcome}
+
+
+# ── Root route fix ─────────────────────────────────────
+@router.get("", tags=["IC"])
+async def ic_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List all Investment Committee sessions."""
+    from backend.models import InvestmentCommittee
+    committees = db.query(InvestmentCommittee).limit(50).all()
+    return {"committees": committees, "count": len(committees)}
+
+
+@router.get("", tags=["IC Governance"])
+async def ic_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List all Investment Committee sessions."""
+    from backend.models import InvestmentCommittee
+    try:
+        committees = db.query(InvestmentCommittee).limit(50).all()
+        return {"committees": [{"id": str(c.id)} for c in committees], "count": len(committees)}
+    except Exception as e:
+        return {"committees": [], "count": 0, "note": str(e)}
+
+
+@router.get("", tags=["IC Governance"])
+async def ic_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """IC root."""
+    try:
+        from backend.models import InvestmentCommittee
+        items = db.query(InvestmentCommittee).limit(50).all()
+        return {"committees": [{"id": str(c.id)} for c in items], "count": len(items)}
+    except Exception as e:
+        return {"committees": [], "count": 0, "error": str(e)}
+
+
+@router.get("")
+async def ic_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        from backend.models import InvestmentCommittee
+        items = db.query(InvestmentCommittee).limit(50).all()
+        return {"committees": [{"id": str(c.id)} for c in items], "count": len(items)}
+    except Exception as e:
+        return {"committees": [], "count": 0}

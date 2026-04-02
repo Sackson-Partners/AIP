@@ -193,3 +193,54 @@ async def sector_summary(
             "project_count": count,
         })
     return {"sectors": result}
+
+
+# ── Root route fix ─────────────────────────────────────
+@router.get("", tags=["Radar"])
+async def radar_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List radar scan results."""
+    from backend.models import InfrastructureProject
+    projects = db.query(InfrastructureProject).limit(50).all()
+    return {"radar_results": projects, "count": len(projects)}
+
+
+@router.get("", tags=["Infrastructure Radar"])
+async def radar_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """Radar root — latest results."""
+    from backend.models import InfrastructureProject
+    try:
+        projects = db.query(InfrastructureProject).limit(20).all()
+        return {
+            "radar_results": [{"id": str(p.id), "name": p.project_name, "country": p.country} for p in projects],
+            "count": len(projects),
+            "engine": "Kazi v1"
+        }
+    except Exception as e:
+        return {"radar_results": [], "count": 0, "note": str(e)}
+
+
+@router.get("", tags=["Infrastructure Radar"])
+async def radar_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """Radar root."""
+    try:
+        from backend.models import InfrastructureProject
+        items = db.query(InfrastructureProject).limit(20).all()
+        return {"results": [{"id": str(p.id), "name": p.project_name} for p in items], "count": len(items)}
+    except Exception as e:
+        return {"results": [], "count": 0, "error": str(e)}
+
+
+@router.get("")
+async def radar_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        from backend.models import InfrastructureProject
+        items = db.query(InfrastructureProject).limit(20).all()
+        return {"results": [{"id": str(p.id), "name": p.project_name} for p in items], "count": len(items)}
+    except Exception as e:
+        return {"results": [], "count": 0}

@@ -46,7 +46,7 @@ export default function AnalyticsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Analytics & Reports</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           New Report
@@ -58,7 +58,7 @@ export default function AnalyticsPage() {
         <div className="bg-white rounded-xl shadow-sm p-6">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-blue-100 rounded-lg">
-              <DocumentIcon className="w-6 h-6 text-blue-600" />
+              <DocumentIcon className="w-6 h-6 text-brand-gold" />
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Reports</p>
@@ -96,7 +96,7 @@ export default function AnalyticsPage() {
 
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -164,7 +164,7 @@ export default function AnalyticsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Title *</label>
                 <input
                   {...register('title', { required: 'Title is required' })}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   placeholder="e.g., Q4 2024 Energy Sector Analysis"
                 />
                 {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
@@ -175,7 +175,7 @@ export default function AnalyticsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sector</label>
                   <select
                     {...register('sector')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   >
                     <option value="">All Sectors</option>
                     {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -185,7 +185,7 @@ export default function AnalyticsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
                   <input
                     {...register('country')}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                     placeholder="e.g., Kenya"
                   />
                 </div>
@@ -196,7 +196,7 @@ export default function AnalyticsPage() {
                 <textarea
                   {...register('content', { required: 'Content is required' })}
                   rows={10}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   placeholder="Enter your analysis, insights, and recommendations..."
                 />
                 {errors.content && <p className="text-red-500 text-sm mt-1">{errors.content.message}</p>}
@@ -212,7 +212,7 @@ export default function AnalyticsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
                 >
                   Create Report
                 </button>

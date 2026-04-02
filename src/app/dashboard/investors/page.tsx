@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { investorsApi, Investor, InvestorCreate, Project, projectsApi } from '../../../lib/api';
 
@@ -14,6 +15,7 @@ export default function InvestorsPage() {
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null);
   const [matchedProjects, setMatchedProjects] = useState<Project[]>([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<InvestorCreate>();
 
@@ -31,6 +33,14 @@ export default function InvestorsPage() {
   useEffect(() => {
     fetchInvestors();
   }, []);
+
+  const filteredInvestors = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return investors;
+    return investors.filter((inv) =>
+      inv.fund_name.toLowerCase().includes(q)
+    );
+  }, [investors, searchQuery]);
 
   const onSubmit = async (data: InvestorCreate) => {
     try {
@@ -54,9 +64,13 @@ export default function InvestorsPage() {
   const findMatches = async (investor: Investor) => {
     try {
       const projects = await projectsApi.list();
+      const sectorFocus  = investor.sector_focus  ?? [];
+      const countryFocus = investor.country_focus ?? [];
       const matched = projects.filter((p: Project) =>
-        investor.sector_focus.includes(p.sector) &&
-        investor.country_focus.some((c: string) => c.toLowerCase() === p.country.toLowerCase() || c === 'Global')
+        (sectorFocus.length === 0 || sectorFocus.includes(p.sector)) &&
+        (countryFocus.length === 0 || countryFocus.some(
+          (c: string) => c === 'Global' || c.toLowerCase() === (p.country ?? '').toLowerCase()
+        ))
       );
       setMatchedProjects(matched);
       setSelectedInvestor(investor);
@@ -72,97 +86,117 @@ export default function InvestorsPage() {
         <h1 className="text-3xl font-bold text-gray-900">Investors</h1>
         <button
           onClick={() => setShowModal(true)}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
         >
           <PlusIcon className="w-5 h-5" />
           New Investor
         </button>
       </div>
 
+      {/* Search bar */}
+      <div className="mb-6">
+        <input
+          type="search"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder="Search investors by fund name…"
+          className="w-full max-w-md px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold/50"
+        />
+      </div>
+
       {isLoading ? (
         <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {investors.length > 0 ? (
-            investors.map((investor) => (
-              <div key={investor.id} className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">{investor.fund_name}</h3>
+          {filteredInvestors.length > 0 ? (
+            filteredInvestors.map((investor) => {
+              const sectorFocus  = investor.sector_focus  ?? [];
+              const countryFocus = investor.country_focus ?? [];
+              const instruments  = investor.instruments   ?? [];
+              return (
+                <div key={investor.id} className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">{investor.fund_name}</h3>
 
-                {investor.aum && (
-                  <p className="text-sm text-gray-500 mb-3">
-                    AUM: ${formatNumber(investor.aum)}
-                  </p>
-                )}
-
-                <div className="space-y-3">
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase mb-1">Ticket Size</p>
-                    <p className="text-sm font-medium text-gray-900">
-                      ${formatNumber(investor.ticket_size_min)} - ${formatNumber(investor.ticket_size_max)}
+                  {investor.aum && (
+                    <p className="text-sm text-gray-500 mb-3">
+                      AUM: ${formatNumber(investor.aum)}
                     </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase mb-1">Instruments</p>
-                    <div className="flex flex-wrap gap-1">
-                      {investor.instruments.map((inst) => (
-                        <span key={inst} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
-                          {inst}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase mb-1">Sector Focus</p>
-                    <div className="flex flex-wrap gap-1">
-                      {investor.sector_focus.slice(0, 3).map((sector) => (
-                        <span key={sector} className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
-                          {sector}
-                        </span>
-                      ))}
-                      {investor.sector_focus.length > 3 && (
-                        <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
-                          +{investor.sector_focus.length - 3}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-500 uppercase mb-1">Country Focus</p>
-                    <p className="text-sm text-gray-700">{investor.country_focus.join(', ')}</p>
-                  </div>
-
-                  {investor.target_irr && (
-                    <div>
-                      <p className="text-xs text-gray-500 uppercase mb-1">Target IRR</p>
-                      <p className="text-sm font-medium text-gray-900">{investor.target_irr}%</p>
-                    </div>
                   )}
-                </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
-                  <button
-                    onClick={() => setSelectedInvestor(investor)}
-                    className="flex-1 px-3 py-2 text-sm text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition"
-                  >
-                    View Details
-                  </button>
-                  <button
-                    onClick={() => findMatches(investor)}
-                    className="flex-1 px-3 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
-                  >
-                    Find Matches
-                  </button>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase mb-1">Ticket Size</p>
+                      <p className="text-sm font-medium text-gray-900">
+                        ${formatNumber(investor.ticket_size_min)} - ${formatNumber(investor.ticket_size_max)}
+                      </p>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase mb-1">Instruments</p>
+                      <div className="flex flex-wrap gap-1">
+                        {instruments.map((inst) => (
+                          <span key={inst} className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">
+                            {inst}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase mb-1">Sector Focus</p>
+                      <div className="flex flex-wrap gap-1">
+                        {sectorFocus.slice(0, 3).map((sector) => (
+                          <span key={sector} className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">
+                            {sector}
+                          </span>
+                        ))}
+                        {sectorFocus.length > 3 && (
+                          <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                            +{sectorFocus.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className="text-xs text-gray-500 uppercase mb-1">Country Focus</p>
+                      <p className="text-sm text-gray-700">{countryFocus.join(', ') || '—'}</p>
+                    </div>
+
+                    {investor.target_irr && (
+                      <div>
+                        <p className="text-xs text-gray-500 uppercase mb-1">Target IRR</p>
+                        <p className="text-sm font-medium text-gray-900">{investor.target_irr}%</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2">
+                    <Link
+                      href={`/dashboard/investors/${investor.id}`}
+                      className="flex-1 px-3 py-2 text-sm text-center text-brand-gold border border-brand-gold rounded-lg hover:bg-brand-gold/5 transition"
+                    >
+                      View Details
+                    </Link>
+                    <button
+                      onClick={() => findMatches(investor)}
+                      className="flex-1 px-3 py-2 text-sm text-white bg-green-600 rounded-lg hover:bg-green-700 transition"
+                    >
+                      Find Matches
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           ) : (
             <div className="col-span-full text-center py-12 bg-white rounded-xl shadow-sm">
-              <p className="text-gray-500">No investors found. Add your first investor to get started.</p>
+              <p className="text-gray-500">
+                {searchQuery
+                  ? `No investors match "${searchQuery}".`
+                  : 'No investors found. Add your first investor to get started.'}
+              </p>
             </div>
           )}
         </div>
@@ -186,7 +220,7 @@ export default function InvestorsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fund Name *</label>
                   <input
                     {...register('fund_name', { required: 'Fund name is required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                   {errors.fund_name && <p className="text-red-500 text-sm mt-1">{errors.fund_name.message}</p>}
                 </div>
@@ -195,7 +229,7 @@ export default function InvestorsPage() {
                   <input
                     {...register('aum', { valueAsNumber: true })}
                     type="number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -204,7 +238,7 @@ export default function InvestorsPage() {
                     {...register('target_irr', { valueAsNumber: true })}
                     type="number"
                     step="0.1"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                 </div>
                 <div>
@@ -212,7 +246,7 @@ export default function InvestorsPage() {
                   <input
                     {...register('ticket_size_min', { required: 'Required', valueAsNumber: true })}
                     type="number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                   {errors.ticket_size_min && <p className="text-red-500 text-sm mt-1">{errors.ticket_size_min.message}</p>}
                 </div>
@@ -221,7 +255,7 @@ export default function InvestorsPage() {
                   <input
                     {...register('ticket_size_max', { required: 'Required', valueAsNumber: true })}
                     type="number"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />
                   {errors.ticket_size_max && <p className="text-red-500 text-sm mt-1">{errors.ticket_size_max.message}</p>}
                 </div>
@@ -230,7 +264,7 @@ export default function InvestorsPage() {
                   <select
                     {...register('instruments', { required: 'Required' })}
                     multiple
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 h-24"
                   >
                     {INSTRUMENTS.map(i => <option key={i} value={i}>{i}</option>)}
                   </select>
@@ -241,7 +275,7 @@ export default function InvestorsPage() {
                   <select
                     {...register('sector_focus', { required: 'Required' })}
                     multiple
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 h-24"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 h-24"
                   >
                     {SECTORS.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
@@ -250,7 +284,7 @@ export default function InvestorsPage() {
                   <label className="block text-sm font-medium text-gray-700 mb-1">Country Focus *</label>
                   <input
                     {...register('country_focus', { required: 'Required' })}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                     placeholder="e.g., Kenya, Nigeria, South Africa (comma-separated)"
                   />
                   {errors.country_focus && <p className="text-red-500 text-sm mt-1">{errors.country_focus.message}</p>}
@@ -260,7 +294,7 @@ export default function InvestorsPage() {
                   <textarea
                     {...register('esg_constraints')}
                     rows={3}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                     placeholder="Describe any ESG requirements..."
                   />
                 </div>
@@ -275,37 +309,12 @@ export default function InvestorsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
                 >
                   Add Investor
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* View Investor Details Modal */}
-      {selectedInvestor && !showMatchModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-bold text-gray-900">{selectedInvestor.fund_name}</h2>
-                <button onClick={() => setSelectedInvestor(null)} className="text-gray-400 hover:text-gray-600">
-                  <XIcon className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="p-6 space-y-4">
-              <DetailItem label="AUM" value={selectedInvestor.aum ? `$${formatNumber(selectedInvestor.aum)}` : '-'} />
-              <DetailItem label="Ticket Size" value={`$${formatNumber(selectedInvestor.ticket_size_min)} - $${formatNumber(selectedInvestor.ticket_size_max)}`} />
-              <DetailItem label="Target IRR" value={selectedInvestor.target_irr ? `${selectedInvestor.target_irr}%` : '-'} />
-              <DetailItem label="Instruments" value={selectedInvestor.instruments.join(', ')} />
-              <DetailItem label="Sector Focus" value={selectedInvestor.sector_focus.join(', ')} />
-              <DetailItem label="Country Focus" value={selectedInvestor.country_focus.join(', ')} />
-              <DetailItem label="ESG Constraints" value={selectedInvestor.esg_constraints || '-'} />
-            </div>
           </div>
         </div>
       )}
@@ -328,10 +337,10 @@ export default function InvestorsPage() {
               {matchedProjects.length > 0 ? (
                 <div className="space-y-4">
                   {matchedProjects.map((project) => (
-                    <div key={project.id} className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 transition">
+                    <div key={project.id} className="p-4 border border-gray-200 rounded-lg hover:border-brand-gold/40 transition">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h3 className="font-semibold text-gray-900">{project.name}</h3>
+                          <h3 className="font-semibold text-gray-900">{project.project_name || project.name}</h3>
                           <p className="text-sm text-gray-500">{project.sector} - {project.country}</p>
                         </div>
                         <span className={`px-2 py-1 text-xs rounded-full ${getStageColor(project.stage)}`}>
@@ -339,8 +348,10 @@ export default function InvestorsPage() {
                         </span>
                       </div>
                       <div className="mt-2 flex gap-4 text-sm">
-                        <span className="text-gray-600">CAPEX: ${formatNumber(project.estimated_capex)}</span>
-                        {project.funding_gap && (
+                        {project.estimated_capex != null && (
+                          <span className="text-gray-600">CAPEX: ${formatNumber(project.estimated_capex)}</span>
+                        )}
+                        {project.funding_gap != null && (
                           <span className="text-green-600">Gap: ${formatNumber(project.funding_gap)}</span>
                         )}
                       </div>
@@ -358,30 +369,29 @@ export default function InvestorsPage() {
   );
 }
 
-function DetailItem({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="font-medium text-gray-900">{value}</p>
-    </div>
-  );
-}
-
 function getStageColor(stage: string) {
   const colors: Record<string, string> = {
-    Concept: 'bg-gray-100 text-gray-800',
-    Feasibility: 'bg-blue-100 text-blue-800',
-    Procurement: 'bg-yellow-100 text-yellow-800',
-    Construction: 'bg-orange-100 text-orange-800',
-    Operation: 'bg-green-100 text-green-800',
+    planned:           'bg-gray-100 text-gray-800',
+    'pre-feasibility': 'bg-blue-100 text-blue-800',
+    feasibility:       'bg-indigo-100 text-indigo-800',
+    procurement:       'bg-yellow-100 text-yellow-800',
+    construction:      'bg-orange-100 text-orange-800',
+    operational:       'bg-green-100 text-green-800',
+    decommissioned:    'bg-red-100 text-red-800',
+    // Legacy values from old data
+    Concept:    'bg-gray-100 text-gray-800',
+    Feasibility:'bg-blue-100 text-blue-800',
+    Procurement:'bg-yellow-100 text-yellow-800',
+    Construction:'bg-orange-100 text-orange-800',
+    Operation:  'bg-green-100 text-green-800',
   };
   return colors[stage] || 'bg-gray-100 text-gray-800';
 }
 
 function formatNumber(num: number) {
-  if (num >= 1000000000) return `${(num / 1000000000).toFixed(1)}B`;
-  if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M`;
-  if (num >= 1000) return `${(num / 1000).toFixed(1)}K`;
+  if (num >= 1_000_000_000) return `${(num / 1_000_000_000).toFixed(1)}B`;
+  if (num >= 1_000_000)     return `${(num / 1_000_000).toFixed(1)}M`;
+  if (num >= 1_000)         return `${(num / 1_000).toFixed(1)}K`;
   return num.toString();
 }
 

@@ -23,7 +23,7 @@ const SCORE_LABELS: Record<number, { label: string; color: string }> = {
 
 const RATING_COLORS: Record<string, string> = {
   A: 'bg-green-600 text-white',
-  B: 'bg-blue-600 text-white',
+  B: 'bg-brand-gold text-brand-navy',
   C: 'bg-yellow-500 text-gray-900',
   D: 'bg-red-600 text-white',
 };
@@ -50,7 +50,13 @@ export default function PETFELPage() {
           petfelApi.getCriteria(),
         ]);
         setProjects(projectsData);
-        setCriteria(criteriaData);
+        const criteriaMap: Record<string, PETFELCriterion[]> = {};
+        criteriaData.forEach((c) => {
+          const key = c.category || 'default';
+          if (!criteriaMap[key]) criteriaMap[key] = [];
+          criteriaMap[key].push(c);
+        });
+        setCriteria(criteriaMap);
         // Expand first pillar by default
         setExpandedPillars({ political: true });
       } catch (err) {
@@ -80,7 +86,8 @@ export default function PETFELPage() {
         const scoreMap: Record<string, Record<string, ScoreInput>> = {};
         data.scores?.forEach((s) => {
           if (!scoreMap[s.pillar]) scoreMap[s.pillar] = {};
-          scoreMap[s.pillar][s.sub_criterion] = {
+          scoreMap[s.pillar!][s.sub_criterion!] = {
+            criterion_id: s.criterion_id,
             pillar: s.pillar,
             sub_criterion: s.sub_criterion,
             score: s.score,
@@ -121,12 +128,13 @@ export default function PETFELPage() {
   };
 
   const handleScoreChange = (pillar: string, criterion: string, score: number) => {
-    setScores((prev) => ({
+    setScores((prev): Record<string, Record<string, ScoreInput>> => ({
       ...prev,
       [pillar]: {
         ...(prev[pillar] || {}),
         [criterion]: {
-          ...(prev[pillar]?.[criterion] || { pillar, sub_criterion: criterion }),
+          criterion_id: criterion,
+          ...(prev[pillar]?.[criterion] || {}),
           pillar,
           sub_criterion: criterion,
           score,
@@ -136,12 +144,16 @@ export default function PETFELPage() {
   };
 
   const handleNotesChange = (pillar: string, criterion: string, field: 'evidence_notes' | 'mitigation' | 'owner', value: string) => {
-    setScores((prev) => ({
+    setScores((prev): Record<string, Record<string, ScoreInput>> => ({
       ...prev,
       [pillar]: {
         ...(prev[pillar] || {}),
         [criterion]: {
-          ...(prev[pillar]?.[criterion] || { pillar, sub_criterion: criterion, score: 0 }),
+          criterion_id: criterion,
+          score: 0,
+          ...(prev[pillar]?.[criterion] || {}),
+          pillar,
+          sub_criterion: criterion,
           [field]: value,
         },
       },
@@ -203,7 +215,7 @@ export default function PETFELPage() {
     if (!assessment) return;
     setIsAugmenting(true);
     try {
-      const result = await aiApi.augmentPETFEL(assessment.id);
+      const result = await aiApi.augmentPETFEL({ assessment_id: assessment.id });
       // Apply AI suggestions to scores
       if (result.augmented_scores) {
         const newScores = { ...scores };
@@ -233,7 +245,7 @@ export default function PETFELPage() {
   if (isLoading && !projects.length) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
       </div>
     );
   }
@@ -246,12 +258,12 @@ export default function PETFELPage() {
         <select
           value={selectedProjectId || ''}
           onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-64"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
         >
           <option value="">Select a Project</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name} ({p.country})
+              {p.project_name} ({p.country})
             </option>
           ))}
         </select>
@@ -272,7 +284,7 @@ export default function PETFELPage() {
           <button
             onClick={handleCreateAssessment}
             disabled={isSaving}
-            className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+            className="bg-brand-gold text-brand-navy px-6 py-3 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
           >
             {isSaving ? 'Creating...' : 'Start PETFEL Assessment'}
           </button>
@@ -337,7 +349,7 @@ export default function PETFELPage() {
                 <button
                   onClick={handleSaveScores}
                   disabled={isSaving || assessment.status !== 'draft'}
-                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition disabled:opacity-50"
+                  className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
                 >
                   {isSaving ? 'Saving...' : 'Save'}
                 </button>

@@ -713,7 +713,7 @@ export default function DealRoomDetailPage() {
                       href={meeting.meeting_url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark"
                     >
                       Join Call
                     </a>

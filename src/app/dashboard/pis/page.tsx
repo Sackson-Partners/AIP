@@ -17,7 +17,7 @@ import {
 
 const RATING_COLORS: Record<string, string> = {
   A: 'bg-green-600 text-white',
-  B: 'bg-blue-600 text-white',
+  B: 'bg-brand-gold text-brand-navy',
   C: 'bg-yellow-500 text-gray-900',
   D: 'bg-red-600 text-white',
 };
@@ -72,7 +72,7 @@ export default function PISPage() {
       try {
         // Fetch all data in parallel
         const [projectData, petfelData, einData, pipelineData, verificationsData] = await Promise.allSettled([
-          projectsApi.get(selectedProjectId),
+          projectsApi.get(String(selectedProjectId)),
           petfelApi.getAssessment(selectedProjectId),
           einApi.get(selectedProjectId),
           pipelineApi.getProjectStatus(selectedProjectId),
@@ -107,7 +107,7 @@ export default function PISPage() {
   if (isLoading && !projects.length) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
       </div>
     );
   }
@@ -120,12 +120,12 @@ export default function PISPage() {
         <select
           value={selectedProjectId || ''}
           onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 min-w-64"
+          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
         >
           <option value="">Select a Project</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.name} ({p.country})
+              {p.project_name} ({p.country})
             </option>
           ))}
         </select>
@@ -212,7 +212,7 @@ export default function PISPage() {
                     onClick={() => setActiveTab(tab.key as typeof activeTab)}
                     className={`px-6 py-4 text-sm font-medium border-b-2 transition ${
                       activeTab === tab.key
-                        ? 'border-blue-600 text-blue-600'
+                        ? 'border-brand-gold text-brand-gold'
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                   >
@@ -341,8 +341,8 @@ export default function PISPage() {
                       )}
 
                       <Link
-                        href="/dashboard/petfel"
-                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                        href="/dashboard/pestel"
+                        className="inline-flex items-center gap-2 text-brand-gold hover:text-brand-gold-dark"
                       >
                         View Full Assessment →
                       </Link>
@@ -351,8 +351,8 @@ export default function PISPage() {
                     <div className="text-center py-8">
                       <p className="text-gray-500 mb-4">No PETFEL assessment found for this project.</p>
                       <Link
-                        href="/dashboard/petfel"
-                        className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                        href="/dashboard/pestel"
+                        className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark"
                       >
                         Create Assessment
                       </Link>
@@ -430,7 +430,7 @@ export default function PISPage() {
 
                       <Link
                         href="/dashboard/ein"
-                        className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                        className="inline-flex items-center gap-2 text-brand-gold hover:text-brand-gold-dark"
                       >
                         View/Edit EIN →
                       </Link>
@@ -440,7 +440,7 @@ export default function PISPage() {
                       <p className="text-gray-500 mb-4">No EIN found for this project.</p>
                       <Link
                         href="/dashboard/ein"
-                        className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700"
+                        className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark"
                       >
                         Create EIN
                       </Link>
@@ -531,7 +531,7 @@ export default function PISPage() {
 
                   <Link
                     href="/dashboard/pipeline"
-                    className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700"
+                    className="inline-flex items-center gap-2 text-brand-gold hover:text-brand-gold-dark"
                   >
                     View Pipeline →
                   </Link>

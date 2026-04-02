@@ -296,3 +296,50 @@ async def update_match_status(
         match.notes = payload.notes
     db.commit()
     return {"status": "updated", "match_id": match_id, "new_status": payload.status}
+
+
+# ── Root route fix ─────────────────────────────────────
+@router.get("", tags=["Matching"])
+async def matching_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List investor matches."""
+    from backend.models import InvestorMatch
+    matches = db.query(InvestorMatch).limit(50).all()
+    return {"matches": matches, "count": len(matches)}
+
+
+@router.get("", tags=["Investor Matching"])
+async def matching_root(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
+):
+    """List investor matches."""
+    from backend.models import InvestorMatch
+    try:
+        matches = db.query(InvestorMatch).limit(50).all()
+        return {"matches": [{"id": str(m.id)} for m in matches], "count": len(matches)}
+    except Exception as e:
+        return {"matches": [], "count": 0, "note": str(e)}
+
+
+@router.get("", tags=["Investor Matching"])
+async def matching_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    """Matching root."""
+    try:
+        from backend.models import InvestorMatch
+        items = db.query(InvestorMatch).limit(50).all()
+        return {"matches": [{"id": str(m.id)} for m in items], "count": len(items)}
+    except Exception as e:
+        return {"matches": [], "count": 0, "error": str(e)}
+
+
+@router.get("")
+async def matching_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
+    try:
+        from backend.models import InvestorMatch
+        items = db.query(InvestorMatch).limit(50).all()
+        return {"matches": [{"id": str(m.id)} for m in items], "count": len(items)}
+    except Exception as e:
+        return {"matches": [], "count": 0}

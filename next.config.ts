@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingRoot: process.cwd(),
   eslint: {
     ignoreDuringBuilds: true,
   },
@@ -11,6 +12,16 @@ const nextConfig: NextConfig = {
     "http://localhost:3000",
     "http://172.20.10.2:3000",
   ],
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "aip-plum.vercel.app" }],
+        destination: "https://www.africa-infra.com/:path*",
+        permanent: true,
+      },
+    ];
+  },
   async rewrites() {
     return [
       {

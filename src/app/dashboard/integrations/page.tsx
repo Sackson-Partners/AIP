@@ -162,7 +162,7 @@ export default function IntegrationsPage() {
             key={f}
             onClick={() => setFilter(f)}
             className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
-              filter === f ? 'bg-blue-600 text-white' : 'text-gray-600 hover:bg-gray-100'
+              filter === f ? 'bg-brand-gold text-brand-navy' : 'text-gray-600 hover:bg-gray-100'
             }`}
           >
             {f === 'all' ? 'All' : f === 'connected' ? 'Connected' : 'Not Configured'}
@@ -198,7 +198,7 @@ export default function IntegrationsPage() {
                   ) : (
                     <button
                       onClick={() => setExpandedId(expandedId === integration.id ? null : integration.id)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition"
+                      className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark transition"
                     >
                       {expandedId === integration.id ? 'Hide Guide' : 'Setup Guide'}
                     </button>

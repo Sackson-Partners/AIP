@@ -52,8 +52,8 @@ export default function DealRoomsPage() {
 
   const fetchDealRooms = async () => {
     try {
-      const data = await dealRoomsApi.list();
-      setDealRooms(data);
+      const data = await dealRoomsApi.list() as DealRoom[];
+      setDealRooms(data ?? []);
     } catch (error) {
       console.error('Failed to fetch deal rooms:', error);
     } finally {
@@ -63,8 +63,8 @@ export default function DealRoomsPage() {
 
   const fetchProjects = async () => {
     try {
-      const data = await projectsApi.list();
-      setProjects(data);
+      const data = await projectsApi.list() as Project[];
+      setProjects(data ?? []);
     } catch (error) {
       console.error('Failed to fetch projects:', error);
     }
