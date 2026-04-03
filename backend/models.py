@@ -262,17 +262,30 @@ class DataRoomDocument(Base):
 class DealRoom(Base):
     __tablename__ = "deal_rooms"
 
-    id          = Column(String, primary_key=True, default=_uuid)
-    project_id  = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
-    name        = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-    status      = Column(String, default="active")
-    created_at  = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at  = Column(DateTime(timezone=True), onupdate=func.now())
+    id                = Column(String,  primary_key=True, default=_uuid)
+    project_id        = Column(String,  ForeignKey("infrastructure_projects.id"), nullable=False)
+    name              = Column(String,  nullable=False)
+    description       = Column(Text,    nullable=True)
+    status            = Column(String,  default="active")
+    deal_value        = Column(Float,   nullable=True)
+    deal_currency     = Column(String(10),  nullable=True, default="USD")
+    target_close_date = Column(DateTime(timezone=True), nullable=True)
+    is_video_enabled  = Column(Boolean, default=True)
+    is_chat_enabled   = Column(Boolean, default=True)
+    require_nda       = Column(Boolean, default=False)
+    nda_document_url  = Column(Text,    nullable=True)
+    room_type         = Column(String(50), default="standard")
+    max_participants  = Column(Integer, default=50)
+    created_by        = Column(String,  ForeignKey("users.id"), nullable=True)
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at        = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    project  = relationship("InfrastructureProject", back_populates="deal_rooms")
-    messages = relationship("DealRoomMessage", back_populates="deal_room")
+    project   = relationship("InfrastructureProject", back_populates="deal_rooms")
+    messages  = relationship("DealRoomMessage",  back_populates="deal_room")
+    members   = relationship("DealRoomMember",   back_populates="deal_room")
+    documents = relationship("DealRoomDocument", back_populates="deal_room")
+    meetings  = relationship("DealRoomMeeting",  back_populates="deal_room")
 
 
 class DealRoomMessage(Base):
@@ -288,6 +301,55 @@ class DealRoomMessage(Base):
 
     # Relationships
     deal_room = relationship("DealRoom", back_populates="messages")
+
+
+class DealRoomMember(Base):
+    __tablename__ = "deal_room_members"
+
+    id           = Column(String, primary_key=True, default=_uuid)
+    deal_room_id = Column(String, ForeignKey("deal_rooms.id", ondelete="CASCADE"), nullable=False)
+    user_id      = Column(String, ForeignKey("users.id",      ondelete="CASCADE"), nullable=False)
+    role         = Column(String(50), default="viewer")
+    joined_at    = Column(DateTime(timezone=True), server_default=func.now())
+    invited_by   = Column(String, ForeignKey("users.id"), nullable=True)
+
+    # Relationships
+    deal_room = relationship("DealRoom", back_populates="members")
+
+
+class DealRoomDocument(Base):
+    __tablename__ = "deal_room_documents"
+
+    id           = Column(String, primary_key=True, default=_uuid)
+    deal_room_id = Column(String, ForeignKey("deal_rooms.id", ondelete="CASCADE"), nullable=False)
+    uploaded_by  = Column(String, ForeignKey("users.id"), nullable=True)
+    file_name    = Column(String(255), nullable=False)
+    file_url     = Column(Text, nullable=False)
+    file_size    = Column(Integer, nullable=True)
+    file_type    = Column(String(100), nullable=True)
+    uploaded_at  = Column(DateTime(timezone=True), server_default=func.now())
+    requires_nda = Column(Boolean, default=False)
+
+    # Relationships
+    deal_room = relationship("DealRoom", back_populates="documents")
+
+
+class DealRoomMeeting(Base):
+    __tablename__ = "deal_room_meetings"
+
+    id           = Column(String, primary_key=True, default=_uuid)
+    deal_room_id = Column(String, ForeignKey("deal_rooms.id", ondelete="CASCADE"), nullable=False)
+    created_by   = Column(String, ForeignKey("users.id"), nullable=True)
+    title        = Column(String(255), nullable=False)
+    scheduled_at = Column(DateTime(timezone=True), nullable=False)
+    duration_mins= Column(Integer, default=60)
+    meeting_url  = Column(Text, nullable=True)
+    status       = Column(String(50), default="scheduled")
+    notes        = Column(Text, nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    deal_room = relationship("DealRoom", back_populates="meetings")
 
 
 # ---------------------------------------------------------------------------
@@ -319,14 +381,19 @@ class AnalyticsEvent(Base):
 class ProjectEvent(Base):
     __tablename__ = "project_events"
 
-    id          = Column(String, primary_key=True, default=_uuid)
-    project_id  = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
-    event_type  = Column(String, nullable=False)
-    title       = Column(String, nullable=False)
-    description = Column(Text, nullable=True)
-    event_date  = Column(DateTime(timezone=True), nullable=True)
-    source_url  = Column(String, nullable=True)
-    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+    id           = Column(String, primary_key=True, default=_uuid)
+    project_id   = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
+    event_type   = Column(String, nullable=False)
+    title        = Column(String, nullable=False)
+    description  = Column(Text,   nullable=True)
+    event_date   = Column(DateTime(timezone=True), nullable=True)
+    source_url   = Column(String, nullable=True)
+    location     = Column(Text,    nullable=True)
+    is_public    = Column(Boolean, default=True)
+    created_by   = Column(String,  ForeignKey("users.id"), nullable=True)
+    image_url    = Column(Text,    nullable=True)
+    max_attendees= Column(Integer, nullable=True)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
 
     # Relationships
     project = relationship("InfrastructureProject", back_populates="events")

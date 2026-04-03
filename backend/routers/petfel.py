@@ -653,48 +653,26 @@ async def submit_assessment(
     return {"status": "submitted", "assessment_id": assessment_id}
 
 
-# ── Root route fix ─────────────────────────────────────
-@router.get("", tags=["PETFEL"])
-async def petfel_root(
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
-):
-    """List all PETFEL assessments."""
-    from backend.models import PetfelAssessment
-    assessments = db.query(PetfelAssessment).limit(50).all()
-    return {"assessments": assessments, "count": len(assessments)}
-
-
-@router.get("", tags=["PETFEL DD Engine"])
-async def petfel_root(
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
-):
-    """List all PETFEL assessments."""
-    from backend.models import PetfelAssessment
-    try:
-        assessments = db.query(PetfelAssessment).limit(50).all()
-        return {"assessments": [{"id": str(a.id)} for a in assessments], "count": len(assessments)}
-    except Exception as e:
-        return {"assessments": [], "count": 0, "note": str(e)}
-
-
-@router.get("", tags=["PETFEL DD Engine"])
-async def petfel_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    """PETFEL root."""
-    try:
-        from backend.models import PetfelAssessment
-        items = db.query(PetfelAssessment).limit(50).all()
-        return {"assessments": [{"id": str(a.id)} for a in items], "count": len(items)}
-    except Exception as e:
-        return {"assessments": [], "count": 0, "error": str(e)}
-
-
 @router.get("")
-async def petfel_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    try:
-        from backend.models import PetfelAssessment
-        items = db.query(PetfelAssessment).limit(50).all()
-        return {"assessments": [{"id": str(a.id)} for a in items], "count": len(items)}
-    except Exception as e:
-        return {"assessments": [], "count": 0}
+async def petfel_root(
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """List recent PETFEL assessments."""
+    assessments = db.query(PetfelAssessment).order_by(PetfelAssessment.created_at.desc()).limit(50).all()
+    return {
+        "assessments": [
+            {
+                "id":            a.id,
+                "project_id":    a.project_id,
+                "version":       a.version,
+                "status":        a.status,
+                "overall_score": float(a.overall_score) if a.overall_score else None,
+                "rating":        a.rating,
+                "gating_result": a.gating_result,
+                "created_at":    str(a.created_at),
+            }
+            for a in assessments
+        ],
+        "count": len(assessments),
+    }

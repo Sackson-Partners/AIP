@@ -330,8 +330,6 @@ async def get_sla_alerts(
     current_user: User    = Depends(get_current_user),
 ):
     """Return all projects with SLA breaches or warnings."""
-    from datetime import datetime, timezone
-
     now       = datetime.now(timezone.utc)
     positions = db.query(ProjectPipeline).all()
     alerts    = []
@@ -368,48 +366,107 @@ async def get_sla_alerts(
     return alerts
 
 
-# ── Root route fix ─────────────────────────────────────
-@router.get("", tags=["Pipeline"])
-async def pipeline_root(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+@router.get("/statuses")
+async def list_project_statuses(
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
 ):
-    """Pipeline overview — alias for /pipeline/overview."""
-    from sqlalchemy import func
-    stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
-    return {
-        "stages": [{"id": str(s.id), "name": s.name, "code": s.code} for s in stages],
-        "total_stages": len(stages),
-    }
+    """Return current pipeline status for all projects in the pipeline."""
+    now       = datetime.now(timezone.utc)
+    positions = db.query(ProjectPipeline).all()
+    result    = []
+
+    for pos in positions:
+        project = db.query(InfrastructureProject).filter(
+            InfrastructureProject.id == pos.project_id
+        ).first()
+        if not project:
+            continue
+        stage = db.query(PipelineStage).filter(
+            PipelineStage.code == pos.stage_code
+        ).first()
+        entered       = pos.entered_at.replace(tzinfo=timezone.utc) if pos.entered_at else now
+        days_in_stage = (now - entered).days
+        sla_days      = stage.sla_days if stage else None
+        sla_remaining = (sla_days - days_in_stage) if sla_days else None
+        sla_status    = "ok"
+        if sla_remaining is not None:
+            sla_status = "breached" if sla_remaining < 0 else ("warning" if sla_remaining <= 2 else "ok")
+        result.append({
+            "project_id":    project.id,
+            "project_name":  project.project_name,
+            "current_stage": pos.stage_code,
+            "entered_at":    str(pos.entered_at),
+            "days_in_stage": days_in_stage,
+            "sla_days":      sla_days,
+            "sla_status":    sla_status,
+            "sla_remaining": sla_remaining,
+        })
+
+    return result
 
 
-@router.get("", tags=["Pipeline"])
-async def pipeline_root(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+@router.get("/statuses/{project_id}")
+async def get_project_status(
+    project_id:   str,
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
 ):
-    """Pipeline root — returns stages summary."""
-    stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
+    """Return current pipeline status for a single project."""
+    project = db.query(InfrastructureProject).filter(
+        InfrastructureProject.id == project_id
+    ).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    position = db.query(ProjectPipeline).filter(
+        ProjectPipeline.project_id == project_id
+    ).first()
+    if not position:
+        return {
+            "project_id":    project_id,
+            "project_name":  project.project_name,
+            "current_stage": None,
+            "entered_at":    None,
+            "days_in_stage": 0,
+            "sla_days":      None,
+            "sla_status":    "not_in_pipeline",
+            "sla_remaining": None,
+        }
+
+    now   = datetime.now(timezone.utc)
+    stage = db.query(PipelineStage).filter(
+        PipelineStage.code == position.stage_code
+    ).first()
+    entered       = position.entered_at.replace(tzinfo=timezone.utc) if position.entered_at else now
+    days_in_stage = (now - entered).days
+    sla_days      = stage.sla_days if stage else None
+    sla_remaining = (sla_days - days_in_stage) if sla_days else None
+    sla_status    = "ok"
+    if sla_remaining is not None:
+        sla_status = "breached" if sla_remaining < 0 else ("warning" if sla_remaining <= 2 else "ok")
+
     return {
-        "stages": [{"id": str(s.id), "name": s.name, "code": s.code, "sla_days": s.sla_days} for s in stages],
-        "total_stages": len(stages),
+        "project_id":    project_id,
+        "project_name":  project.project_name,
+        "current_stage": position.stage_code,
+        "entered_at":    str(position.entered_at),
+        "days_in_stage": days_in_stage,
+        "sla_days":      sla_days,
+        "sla_status":    sla_status,
+        "sla_remaining": sla_remaining,
     }
-
-
-@router.get("", tags=["Pipeline"])
-async def pipeline_root(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    """Pipeline root."""
-    try:
-        stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
-        return {"stages": [{"id": str(s.id), "name": s.name, "code": s.code} for s in stages], "total_stages": len(stages)}
-    except Exception as e:
-        return {"stages": [], "total_stages": 0, "error": str(e)}
 
 
 @router.get("")
-async def pipeline_root(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    try:
-        stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
-        return {"stages": [{"id": str(s.id), "name": s.name, "code": s.code} for s in stages], "total_stages": len(stages)}
-    except Exception as e:
-        return {"stages": [], "total_stages": 0, "error": str(e)}
+async def pipeline_root(
+    db:           Session = Depends(get_db),
+    current_user: User    = Depends(get_current_user),
+):
+    """Pipeline root — returns stages summary."""
+    _ensure_stages_seeded(db)
+    stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
+    return {
+        "stages":       [{"id": str(s.id), "name": s.name, "code": s.code, "sla_days": s.sla_days} for s in stages],
+        "total_stages": len(stages),
+    }

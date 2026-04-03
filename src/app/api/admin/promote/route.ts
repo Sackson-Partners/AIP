@@ -87,7 +87,10 @@ export async function POST(request: NextRequest) {
   // Update user_metadata via the admin API (affects JWT claims on next sign-in)
   const { error: metaError } = await adminSupabase.auth.admin.updateUserById(
     targetId,
-    { user_metadata: { role } }
+    {
+      user_metadata: { role },
+      app_metadata: { role },
+    }
   );
   if (metaError) {
     return NextResponse.json({ error: metaError.message }, { status: 500 });
