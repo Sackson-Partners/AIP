@@ -45,17 +45,24 @@ function addMarkers(
   onProjectClick?: (p: Project) => void,
 ) {
   projects.forEach(p => {
-    const cat   = CATEGORIES.find(c => c.id === p.type)
-    const color = cat?.color ?? '#666'
-    const icon  = cat?.icon  ?? '📍'
-    const isPulse = p.status === 'construction'
+    const cat          = CATEGORIES.find(c => c.id === p.type)
+    const color        = cat?.color   ?? '#666'
+    const icon         = cat?.icon    ?? '📍'
+    const typeLabel    = cat?.label   ?? p.type
+    const flag         = COUNTRY_FLAGS[p.country] ?? '🌍'
+    const statusColor  = STATUS_COLORS[p.status]  ?? '#666'
+    const isPulse      = p.status === 'construction'
+    const isOperational = p.status === 'operational'
+    const boxShadow    = isOperational
+      ? `0 2px 12px rgba(0,0,0,0.35),0 0 0 3px ${color}50`
+      : '0 2px 12px rgba(0,0,0,0.35)'
 
     const divIcon = L.divIcon({
-      className: '',
+      className: 'aip-marker',
       html: `
         <div style="position:relative;width:32px;height:32px;">
           ${isPulse ? `<div style="position:absolute;inset:-5px;border-radius:50%;background:${color};opacity:0.2;animation:aip-ping 1.8s cubic-bezier(0,0,0.2,1) infinite;"></div>` : ''}
-          <div style="width:32px;height:32px;background:${color};border-radius:50%;border:3px solid white;box-shadow:0 2px 12px rgba(0,0,0,0.35);display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;">${icon}</div>
+          <div class="aip-marker-inner" style="width:32px;height:32px;background:${color};border-radius:50%;border:3px solid white;box-shadow:${boxShadow};display:flex;align-items:center;justify-content:center;font-size:15px;line-height:1;">${icon}</div>
         </div>`,
       iconSize: [32, 32],
       iconAnchor: [16, 16],
@@ -73,6 +80,14 @@ function addMarkers(
         closeButton: true,
       })
     }
+
+    marker.bindTooltip(
+      `<div style="font-family:Inter,system-ui,sans-serif;line-height:1.35;">
+        <div style="font-weight:700;font-size:12px;color:#fff;">${p.name}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.65);margin-top:2px;">${flag} ${p.country} · <span style="color:${statusColor};">${typeLabel}</span></div>
+      </div>`,
+      { className: 'aip-tooltip', direction: 'top', offset: [0, -20] },
+    )
 
     mcg.addLayer(marker)
   })
@@ -126,10 +141,11 @@ export default function InfrastructureMap({ projects, onProjectClick }: Props) {
         scrollWheelZoom: true,
       })
 
-      // 6. OpenStreetMap tiles (no API key, no {r} placeholder)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        maxZoom: 18,
+      // 6. CartoDB Dark Matter tiles — matches platform dark theme
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors © <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19,
       }).addTo(map)
 
       // 7. Marker cluster group

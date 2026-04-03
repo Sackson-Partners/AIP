@@ -34,9 +34,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  // Verify caller is super_admin
-  const callerRole = user.user_metadata?.role as string | undefined;
-  if (callerRole !== 'super_admin') {
+  // Service-role client for admin operations (uses createClient, not createServerClient)
+  const adminSupabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_KEY!
+  );
+
+  // Verify caller is super_admin — check profiles table (DB source of truth),
+  // NOT user_metadata which can be stale or modified client-side.
+  const { data: callerProfile, error: callerProfileError } = await adminSupabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+
+  if (callerProfileError || callerProfile?.role !== 'super_admin') {
     return NextResponse.json({ error: 'Forbidden — super_admin only' }, { status: 403 });
   }
 
@@ -59,13 +71,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Service-role client for admin operations (uses createClient, not createServerClient)
-  const adminSupabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_KEY!
-  );
-
-  // Look up the user's ID from the profiles table by email (service role bypasses RLS)
+  // Look up the target user's ID from the profiles table by email (service role bypasses RLS)
   const { data: profileData, error: profileError } = await adminSupabase
     .from('profiles')
     .select('id')
@@ -76,19 +82,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `No user found with email: ${email}` }, { status: 404 });
   }
 
-  // Update the role in user_metadata via the admin API
-  const { error: updateError } = await adminSupabase.auth.admin.updateUserById(
-    (profileData as { id: string }).id,
+  const targetId = (profileData as { id: string }).id;
+
+  // Update user_metadata via the admin API (affects JWT claims on next sign-in)
+  const { error: metaError } = await adminSupabase.auth.admin.updateUserById(
+    targetId,
     { user_metadata: { role } }
   );
+  if (metaError) {
+    return NextResponse.json({ error: metaError.message }, { status: 500 });
+  }
 
-  if (updateError) {
-    return NextResponse.json({ error: updateError.message }, { status: 500 });
+  // Also update profiles table to keep both sources in sync
+  // (useRBAC reads profiles.role as the primary source of truth)
+  const { error: profileUpdateError } = await adminSupabase
+    .from('profiles')
+    .update({ role })
+    .eq('id', targetId);
+
+  if (profileUpdateError) {
+    return NextResponse.json({ error: profileUpdateError.message }, { status: 500 });
   }
 
   return NextResponse.json({
     success: true,
     message: `User ${email} promoted to ${role}`,
-    userId: (profileData as { id: string }).id,
+    userId: targetId,
   });
 }

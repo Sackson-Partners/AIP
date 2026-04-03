@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Image from 'next/image'
-import { motion, AnimatePresence } from 'framer-motion'
+import { animate, motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '../context/AuthContext'
 import LeftPanel from '../components/map/LeftPanel'
 import { projects, ALL_COUNTRIES, CATEGORIES, STATUS_COLORS, COUNTRY_FLAGS } from '../data/infrastructure'
@@ -29,6 +29,28 @@ const InfrastructureMap = dynamic(
     ),
   }
 )
+
+// ── Static derived data ───────────────────────────────────────────────────────
+const UNIQUE_COUNTRIES = new Set(projects.map(p => p.country)).size
+
+// ── Animated stat counter ─────────────────────────────────────────────────────
+function AnimatedStat({ value, label }: { value: number; label: string }) {
+  const [display, setDisplay] = useState(0)
+  useEffect(() => {
+    const controls = animate(0, value, {
+      duration: 1.8,
+      ease: 'easeOut',
+      onUpdate: (v) => setDisplay(Math.round(v)),
+    })
+    return () => controls.stop()
+  }, [value])
+  return (
+    <div className="text-center min-w-9">
+      <div className="text-white font-bold text-sm tabular-nums leading-tight">{display}</div>
+      <div className="text-white/50 text-[10px] leading-tight">{label}</div>
+    </div>
+  )
+}
 
 const DEFAULT_FILTERS: FilterState = {
   categories: [],
@@ -89,8 +111,8 @@ export default function Home() {
 
       {/* ── Floating header ────────────────────────────────────────────── */}
       <header
-        className="absolute top-0 left-0 right-0 z-[1001] flex items-center justify-between px-4 py-3"
-        style={{ background: 'linear-gradient(to bottom, rgba(11,18,32,0.9) 0%, transparent 100%)' }}
+        className="absolute top-0 left-0 right-0 z-1001 flex items-center justify-between px-4 py-3"
+        style={{ background: 'linear-gradient(to bottom, rgba(11,18,32,0.95) 0%, rgba(11,18,32,0.4) 70%, transparent 100%)' }}
       >
         <div className="flex items-center gap-3">
           <div className="bg-white rounded px-2 py-1 shrink-0">
@@ -102,9 +124,10 @@ export default function Home() {
               priority
             />
           </div>
-          <span className="hidden sm:block text-white/40 text-[11px] font-medium tracking-wide">
-            Infrastructure Intelligence Platform
-          </span>
+          <div className="hidden sm:flex flex-col">
+            <span className="text-white font-semibold text-sm leading-tight">Africa Infrastructure Platform</span>
+            <span className="text-white/50 text-[10px] tracking-wider uppercase">Intelligence · Analytics · Data</span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">
@@ -141,7 +164,7 @@ export default function Home() {
       <div className="flex h-full">
 
         {/* Desktop sidebar */}
-        <div className="hidden md:block w-[280px] lg:w-[300px] xl:w-[320px] h-full shrink-0 z-[999]">
+        <div className="hidden md:block w-70 lg:w-75 xl:w-80 h-full shrink-0 z-999">
           <LeftPanel {...panelProps} />
         </div>
 
@@ -149,24 +172,44 @@ export default function Home() {
         <div className="flex-1 h-full relative">
           <InfrastructureMap projects={filteredProjects} onProjectClick={setSelectedProject} />
 
-          {/* Project count badge */}
-          <div className="absolute bottom-8 right-4 z-[998] bg-white/90 backdrop-blur-sm rounded-lg shadow-lg px-3 py-2 text-center">
-            <div className="text-xs font-bold text-brand-navy">{filteredProjects.length}</div>
-            <div className="text-[10px] text-gray-500">of {projects.length}</div>
+          {/* Mobile hero overlay */}
+          <div className="md:hidden absolute top-14 left-0 right-0 z-[500] flex justify-center px-4 pointer-events-none">
+            <div className="bg-brand-navy/75 backdrop-blur-sm rounded-xl px-4 py-3 border border-white/10 text-center max-w-xs">
+              <h1 className="text-white font-bold text-base leading-snug">Africa Infrastructure Platform</h1>
+              <p className="text-white/55 text-xs mt-1">
+                {projects.length} projects · {UNIQUE_COUNTRIES} countries · $120B+ pipeline
+              </p>
+            </div>
           </div>
 
-          {/* Bottom gradient */}
+          {/* Stats bar */}
           <div
-            className="absolute bottom-0 left-0 right-0 z-[997] flex items-center justify-between px-4 py-2 text-[10px] text-white/40 pointer-events-none"
-            style={{ background: 'linear-gradient(to top, rgba(11,18,32,0.65) 0%, transparent 100%)' }}
+            className="absolute bottom-0 left-0 right-0 z-998 px-4 pb-3 pt-8"
+            style={{ background: 'linear-gradient(to top, rgba(11,18,32,0.92) 0%, rgba(11,18,32,0.5) 60%, transparent 100%)' }}
           >
-            <span>© Africa Infrastructure Partners · Illustrative data</span>
-            <Link
-              href="/register"
-              className="text-brand-gold/70 hover:text-brand-gold transition-colors font-medium pointer-events-auto"
-            >
-              Request full access →
-            </Link>
+            <div className="flex items-end justify-between">
+              <div className="flex items-center gap-4">
+                <AnimatedStat value={projects.length} label="Projects" />
+                <div className="w-px h-7 bg-white/20" />
+                <AnimatedStat value={UNIQUE_COUNTRIES} label="Countries" />
+                <div className="w-px h-7 bg-white/20" />
+                <div className="text-center min-w-9">
+                  <div className="text-brand-gold font-bold text-sm leading-tight">$120B+</div>
+                  <div className="text-white/50 text-[10px] leading-tight">Pipeline</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span className="hidden sm:block text-[10px] text-white/30">
+                  © Africa Infrastructure Partners · Illustrative data
+                </span>
+                <Link
+                  href="/register"
+                  className="text-xs font-semibold text-brand-gold/80 hover:text-brand-gold transition-colors"
+                >
+                  Request access →
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -182,7 +225,7 @@ export default function Home() {
             <>
               {/* Backdrop */}
               <motion.div
-                className="fixed inset-0 z-[1003] bg-black/40 backdrop-blur-sm"
+                className="fixed inset-0 z-1003 bg-black/40 backdrop-blur-sm"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
@@ -190,7 +233,7 @@ export default function Home() {
               />
               {/* Panel */}
               <motion.aside
-                className="fixed right-0 top-0 bottom-0 z-[1004] w-full max-w-sm bg-white shadow-2xl flex flex-col overflow-hidden"
+                className="fixed right-0 top-0 bottom-0 z-1004 w-full max-w-sm bg-white shadow-2xl flex flex-col overflow-hidden"
                 initial={{ x: '100%' }}
                 animate={{ x: 0 }}
                 exit={{ x: '100%' }}
@@ -265,7 +308,7 @@ export default function Home() {
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
-            className="md:hidden fixed inset-0 z-[1002] flex flex-col justify-end"
+            className="md:hidden fixed inset-0 z-1002 flex flex-col justify-end"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}

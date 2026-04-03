@@ -34,11 +34,16 @@ api.interceptors.response.use(
   async (error) => {
     const status: number | undefined = error.response?.status;
 
-    // Auth error — sign out and redirect
+    // Auth error — try to refresh session before signing out.
+    // A backend 401 can mean the JWT just expired; refresh may fix it.
+    // Only sign out if the Supabase session itself is gone.
     if (status === 401) {
-      await supabase.auth.signOut();
-      if (typeof window !== 'undefined') {
-        window.location.href = '/login';
+      const { error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError) {
+        await supabase.auth.signOut();
+        if (typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
       }
       return Promise.reject(error);
     }

@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         has: [{ type: "host", value: "aip-plum.vercel.app" }],
-        destination: "https://www.africa-infra.com/:path*",
+        destination: "https://app.africa-infra.com/:path*",
         permanent: true,
       },
     ];

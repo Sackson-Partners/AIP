@@ -3,22 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-
-// API URL - auto-detect localhost for development
-const getApiUrl = () => {
-  if (process.env.NEXT_PUBLIC_API_URL) {
-    return process.env.NEXT_PUBLIC_API_URL;
-  }
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8000';
-    }
-  }
-  return 'https://aip-api.politesea-b4c1d412.southafricanorth.azurecontainerapps.io';
-};
-
-const API_URL = getApiUrl();
+import { api } from '@/lib/api';
 
 interface DealRoom {
   id: number;
@@ -136,23 +121,10 @@ export default function DealRoomDetailPage() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('token');
-    return {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    };
-  };
-
   const fetchDealRoom = async () => {
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}`, {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDealRoom(data);
-      }
+      const { data } = await api.get(`/deal-rooms/${dealRoomId}`);
+      setDealRoom(data);
     } catch (error) {
       console.error('Failed to fetch deal room:', error);
     } finally {
@@ -162,13 +134,8 @@ export default function DealRoomDetailPage() {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}/members`, {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setMembers(data);
-      }
+      const { data } = await api.get(`/deal-rooms/${dealRoomId}/members`);
+      setMembers(data);
     } catch (error) {
       console.error('Failed to fetch members:', error);
     }
@@ -176,13 +143,8 @@ export default function DealRoomDetailPage() {
 
   const fetchDocuments = async () => {
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}/documents`, {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data);
-      }
+      const { data } = await api.get(`/deal-rooms/${dealRoomId}/documents`);
+      setDocuments(data);
     } catch (error) {
       console.error('Failed to fetch documents:', error);
     }
@@ -190,13 +152,8 @@ export default function DealRoomDetailPage() {
 
   const fetchMeetings = async () => {
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}/meetings`, {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setMeetings(data);
-      }
+      const { data } = await api.get(`/deal-rooms/${dealRoomId}/meetings`);
+      setMeetings(data);
     } catch (error) {
       console.error('Failed to fetch meetings:', error);
     }
@@ -204,13 +161,8 @@ export default function DealRoomDetailPage() {
 
   const fetchMessages = async () => {
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}/messages`, {
-        headers: getAuthHeaders()
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setMessages(data);
-      }
+      const { data } = await api.get(`/deal-rooms/${dealRoomId}/messages`);
+      setMessages(data);
     } catch (error) {
       console.error('Failed to fetch messages:', error);
     }
@@ -219,17 +171,11 @@ export default function DealRoomDetailPage() {
   const handleInviteMember = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}/members`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ email: inviteEmail, role: inviteRole })
-      });
-      if (response.ok) {
-        setShowInviteModal(false);
-        setInviteEmail('');
-        setInviteRole('member');
-        fetchMembers();
-      }
+      await api.post(`/deal-rooms/${dealRoomId}/members`, { email: inviteEmail, role: inviteRole });
+      setShowInviteModal(false);
+      setInviteEmail('');
+      setInviteRole('member');
+      fetchMembers();
     } catch (error) {
       console.error('Failed to invite member:', error);
     }
@@ -238,16 +184,10 @@ export default function DealRoomDetailPage() {
   const handleUploadDocument = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}/documents`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(uploadData)
-      });
-      if (response.ok) {
-        setShowUploadModal(false);
-        setUploadData({ title: '', description: '', document_type: 'other', file_name: '', file_url: '' });
-        fetchDocuments();
-      }
+      await api.post(`/deal-rooms/${dealRoomId}/documents`, uploadData);
+      setShowUploadModal(false);
+      setUploadData({ title: '', description: '', document_type: 'other', file_name: '', file_url: '' });
+      fetchDocuments();
     } catch (error) {
       console.error('Failed to upload document:', error);
     }
@@ -256,16 +196,10 @@ export default function DealRoomDetailPage() {
   const handleScheduleMeeting = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}/meetings`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify(meetingData)
-      });
-      if (response.ok) {
-        setShowMeetingModal(false);
-        setMeetingData({ title: '', description: '', scheduled_at: '', duration_minutes: 60 });
-        fetchMeetings();
-      }
+      await api.post(`/deal-rooms/${dealRoomId}/meetings`, meetingData);
+      setShowMeetingModal(false);
+      setMeetingData({ title: '', description: '', scheduled_at: '', duration_minutes: 60 });
+      fetchMeetings();
     } catch (error) {
       console.error('Failed to schedule meeting:', error);
     }
@@ -276,15 +210,9 @@ export default function DealRoomDetailPage() {
     if (!newMessage.trim()) return;
 
     try {
-      const response = await fetch(`${API_URL}/deal-rooms/${dealRoomId}/messages`, {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({ message: newMessage })
-      });
-      if (response.ok) {
-        setNewMessage('');
-        fetchMessages();
-      }
+      await api.post(`/deal-rooms/${dealRoomId}/messages`, { message: newMessage });
+      setNewMessage('');
+      fetchMessages();
     } catch (error) {
       console.error('Failed to send message:', error);
     }

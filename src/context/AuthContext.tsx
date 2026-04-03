@@ -75,7 +75,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    let mounted = true;
+
+    // Fast initial state from cookies (no network call)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!mounted) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -86,10 +90,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        if (!mounted) return;
+
+        // @supabase/ssr v0.9+ fires INITIAL_SESSION after a background getUser()
+        // server-side verification. If that network call fails (timeout, project
+        // paused, CORS), session comes back null here even though valid cookies
+        // exist. Ignore this null — getSession() above already set state from
+        // cookies, which is the authoritative source for initial load.
+        if (event === 'INITIAL_SESSION' && !session) return;
+
         setSession(session);
         setUser(session?.user ?? null);
 
-        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED')) {
+        if (session?.user && (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION')) {
           await fetchProfile(session.user.id);
         }
         if (event === 'SIGNED_OUT') {
@@ -100,7 +113,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     );
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, [fetchProfile]);
 
   const login = async (email: string, password: string): Promise<void> => {
