@@ -24,6 +24,8 @@ function AdminUsersContent() {
   const [statusFilter, setStatusFilter] = useState('');
   const [updating, setUpdating]       = useState<string | null>(null);
   const [error, setError]             = useState<string | null>(null);
+  const [page, setPage]               = useState(0);
+  const PAGE_SIZE = 25;
 
   useEffect(() => {
     usersApi.list()
@@ -33,6 +35,7 @@ function AdminUsersContent() {
   }, []);
 
   const filtered = useMemo(() => {
+    setPage(0);
     return users.filter((u) => {
       const matchesSearch =
         !search ||
@@ -146,7 +149,7 @@ function AdminUsersContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-700">
-                {filtered.map((u) => (
+                {filtered.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map((u) => (
                   <tr key={u.id} className="hover:bg-gray-750 transition-colors">
 
                     {/* User */}
@@ -221,9 +224,33 @@ function AdminUsersContent() {
       </div>
 
       {!isLoading && (
-        <p className="text-xs text-gray-600">
-          Showing {filtered.length} of {users.length} users
-        </p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-gray-600">
+            Showing {Math.min(page * PAGE_SIZE + 1, filtered.length)}–{Math.min((page + 1) * PAGE_SIZE, filtered.length)} of {filtered.length} users
+            {filtered.length < users.length ? ` (filtered from ${users.length})` : ''}
+          </p>
+          {filtered.length > PAGE_SIZE && (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage(p => Math.max(0, p - 1))}
+                disabled={page === 0}
+                className="px-3 py-1 text-xs bg-gray-700 text-white rounded disabled:opacity-40 hover:bg-gray-600 transition"
+              >
+                Previous
+              </button>
+              <span className="text-xs text-gray-500">
+                Page {page + 1} of {Math.ceil(filtered.length / PAGE_SIZE)}
+              </span>
+              <button
+                onClick={() => setPage(p => Math.min(Math.ceil(filtered.length / PAGE_SIZE) - 1, p + 1))}
+                disabled={(page + 1) * PAGE_SIZE >= filtered.length}
+                className="px-3 py-1 text-xs bg-gray-700 text-white rounded disabled:opacity-40 hover:bg-gray-600 transition"
+              >
+                Next
+              </button>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );

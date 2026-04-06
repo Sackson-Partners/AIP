@@ -45,7 +45,7 @@ export default function UsersPage() {
       const params: any = {};
       if (search) params.search = search;
       if (roleFilter) params.role = roleFilter;
-      const data = await usersApi.listUsers(params);
+      const data = await usersApi.list(params);
       setUsers(data as unknown as AIPUser[]);
     } catch (err: any) {
       const msg = err?.response?.data?.detail || 'Failed to load users. You may need admin access.';
@@ -72,7 +72,7 @@ export default function UsersPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await usersApi.createUser(newForm);
+      await usersApi.create(newForm);
       setShowNewModal(false);
       setNewForm({ email: '', password: '', full_name: '', organisation: '', role: 'analyst' });
       fetchUsers();
@@ -92,7 +92,7 @@ export default function UsersPage() {
     e.preventDefault();
     if (!editingUser) return;
     try {
-      await usersApi.updateUser(editingUser.id, editForm as any);
+      await usersApi.update(editingUser.id, editForm as any);
       setShowEditModal(false);
       fetchUsers();
     } catch (err: any) {
@@ -103,7 +103,7 @@ export default function UsersPage() {
   const handleDelete = async (user: AIPUser) => {
     if (!confirm(`Delete user ${user.email}? This cannot be undone.`)) return;
     try {
-      await usersApi.deleteUser(user.id);
+      await usersApi.delete(user.id);
       fetchUsers();
       fetchStats();
     } catch (err: any) {

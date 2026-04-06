@@ -1,5 +1,17 @@
 import type { NextConfig } from "next";
 
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",  // unsafe-eval needed for Next.js dev HMR; tighten in prod if possible
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com",
+  "img-src 'self' data: blob: https:",
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.anthropic.com",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join("; ");
+
 const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
   typescript: {
@@ -9,6 +21,20 @@ const nextConfig: NextConfig = {
     "http://localhost:3000",
     "http://172.20.10.2:3000",
   ],
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          { key: "Content-Security-Policy", value: CSP },
+          { key: "X-Content-Type-Options",  value: "nosniff" },
+          { key: "X-Frame-Options",          value: "DENY" },
+          { key: "Referrer-Policy",          value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy",       value: "camera=(), microphone=(), geolocation=()" },
+        ],
+      },
+    ];
+  },
   async redirects() {
     return [
       {

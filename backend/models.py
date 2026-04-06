@@ -292,8 +292,8 @@ class DealRoomMessage(Base):
     __tablename__ = "deal_room_messages"
 
     id               = Column(String, primary_key=True, default=_uuid)
-    deal_room_id     = Column(String, ForeignKey("deal_rooms.id"), nullable=False)
-    user_id          = Column(String, ForeignKey("users.id"), nullable=True)
+    deal_room_id     = Column(String, ForeignKey("deal_rooms.id"), nullable=False, index=True)
+    user_id          = Column(String, ForeignKey("users.id"), nullable=True, index=True)
     message_type     = Column(String, default="text")
     content          = Column(Text, nullable=True)
     message_metadata = Column(Text, nullable=True)
@@ -307,8 +307,8 @@ class DealRoomMember(Base):
     __tablename__ = "deal_room_members"
 
     id           = Column(String, primary_key=True, default=_uuid)
-    deal_room_id = Column(String, ForeignKey("deal_rooms.id", ondelete="CASCADE"), nullable=False)
-    user_id      = Column(String, ForeignKey("users.id",      ondelete="CASCADE"), nullable=False)
+    deal_room_id = Column(String, ForeignKey("deal_rooms.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id      = Column(String, ForeignKey("users.id",      ondelete="CASCADE"), nullable=False, index=True)
     role         = Column(String(50), default="viewer")
     joined_at    = Column(DateTime(timezone=True), server_default=func.now())
     invited_by   = Column(String, ForeignKey("users.id"), nullable=True)
@@ -423,39 +423,8 @@ class Verification(Base):
 # ---------------------------------------------------------------------------
 # AIP v2 Extended Models — import AFTER all base models are defined
 # ---------------------------------------------------------------------------
-
-
-import enum
-
-
-class Sector(str, enum.Enum):
-    AGRICULTURE    = "agriculture"
-    ENERGY         = "energy"
-    FINANCE        = "finance"
-    HEALTHCARE     = "healthcare"
-    INFRASTRUCTURE = "infrastructure"
-    MANUFACTURING  = "manufacturing"
-    REAL_ESTATE    = "real_estate"
-    TECHNOLOGY     = "technology"
-    TRANSPORT      = "transport"
-    WATER          = "water"
-    OTHER          = "other"
-
-
-class ProjectStage(str, enum.Enum):
-    CONCEPT        = "concept"
-    FEASIBILITY    = "feasibility"
-    PREPARATION    = "preparation"
-    APPROVAL       = "approval"
-    IMPLEMENTATION = "implementation"
-    COMPLETION     = "completion"
-    OPERATIONAL    = "operational"
-    CANCELLED      = "cancelled"
-
-
-# ---------------------------------------------------------------------------
-# AIP v2 Extended Models — import AFTER all base models are defined
-# ---------------------------------------------------------------------------
+# Note: Sector and ProjectStage enums are defined at the top of this file;
+# the duplicate definitions that were here have been removed.
 
 from backend.models_aip_v2 import (  # noqa: E402
     Organization,

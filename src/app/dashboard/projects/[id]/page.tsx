@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { projectsApi, pipelineAPI, Project, PipelineLog } from '../../../../lib/api';
+import { projectsApi, pipelineApi, Project, PipelineLog } from '../../../../lib/api';
 
 const STAGE_COLORS: Record<string, string> = {
   planned:           'bg-gray-100 text-gray-800',
@@ -49,7 +49,7 @@ export default function ProjectDetailPage() {
     setError(null);
     Promise.all([
       projectsApi.get(id),
-      pipelineAPI.getHistory(id),
+      pipelineApi.getHistory(id),
     ])
       .then(([proj, logs]) => {
         setProject(proj);

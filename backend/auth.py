@@ -14,7 +14,12 @@ from backend.database import get_db
 from backend.schemas import Token, User as UserSchema
 
 # Internal AIP JWT secret (legacy)
-SECRET_KEY = os.environ.get("SECRET_KEY", "aip-secret-key-change-in-production-2024")
+SECRET_KEY = os.environ.get("SECRET_KEY", "")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. "
+        "Generate a secure 256-bit key and set it before starting the server."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

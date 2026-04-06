@@ -164,7 +164,7 @@ export default function PISPage() {
                 <div className="text-center">
                   <div className="text-xs text-gray-500 mb-1">Pipeline</div>
                   {pipelineStatus ? (
-                    <div className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${STAGE_COLORS[pipelineStatus.current_stage] || 'bg-gray-100 text-gray-700'}`}>
+                    <div className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${STAGE_COLORS[pipelineStatus.current_stage ?? ''] || 'bg-gray-100 text-gray-700'}`}>
                       {pipelineStatus.current_stage}
                     </div>
                   ) : (
@@ -180,7 +180,7 @@ export default function PISPage() {
                       ein.status === 'in_review' ? 'bg-yellow-100 text-yellow-700' :
                       'bg-gray-100 text-gray-700'
                     }`}>
-                      {ein.status.replace('_', ' ')}
+                      {(ein.status ?? '').replace('_', ' ')}
                     </div>
                   ) : (
                     <div className="text-gray-400">—</div>
@@ -190,7 +190,7 @@ export default function PISPage() {
                 <div className="text-center">
                   <div className="text-xs text-gray-500 mb-1">Est. CAPEX</div>
                   <div className="text-xl font-bold text-gray-900">
-                    {formatCurrency(selectedProject.estimated_capex)}
+                    {formatCurrency(selectedProject.estimated_capex ?? 0)}
                   </div>
                 </div>
               </div>
@@ -230,7 +230,7 @@ export default function PISPage() {
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900 mb-4">Project Details</h3>
                     <div className="space-y-3">
-                      <DetailRow label="Name" value={selectedProject.name} />
+                      <DetailRow label="Name" value={selectedProject.name ?? '—'} />
                       <DetailRow label="Country" value={selectedProject.country} />
                       <DetailRow label="Region" value={selectedProject.region || '—'} />
                       <DetailRow label="Sector" value={selectedProject.sector} />
@@ -244,9 +244,9 @@ export default function PISPage() {
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900 mb-4">Financial Details</h3>
                     <div className="space-y-3">
-                      <DetailRow label="Est. CAPEX" value={formatCurrency(selectedProject.estimated_capex)} />
+                      <DetailRow label="Est. CAPEX" value={formatCurrency(selectedProject.estimated_capex ?? 0)} />
                       <DetailRow label="Funding Gap" value={selectedProject.funding_gap ? formatCurrency(selectedProject.funding_gap) : '—'} />
-                      <DetailRow label="Revenue Model" value={selectedProject.revenue_model} />
+                      <DetailRow label="Revenue Model" value={selectedProject.revenue_model ?? '—'} />
                       <DetailRow label="Offtaker" value={selectedProject.offtaker || '—'} />
                       <DetailRow label="Tariff Mechanism" value={selectedProject.tariff_mechanism || '—'} />
                       <DetailRow label="FX Exposure" value={selectedProject.fx_exposure || '—'} />
@@ -376,7 +376,7 @@ export default function PISPage() {
                             ein.status === 'sent' ? 'bg-blue-100 text-blue-700' :
                             'bg-gray-100 text-gray-700'
                           }`}>
-                            {ein.status.replace('_', ' ')}
+                            {(ein.status ?? '').replace('_', ' ')}
                           </div>
                         </div>
                         <div>
@@ -417,7 +417,7 @@ export default function PISPage() {
                       <div>
                         <h4 className="font-medium text-gray-700 mb-3">Sections</h4>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                          {ein.sections.map((section) => (
+                          {(ein.sections ?? []).map((section) => (
                             <div key={section.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
                               <span className={`w-2 h-2 rounded-full ${
                                 section.content ? (section.is_reviewed ? 'bg-green-500' : 'bg-blue-500') : 'bg-gray-300'
@@ -508,11 +508,11 @@ export default function PISPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="bg-gray-50 rounded-lg p-3">
                         <span className="text-xs text-gray-500">Created</span>
-                        <div className="font-medium">{new Date(selectedProject.created_at).toLocaleDateString()}</div>
+                        <div className="font-medium">{selectedProject.created_at ? new Date(selectedProject.created_at).toLocaleDateString() : '—'}</div>
                       </div>
                       <div className="bg-gray-50 rounded-lg p-3">
                         <span className="text-xs text-gray-500">Last Updated</span>
-                        <div className="font-medium">{new Date(selectedProject.updated_at).toLocaleDateString()}</div>
+                        <div className="font-medium">{selectedProject.updated_at ? new Date(selectedProject.updated_at).toLocaleDateString() : '—'}</div>
                       </div>
                       {selectedProject.timeline_fid && (
                         <div className="bg-gray-50 rounded-lg p-3">

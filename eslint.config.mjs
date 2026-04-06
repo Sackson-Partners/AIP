@@ -27,10 +27,10 @@ const eslintConfig = defineConfig([
       },
     },
     rules: {
-      "no-unused-vars": "off",
-      "no-console": "off",
-      "@typescript-eslint/no-explicit-any": "off",
-      "@typescript-eslint/no-unused-vars": "off",
+      "no-unused-vars": "warn",
+      "no-console": "warn",
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": "warn",
       "react-hooks/exhaustive-deps": "warn",
       "react-hooks/rules-of-hooks": "error",
     },
@@ -38,8 +38,8 @@ const eslintConfig = defineConfig([
   {
     files: ["**/*.{js,jsx,mjs,cjs}"],
     rules: {
-      "no-unused-vars": "off",
-      "no-console": "off",
+      "no-unused-vars": "warn",
+      "no-console": "warn",
     },
   },
 ]);

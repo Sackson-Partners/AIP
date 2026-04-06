@@ -16,7 +16,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -134,10 +134,13 @@ async def move_project(
     if not stage:
         raise HTTPException(status_code=400, detail=f"Unknown stage code: {payload.stage_code}")
 
-    # Get current stage (if any)
-    current_pipeline = db.query(ProjectPipeline).filter(
-        ProjectPipeline.project_id == payload.project_id
-    ).first()
+    # Get current stage with a row-level lock to prevent concurrent move races
+    current_pipeline = (
+        db.query(ProjectPipeline)
+        .filter(ProjectPipeline.project_id == payload.project_id)
+        .with_for_update()
+        .first()
+    )
     from_stage = current_pipeline.stage_code if current_pipeline else None
 
     # Write immutable log (INSERT-ONLY, no UPDATE/DELETE on this table)
@@ -231,18 +234,27 @@ async def pipeline_overview(
     _ensure_stages_seeded(db)
     stages = db.query(PipelineStage).order_by(PipelineStage.order_index).all()
     now    = datetime.now(timezone.utc)
-    result = []
 
-    for stage in stages:
-        positions = db.query(ProjectPipeline).filter(
-            ProjectPipeline.stage_code == stage.code
+    # Preload all pipeline positions and projects in two bulk queries (avoids N+1)
+    all_positions = db.query(ProjectPipeline).all()
+    project_ids   = list({pos.project_id for pos in all_positions})
+    projects_map  = {
+        p.id: p
+        for p in db.query(InfrastructureProject).filter(
+            InfrastructureProject.id.in_(project_ids)
         ).all()
+    } if project_ids else {}
 
+    # Group positions by stage code
+    positions_by_stage: dict[str, list] = {}
+    for pos in all_positions:
+        positions_by_stage.setdefault(pos.stage_code, []).append(pos)
+
+    result = []
+    for stage in stages:
         cards = []
-        for pos in positions:
-            project = db.query(InfrastructureProject).filter(
-                InfrastructureProject.id == pos.project_id
-            ).first()
+        for pos in positions_by_stage.get(stage.code, []):
+            project = projects_map.get(pos.project_id)
             if project:
                 sla_breached = (
                     pos.sla_due_at is not None
@@ -257,7 +269,6 @@ async def pipeline_overview(
                     "sla_due_at":   str(pos.sla_due_at) if pos.sla_due_at else None,
                     "sla_breached": sla_breached,
                 })
-
         result.append({
             "stage_code":    stage.code,
             "stage_name":    stage.name,
@@ -277,8 +288,6 @@ async def get_project_pipeline_status(
     current_user: User    = Depends(get_current_user),
 ):
     """Return the current pipeline status for a single project."""
-    from datetime import datetime, timezone
-
     project = db.query(InfrastructureProject).filter(
         InfrastructureProject.id == project_id
     ).first()
@@ -326,18 +335,28 @@ async def get_project_pipeline_status(
 
 @router.get("/sla-alerts")
 async def get_sla_alerts(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     db:           Session = Depends(get_db),
     current_user: User    = Depends(get_current_user),
 ):
-    """Return all projects with SLA breaches or warnings."""
+    """Return all projects with SLA breaches or warnings (paginated)."""
     now       = datetime.now(timezone.utc)
-    positions = db.query(ProjectPipeline).all()
-    alerts    = []
+    positions = db.query(ProjectPipeline).offset(skip).limit(limit).all()
 
+    # Preload stages and projects in bulk to avoid N+1 queries
+    stages_map   = {s.code: s for s in db.query(PipelineStage).all()}
+    project_ids  = [pos.project_id for pos in positions]
+    projects_map = {
+        p.id: p
+        for p in db.query(InfrastructureProject).filter(
+            InfrastructureProject.id.in_(project_ids)
+        ).all()
+    } if project_ids else {}
+
+    alerts = []
     for pos in positions:
-        stage = db.query(PipelineStage).filter(
-            PipelineStage.code == pos.stage_code
-        ).first()
+        stage = stages_map.get(pos.stage_code)
         if not stage or not stage.sla_days:
             continue
 
@@ -348,9 +367,7 @@ async def get_sla_alerts(
         if sla_remaining > 2:
             continue  # No alert needed
 
-        project = db.query(InfrastructureProject).filter(
-            InfrastructureProject.id == pos.project_id
-        ).first()
+        project = projects_map.get(pos.project_id)
         if project:
             alerts.append({
                 "project_id":    project.id,
@@ -368,23 +385,31 @@ async def get_sla_alerts(
 
 @router.get("/statuses")
 async def list_project_statuses(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
     db:           Session = Depends(get_db),
     current_user: User    = Depends(get_current_user),
 ):
-    """Return current pipeline status for all projects in the pipeline."""
+    """Return current pipeline status for all projects in the pipeline (paginated)."""
     now       = datetime.now(timezone.utc)
-    positions = db.query(ProjectPipeline).all()
-    result    = []
+    positions = db.query(ProjectPipeline).offset(skip).limit(limit).all()
 
+    # Preload projects and stages in bulk to avoid N+1 queries
+    project_ids  = [pos.project_id for pos in positions]
+    projects_map = {
+        p.id: p
+        for p in db.query(InfrastructureProject).filter(
+            InfrastructureProject.id.in_(project_ids)
+        ).all()
+    } if project_ids else {}
+    stages_map = {s.code: s for s in db.query(PipelineStage).all()}
+
+    result = []
     for pos in positions:
-        project = db.query(InfrastructureProject).filter(
-            InfrastructureProject.id == pos.project_id
-        ).first()
+        project = projects_map.get(pos.project_id)
         if not project:
             continue
-        stage = db.query(PipelineStage).filter(
-            PipelineStage.code == pos.stage_code
-        ).first()
+        stage         = stages_map.get(pos.stage_code)
         entered       = pos.entered_at.replace(tzinfo=timezone.utc) if pos.entered_at else now
         days_in_stage = (now - entered).days
         sla_days      = stage.sla_days if stage else None

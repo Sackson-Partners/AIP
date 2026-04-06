@@ -45,7 +45,7 @@ export default function AdminSetupPage() {
         const [projects, investors, users, verifications] = await Promise.allSettled([
           projectsApi.list(),
           investorsApi.list(),
-          usersApi.listUsers(),
+          usersApi.list(),
           verificationsApi.list(),
         ]);
 

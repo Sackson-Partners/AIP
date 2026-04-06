@@ -20,7 +20,13 @@ load_dotenv()  # Must run before os.getenv
 
 from backend.schemas import User as UserSchema
 
-SECRET_KEY = "your-secret-key"  # Load from env in production: os.getenv('SECRET_KEY')
+import os as _os
+SECRET_KEY = _os.environ.get("SECRET_KEY", "")
+if not SECRET_KEY:
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. "
+        "Generate a secure 256-bit key and set it before starting the server."
+    )
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

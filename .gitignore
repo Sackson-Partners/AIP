@@ -67,10 +67,16 @@ frontend/node_modules/
 frontend/.next/
 frontend/out/
 
-# Env
+# Env — never commit any .env file; only .env.example is safe to track
 .env
 .env.*
+.env.vercel
+.env.local
+.env.production
+.env.staging
 !.env.example
+!.env.local.example
+!backend/.env.example
 
 # IDE
 .idea/

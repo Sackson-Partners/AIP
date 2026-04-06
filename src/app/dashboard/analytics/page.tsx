@@ -112,7 +112,7 @@ export default function AnalyticsPage() {
                     <DocumentIcon className="w-5 h-5 text-gray-600" />
                   </div>
                   <span className="text-xs text-gray-500">
-                    {new Date(report.created_at).toLocaleDateString()}
+                    {report.created_at ? new Date(report.created_at).toLocaleDateString() : '—'}
                   </span>
                 </div>
 
@@ -247,7 +247,7 @@ export default function AnalyticsPage() {
                   </span>
                 )}
                 <span className="px-3 py-1 text-sm bg-gray-100 text-gray-600 rounded-full">
-                  {new Date(selectedReport.created_at).toLocaleDateString()}
+                  {selectedReport.created_at ? new Date(selectedReport.created_at).toLocaleDateString() : '—'}
                 </span>
               </div>
 

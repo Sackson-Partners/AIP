@@ -1,7 +1,22 @@
 import axios, { AxiosInstance } from 'axios';
+import { Session } from '@supabase/supabase-js';
 import { supabase } from './supabase';
 
 export const AUTH_PROVIDER = 'supabase';
+
+// Module-level session cache — updated via onAuthStateChange so every request
+// reads the current token without an async getSession() call per request.
+let _cachedSession: Session | null = null;
+
+if (typeof window !== 'undefined') {
+  // Seed the cache synchronously on first load, then keep it fresh.
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    _cachedSession = session;
+  });
+  supabase.auth.onAuthStateChange((_event, session) => {
+    _cachedSession = session;
+  });
+}
 
 // Use relative /api path so all requests route through the Next.js rewrite
 // (next.config.ts: /api/* → NEXT_PUBLIC_API_URL/api/*).
@@ -12,12 +27,11 @@ export const api: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use(async (config) => {
-  if (typeof window !== 'undefined') {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      config.headers.Authorization = `Bearer ${session.access_token}`;
-    }
+api.interceptors.request.use((config) => {
+  // Use cached session — no async getSession() call per request
+  const token = _cachedSession?.access_token;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
@@ -430,42 +444,39 @@ export const authAPI = {
   me: () => get<User>('/auth/me'),
 };
 
-export const projectsAPI = {
+// Single canonical exports — camelCase only
+export const projectsApi = {
   list:   (params?: object) => get<Project[]>('/projects', params),
   get:    (id: string | number) => get<Project>(`/projects/${id}`),
   create: (d: ProjectCreate) => post<Project>('/projects', d),
   update: (id: string | number, d: Partial<ProjectCreate>) => patch<Project>(`/projects/${id}`, d),
   delete: (id: string | number) => del<void>(`/projects/${id}`),
 };
-export const projectsApi = projectsAPI;
 
-export const investorsAPI = {
+export const investorsApi = {
   list:   (params?: object) => get<Investor[]>('/investors', params),
   get:    (id: string | number) => get<Investor>(`/investors/${id}`),
   create: (d: InvestorCreate) => post<Investor>('/investors', d),
   update: (id: string | number, d: Partial<InvestorCreate>) => patch<Investor>(`/investors/${id}`, d),
 };
-export const investorsApi = investorsAPI;
 
-export const verificationsAPI = {
+export const verificationsApi = {
   list:         (params?: object) => get<Verification[]>('/verifications', params),
   get:          (id: string | number) => get<Verification>(`/verifications/${id}`),
   getByProject: (projectId: string | number) => get<Verification[]>(`/verifications?project_id=${projectId}`),
   create:       (d: VerificationCreate) => post<Verification>('/verifications', d),
   update:       (id: string | number, d: Partial<VerificationCreate>) => patch<Verification>(`/verifications/${id}`, d),
 };
-export const verificationsApi = verificationsAPI;
 
-export const eventsAPI = {
+export const eventsApi = {
   list:   (params?: object) => get<Event[]>('/events', params),
   get:    (id: string | number) => get<Event>(`/events/${id}`),
   create: (d: EventCreate) => post<Event>('/events', d),
   update: (id: string | number, d: Partial<EventCreate>) => patch<Event>(`/events/${id}`, d),
   delete: (id: string | number) => del<void>(`/events/${id}`),
 };
-export const eventsApi = eventsAPI;
 
-export const pipelineAPI = {
+export const pipelineApi = {
   stages:           () => get<PipelineStage[]>('/pipeline/stages'),
   getStages:        () => get<PipelineStage[]>('/pipeline/stages'),
   overview:         () => get<unknown>('/pipeline/overview'),
@@ -477,9 +488,8 @@ export const pipelineAPI = {
   getHistory:       (projectId: string | number) => get<PipelineLog[]>(`/pipeline/logs?project_id=${projectId}`),
   move:             (projectId: string | number, d: object) => post<unknown>('/pipeline/move', { project_id: projectId, ...d }),
 };
-export const pipelineApi = pipelineAPI;
 
-export const analyticsAPI = {
+export const analyticsApi = {
   list:    () => get<AnalyticReport[]>('/analytics/reports'),
   summary: () => get<unknown>('/analytics'),
   reports: () => get<AnalyticReport[]>('/analytics/reports'),
@@ -487,7 +497,6 @@ export const analyticsAPI = {
   create:  (d: AnalyticReportCreate) => post<AnalyticReport>('/analytics/reports', d),
   track:   (d: object) => post<unknown>('/analytics/track', d),
 };
-export const analyticsApi = analyticsAPI;
 
 export interface UserStats {
   total: number;
@@ -495,40 +504,33 @@ export interface UserStats {
   by_role?: Record<string, number>;
 }
 
-export const usersAPI = {
+export const usersApi = {
   list:           (params?: object) => get<User[]>('/users', params),
-  listUsers:      (params?: object) => get<User[]>('/users', params),
   get:            (id: string) => get<User>(`/users/${id}`),
   getStats:       () => get<UserStats>('/users/stats'),
   create:         (d: object) => post<User>('/users', d),
-  createUser:     (d: object) => post<User>('/users', d),
   update:         (id: string, d: Partial<User>) => patch<User>(`/users/${id}`, d),
-  updateUser:     (id: string, d: Partial<User>) => patch<User>(`/users/${id}`, d),
   delete:         (id: string) => del<void>(`/users/${id}`),
-  deleteUser:     (id: string) => del<void>(`/users/${id}`),
   deactivateUser: (id: string) => post<User>(`/users/${id}/deactivate`),
   activateUser:   (id: string) => post<User>(`/users/${id}/activate`),
   verifyUser:     (id: string) => post<User>(`/users/${id}/verify`),
 };
-export const usersApi = usersAPI;
 
-export const dataRoomsAPI = {
+export const dataRoomsApi = {
   list:   () => get<DataRoom[]>('/data-rooms'),
   get:    (id: string | number) => get<DataRoom>(`/data-rooms/${id}`),
   create: (d: object) => post<DataRoom>('/data-rooms', d),
   delete: (id: string | number) => del<void>(`/data-rooms/${id}`),
 };
-export const dataRoomsApi = dataRoomsAPI;
 
-export const dealRoomsAPI = {
+export const dealRoomsApi = {
   list:   () => get<DealRoom[]>('/deal-rooms'),
   get:    (id: string | number) => get<DealRoom>(`/deal-rooms/${id}`),
   create: (d: object) => post<DealRoom>('/deal-rooms', d),
   delete: (id: string | number) => del<void>(`/deal-rooms/${id}`),
 };
-export const dealRoomsApi = dealRoomsAPI;
 
-export const petfelAPI = {
+export const petfelApi = {
   list:             () => get<PETFELAssessment[]>('/petfel'),
   get:              (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
   getAssessment:    (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
@@ -541,9 +543,8 @@ export const petfelAPI = {
   calculate:        (assessmentId: string | number) => post<PETFELAssessment>(`/petfel/${assessmentId}/calculate`),
   submit:           (assessmentId: string | number) => post<PETFELAssessment>(`/petfel/${assessmentId}/submit`),
 };
-export const petfelApi = petfelAPI;
 
-export const einAPI = {
+export const einApi = {
   list:          () => get<EIN[]>('/ein'),
   get:           (projectId: string | number) => get<EIN>(`/ein/${projectId}`),
   getById:       (id: string | number) => get<EIN>(`/ein/${id}`),
@@ -558,9 +559,8 @@ export const einAPI = {
   getTemplates:  () => get<EINTemplate[]>('/ein/templates'),
   generate:      (projectId: string | number) => post<EIN>(`/ein/generate/${projectId}`, {}),
 };
-export const einApi = einAPI;
 
-export const icAPI = {
+export const icApi = {
   list:            () => get<ICCommittee[]>('/ic'),
   committees:      () => get<ICCommittee[]>('/ic/committees'),
   listCommittees:  () => get<ICCommittee[]>('/ic/committees'),
@@ -572,21 +572,18 @@ export const icAPI = {
   submitVote:      (id: string | number, vote: string, rationale?: string) => post<ICVote>(`/ic/committees/${id}/vote`, { vote, rationale }),
   recordDecision:  (id: string | number, outcome: string | object) => post<ICCommittee>(`/ic/committees/${id}/decision`, typeof outcome === 'string' ? { outcome } : outcome),
 };
-export const icApi = icAPI;
 
-export const matchingAPI = {
+export const matchingApi = {
   list: () => get<unknown[]>('/matching'),
   run:  (projectId: string | number) => post<unknown>(`/matching/run/${projectId}`, {}),
   get:  (projectId: string | number) => get<unknown>(`/matching/${projectId}`),
 };
-export const matchingApi = matchingAPI;
 
-export const radarAPI = {
+export const radarApi = {
   list:    () => get<unknown[]>('/radar'),
   results: () => get<unknown[]>('/radar/results'),
   scan:    () => post<unknown>('/radar/scan', {}),
 };
-export const radarApi = radarAPI;
 
 export interface EINGenerated {
   sections?: Record<string, string>;

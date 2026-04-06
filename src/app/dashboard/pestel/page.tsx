@@ -85,8 +85,10 @@ export default function PETFELPage() {
         // Initialize scores from assessment
         const scoreMap: Record<string, Record<string, ScoreInput>> = {};
         data.scores?.forEach((s) => {
-          if (!scoreMap[s.pillar]) scoreMap[s.pillar] = {};
-          scoreMap[s.pillar!][s.sub_criterion!] = {
+          const pillarKey = s.pillar ?? '';
+          const subKey = s.sub_criterion ?? '';
+          if (!scoreMap[pillarKey]) scoreMap[pillarKey] = {};
+          scoreMap[pillarKey][subKey] = {
             criterion_id: s.criterion_id,
             pillar: s.pillar,
             sub_criterion: s.sub_criterion,
@@ -133,8 +135,8 @@ export default function PETFELPage() {
       [pillar]: {
         ...(prev[pillar] || {}),
         [criterion]: {
-          criterion_id: criterion,
           ...(prev[pillar]?.[criterion] || {}),
+          criterion_id: criterion,
           pillar,
           sub_criterion: criterion,
           score,
@@ -149,9 +151,8 @@ export default function PETFELPage() {
       [pillar]: {
         ...(prev[pillar] || {}),
         [criterion]: {
+          ...(prev[pillar]?.[criterion] || { score: 0 }),
           criterion_id: criterion,
-          score: 0,
-          ...(prev[pillar]?.[criterion] || {}),
           pillar,
           sub_criterion: criterion,
           [field]: value,
@@ -220,8 +221,10 @@ export default function PETFELPage() {
       if (result.augmented_scores) {
         const newScores = { ...scores };
         result.augmented_scores.forEach((s: ScoreInput) => {
-          if (!newScores[s.pillar]) newScores[s.pillar] = {};
-          newScores[s.pillar][s.sub_criterion] = s;
+          const pillarKey = s.pillar ?? '';
+          const subKey = s.sub_criterion ?? '';
+          if (!newScores[pillarKey]) newScores[pillarKey] = {};
+          newScores[pillarKey][subKey] = s;
         });
         setScores(newScores);
       }
@@ -412,20 +415,21 @@ export default function PETFELPage() {
                   <div className="border-t border-gray-200 px-6 py-4">
                     <div className="space-y-6">
                       {criteria[pillar.code]?.map((crit) => {
-                        const currentScore = scores[pillar.code]?.[crit.code]?.score || 0;
+                        const critCode = crit.code ?? '';
+                        const currentScore = scores[pillar.code]?.[critCode]?.score || 0;
                         return (
                           <div key={crit.code} className="border-b border-gray-100 pb-4 last:border-0">
                             <div className="flex items-start justify-between gap-4 mb-3">
                               <div>
                                 <h4 className="font-medium text-gray-900">{crit.name}</h4>
-                                <span className="text-xs text-gray-500">Weight: {(crit.weight * 100).toFixed(0)}%</span>
+                                <span className="text-xs text-gray-500">Weight: {((crit.weight ?? 0) * 100).toFixed(0)}%</span>
                               </div>
                               {/* Score Buttons */}
                               <div className="flex items-center gap-1">
                                 {[1, 2, 3, 4, 5].map((score) => (
                                   <button
                                     key={score}
-                                    onClick={() => handleScoreChange(pillar.code, crit.code, score)}
+                                    onClick={() => handleScoreChange(pillar.code, critCode, score)}
                                     disabled={assessment.status !== 'draft'}
                                     className={`w-10 h-10 rounded-lg font-bold transition ${
                                       currentScore === score
@@ -444,8 +448,8 @@ export default function PETFELPage() {
                               <div>
                                 <label className="text-xs text-gray-500">Evidence Notes</label>
                                 <textarea
-                                  value={scores[pillar.code]?.[crit.code]?.evidence_notes || ''}
-                                  onChange={(e) => handleNotesChange(pillar.code, crit.code, 'evidence_notes', e.target.value)}
+                                  value={scores[pillar.code]?.[critCode]?.evidence_notes || ''}
+                                  onChange={(e) => handleNotesChange(pillar.code, critCode, 'evidence_notes', e.target.value)}
                                   disabled={assessment.status !== 'draft'}
                                   placeholder="Supporting evidence..."
                                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none h-20 disabled:bg-gray-50"
@@ -454,8 +458,8 @@ export default function PETFELPage() {
                               <div>
                                 <label className="text-xs text-gray-500">Mitigation</label>
                                 <textarea
-                                  value={scores[pillar.code]?.[crit.code]?.mitigation || ''}
-                                  onChange={(e) => handleNotesChange(pillar.code, crit.code, 'mitigation', e.target.value)}
+                                  value={scores[pillar.code]?.[critCode]?.mitigation || ''}
+                                  onChange={(e) => handleNotesChange(pillar.code, critCode, 'mitigation', e.target.value)}
                                   disabled={assessment.status !== 'draft'}
                                   placeholder="Risk mitigation plan..."
                                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none h-20 disabled:bg-gray-50"
@@ -465,8 +469,8 @@ export default function PETFELPage() {
                                 <label className="text-xs text-gray-500">Owner</label>
                                 <input
                                   type="text"
-                                  value={scores[pillar.code]?.[crit.code]?.owner || ''}
-                                  onChange={(e) => handleNotesChange(pillar.code, crit.code, 'owner', e.target.value)}
+                                  value={scores[pillar.code]?.[critCode]?.owner || ''}
+                                  onChange={(e) => handleNotesChange(pillar.code, critCode, 'owner', e.target.value)}
                                   disabled={assessment.status !== 'draft'}
                                   placeholder="Responsible party..."
                                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm disabled:bg-gray-50"

@@ -30,6 +30,8 @@ export default function ProjectsPage() {
   const [filter, setFilter] = useState({ sector: '', country: '', status: '' });
   const [newForm, setNewForm] = useState<ProjectCreate>({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
   const [editForm, setEditForm] = useState<ProjectCreate>({ project_name: '', sector: '', country: '', stage: '' });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const fetchProjects = async () => {
     try {
@@ -39,8 +41,9 @@ export default function ProjectsPage() {
       if (filter.status) params.status = filter.status;
       const data = await projectsApi.list(params);
       setProjects(data);
-    } catch (error: any) {
-      console.error('Failed to fetch projects:', error);
+      setFetchError(null);
+    } catch {
+      setFetchError('Failed to load projects. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -52,6 +55,7 @@ export default function ProjectsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       await projectsApi.create(newForm);
       setShowModal(false);
@@ -60,6 +64,8 @@ export default function ProjectsPage() {
       fetchProjects();
     } catch (error: any) {
       toastError(error?.response?.data?.detail || 'Failed to create project. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -84,6 +90,7 @@ export default function ProjectsPage() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProject) return;
+    setIsSubmitting(true);
     try {
       await projectsApi.update(editingProject.id as any, editForm);
       setShowEditModal(false);
@@ -92,6 +99,8 @@ export default function ProjectsPage() {
       fetchProjects();
     } catch (error: any) {
       toastError(error?.response?.data?.detail || 'Failed to update project. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -152,6 +161,12 @@ export default function ProjectsPage() {
           </select>
         </div>
       </div>
+
+      {fetchError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {fetchError}
+        </div>
+      )}
 
       {/* Projects Table */}
       {isLoading ? (
@@ -340,9 +355,10 @@ export default function ProjectsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Create Project
+                  {isSubmitting ? 'Creating…' : 'Create Project'}
                 </button>
               </div>
             </form>
@@ -455,9 +471,10 @@ export default function ProjectsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Save Changes
+                  {isSubmitting ? 'Saving…' : 'Save Changes'}
                 </button>
               </div>
             </form>

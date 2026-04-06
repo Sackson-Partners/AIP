@@ -35,7 +35,7 @@ class ProjectCreate(ProjectBase):
 
 
 class Project(ProjectBase):
-    id: int
+    id: str
     created_at: date
     updated_at: date
 
@@ -59,12 +59,12 @@ class VerificationBase(BaseModel):
 
 
 class VerificationCreate(VerificationBase):
-    project_id: int
+    project_id: str
 
 
 class Verification(VerificationBase):
-    id: int
-    project_id: int
+    id: str
+    project_id: str
 
     class Config:
         from_attributes = True
@@ -87,7 +87,7 @@ class InvestorCreate(InvestorBase):
 
 
 class Investor(InvestorBase):
-    id: int
+    id: str
 
     class Config:
         from_attributes = True
@@ -101,23 +101,23 @@ class IntroductionBase(BaseModel):
 
 
 class IntroductionCreate(IntroductionBase):
-    investor_id: int
-    project_id: int
+    investor_id: str
+    project_id: str
 
 
 class Introduction(IntroductionBase):
-    id: int
-    investor_id: int
-    project_id: int
+    id: str
+    investor_id: str
+    project_id: str
 
     class Config:
         from_attributes = True
 
 
 class DataRoomBase(BaseModel):
-    project_id: int
+    project_id: str
     nda_required: bool = True
-    access_users: Optional[List[int]] = None
+    access_users: Optional[List[str]] = None
     documents: Optional[Dict[str, str]] = None
 
 
@@ -126,7 +126,7 @@ class DataRoomCreate(DataRoomBase):
 
 
 class DataRoom(DataRoomBase):
-    id: int
+    id: str
     created_at: datetime
 
     class Config:
@@ -145,7 +145,7 @@ class AnalyticReportCreate(AnalyticReportBase):
 
 
 class AnalyticReport(AnalyticReportBase):
-    id: int
+    id: str
     created_at: datetime
 
     class Config:
@@ -157,7 +157,7 @@ class EventBase(BaseModel):
     description: str
     event_date: date
     type: str
-    projects_involved: Optional[List[int]] = None
+    projects_involved: Optional[List[str]] = None
 
 
 class EventCreate(EventBase):
@@ -165,7 +165,7 @@ class EventCreate(EventBase):
 
 
 class Event(EventBase):
-    id: int
+    id: str
 
     class Config:
         from_attributes = True
@@ -181,7 +181,7 @@ class UserCreate(UserBase):
 
 
 class User(UserBase):
-    id: int
+    id: str
 
     class Config:
         from_attributes = True
@@ -196,7 +196,7 @@ class UserRegister(BaseModel):
 
 
 class UserResponse(BaseModel):
-    id: int
+    id: str
     email: str
     full_name: Optional[str] = None
 
@@ -214,7 +214,7 @@ class Token(BaseModel):
 # ============================================================================
 
 class DealRoomBase(BaseModel):
-    project_id: int
+    project_id: str
     name: str
     description: Optional[str] = None
     deal_value: Optional[float] = None
@@ -241,9 +241,9 @@ class DealRoomUpdate(BaseModel):
 
 
 class DealRoomResponse(DealRoomBase):
-    id: int
+    id: str
     status: str
-    created_by_id: int
+    created_by_id: str
     created_at: datetime
     updated_at: datetime
     closed_at: Optional[datetime] = None
@@ -258,9 +258,9 @@ class DealRoomMemberCreate(BaseModel):
 
 
 class DealRoomMemberResponse(BaseModel):
-    id: int
-    deal_room_id: int
-    user_id: int
+    id: str
+    deal_room_id: str
+    user_id: str
     role: str
     invitation_status: str
     can_upload: bool
@@ -288,8 +288,8 @@ class DealRoomDocumentCreate(BaseModel):
 
 
 class DealRoomDocumentResponse(BaseModel):
-    id: int
-    deal_room_id: int
+    id: str
+    deal_room_id: str
     title: str
     description: Optional[str] = None
     document_type: str
@@ -300,7 +300,7 @@ class DealRoomDocumentResponse(BaseModel):
     version: int
     requires_signature: bool
     signature_status: str
-    uploaded_by_id: int
+    uploaded_by_id: str
     uploaded_at: datetime
 
     class Config:
@@ -317,8 +317,8 @@ class DealRoomMeetingCreate(BaseModel):
 
 
 class DealRoomMeetingResponse(BaseModel):
-    id: int
-    deal_room_id: int
+    id: str
+    deal_room_id: str
     title: str
     description: Optional[str] = None
     agenda: Optional[str] = None
@@ -330,7 +330,7 @@ class DealRoomMeetingResponse(BaseModel):
     status: str
     is_recorded: bool
     recording_url: Optional[str] = None
-    created_by_id: int
+    created_by_id: str
     created_at: datetime
     started_at: Optional[datetime] = None
     ended_at: Optional[datetime] = None
@@ -342,17 +342,17 @@ class DealRoomMeetingResponse(BaseModel):
 class DealRoomMessageCreate(BaseModel):
     message: str
     message_type: str = "text"
-    parent_id: Optional[int] = None
+    parent_id: Optional[str] = None
     attachments: Optional[List[str]] = None
 
 
 class DealRoomMessageResponse(BaseModel):
-    id: int
-    deal_room_id: int
-    user_id: int
+    id: str
+    deal_room_id: str
+    user_id: str
     message: str
     message_type: str
-    parent_id: Optional[int] = None
+    parent_id: Optional[str] = None
     attachments: Optional[str] = None
     is_edited: bool
     is_deleted: bool

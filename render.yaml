@@ -8,6 +8,6 @@ services:
       - key: DATABASE_URL
         value: sqlite:///./aip.db
       - key: SECRET_KEY
-        value: aip-production-secret-key-2024
+        sync: false  # Set this manually in Render dashboard — never commit the actual value
       - key: PYTHON_VERSION
         value: "3.10.12"

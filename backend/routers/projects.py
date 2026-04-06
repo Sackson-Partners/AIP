@@ -29,6 +29,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/projects", tags=["Infrastructure Projects"])
 
 
+def _safe_json(value: Optional[str]) -> list:
+    """Parse a JSON string field, returning [] on missing or malformed input."""
+    if not value:
+        return []
+    try:
+        return json.loads(value)
+    except json.JSONDecodeError:
+        return []
+
+
 # ---------------------------------------------------------------------------
 # Request / Response Models
 # ---------------------------------------------------------------------------
@@ -119,7 +129,7 @@ async def list_projects(
         logger.error("Failed to list projects: %s", str(e), exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to list projects: {str(e)}",
+            detail="An unexpected error occurred while listing projects.",
         )
 
 
@@ -179,7 +189,7 @@ async def create_project(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create project: {str(e)}",
+            detail="An unexpected error occurred while creating the project.",
         )
 
 
@@ -227,7 +237,7 @@ async def update_project(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update project: {str(e)}",
+            detail="An unexpected error occurred while updating the project.",
         )
 
 
@@ -268,7 +278,7 @@ async def delete_project(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to delete project: {str(e)}",
+            detail="An unexpected error occurred while deleting the project.",
         )
 
 
@@ -307,8 +317,8 @@ async def generate_project_brief(
             "sector":         project.sector,
             "estimated_cost": project.estimated_cost,
             "status":         project.status,
-            "investors":      _json.loads(project.investors or "[]"),
-            "developers":     _json.loads(project.developers or "[]"),
+            "investors":      _safe_json(project.investors),
+            "developers":     _safe_json(project.developers),
             "description":    project.description,
             "strategic_notes": project.strategic_notes,
         }
@@ -351,5 +361,5 @@ async def generate_project_brief(
         )
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to generate project brief: {str(e)}",
+            detail="An unexpected error occurred while generating the project brief.",
         )

@@ -229,7 +229,7 @@ export default function EINPage() {
     try {
       const validation = await einApi.validate(ein.id);
       if (!validation.is_valid) {
-        alert('Cannot submit: ' + validation.issues.join('\n'));
+        alert('Cannot submit: ' + (validation.issues ?? []).join('\n'));
         return;
       }
     } catch (err) {
@@ -348,8 +348,8 @@ export default function EINPage() {
               <div className="flex items-center gap-6">
                 <div>
                   <span className="text-sm text-gray-500">Status</span>
-                  <div className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${STATUS_COLORS[ein.status]}`}>
-                    {ein.status.replace('_', ' ')}
+                  <div className={`px-3 py-1 rounded-full text-sm font-medium capitalize ${STATUS_COLORS[ein.status ?? '']}`}>
+                    {(ein.status ?? '').replace('_', ' ')}
                   </div>
                 </div>
                 {ein.petfel_score && (
@@ -358,7 +358,7 @@ export default function EINPage() {
                     <div className="text-lg font-bold text-gray-900">{ein.petfel_score.toFixed(1)}</div>
                   </div>
                 )}
-                {ein.red_flags_count > 0 && (
+                {(ein.red_flags_count ?? 0) > 0 && (
                   <div>
                     <span className="text-sm text-gray-500">Red Flags</span>
                     <div className="text-lg font-bold text-red-600">{ein.red_flags_count}</div>
@@ -588,7 +588,7 @@ export default function EINPage() {
                 <div>
                   <h4 className="font-medium text-gray-700 mb-1">Key Questions</h4>
                   <ul className="list-disc list-inside text-gray-600 space-y-1">
-                    {activeTemplate.key_questions.map((q, i) => (
+                    {(activeTemplate.key_questions ?? []).map((q, i) => (
                       <li key={i}>{q}</li>
                     ))}
                   </ul>

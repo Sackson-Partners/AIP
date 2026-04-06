@@ -108,7 +108,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                   </div>
                   <div className="flex items-center gap-2">
                     <CalendarIcon className="w-4 h-4" />
-                    <span>Created {new Date(room.created_at).toLocaleDateString()}</span>
+                    <span>Created {room.created_at ? new Date(room.created_at).toLocaleDateString() : '—'}</span>
                   </div>
                 </div>
 
@@ -235,7 +235,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
                 <div className="p-4 bg-gray-50 rounded-lg">
                   <p className="text-sm text-gray-500">Created</p>
                   <p className="font-medium text-gray-900">
-                    {new Date(selectedRoom.created_at).toLocaleDateString()}
+                    {selectedRoom.created_at ? new Date(selectedRoom.created_at).toLocaleDateString() : '—'}
                   </p>
                 </div>
               </div>

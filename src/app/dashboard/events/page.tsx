@@ -164,7 +164,7 @@ export default function EventsPage() {
                         <h3 className="text-lg font-semibold text-gray-900">{event.name}</h3>
                         <p className="text-gray-600 mt-1">{event.description}</p>
                       </div>
-                      <span className={`px-3 py-1 text-xs rounded-full ${getEventTypeColor(event.type)}`}>
+                      <span className={`px-3 py-1 text-xs rounded-full ${getEventTypeColor(event.type ?? '')}`}>
                         {event.type}
                       </span>
                     </div>
@@ -325,7 +325,7 @@ export default function EventsPage() {
                     {new Date(selectedEvent.event_date).toLocaleString('default', { month: 'short', year: 'numeric' })}
                   </span>
                 </div>
-                <span className={`px-3 py-1 text-sm rounded-full ${getEventTypeColor(selectedEvent.type)}`}>
+                <span className={`px-3 py-1 text-sm rounded-full ${getEventTypeColor(selectedEvent.type ?? '')}`}>
                   {selectedEvent.type}
                 </span>
               </div>

@@ -50,7 +50,7 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 SECRET_KEY = os.getenv("SECRET_KEY", "")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ALGORITHM = "HS256"  # Hardcoded — never allow env override; prevents "none" algorithm attack
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 
 SUPABASE_JWT_SECRET = os.getenv("SUPABASE_JWT_SECRET", "")
@@ -58,11 +58,11 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "").rstrip("/")
 SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "")
 
 if not SECRET_KEY:
-    logger.warning(
-        "SECRET_KEY is not set! Using an insecure default. "
-        "Set SECRET_KEY in Azure Key Vault before deploying to production."
+    raise RuntimeError(
+        "SECRET_KEY environment variable is not set. "
+        "Generate a secure 256-bit key (e.g. openssl rand -hex 32) and set it "
+        "in Azure Key Vault / Vercel / Railway before starting the server."
     )
-    SECRET_KEY = "INSECURE_DEFAULT_KEY_REPLACE_IN_PRODUCTION"
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
@@ -171,7 +171,7 @@ def _decode_supabase_token_offline(token: str) -> Optional[TokenData]:
             token,
             SUPABASE_JWT_SECRET,
             algorithms=["HS256"],
-            options={"verify_aud": False},
+            audience="authenticated",  # Supabase standard audience claim
         )
         email: str = payload.get("email")
         user_id: str = payload.get("sub")

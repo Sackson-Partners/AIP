@@ -14,7 +14,7 @@ import logging
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -101,19 +101,32 @@ async def schedule_ic(
 
 @router.get("/committees")
 async def list_committees(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
     db:           Session = Depends(get_db),
     current_user: User    = Depends(get_current_user),
 ):
-    """List all IC sessions."""
-    committees = db.query(InvestmentCommittee).order_by(
-        InvestmentCommittee.created_at.desc()
-    ).limit(100).all()
+    """List IC sessions (paginated)."""
+    committees = (
+        db.query(InvestmentCommittee)
+        .order_by(InvestmentCommittee.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
+
+    # Preload projects in bulk to avoid N+1
+    project_ids  = [c.project_id for c in committees]
+    projects_map = {
+        p.id: p
+        for p in db.query(InfrastructureProject).filter(
+            InfrastructureProject.id.in_(project_ids)
+        ).all()
+    } if project_ids else {}
 
     result = []
     for c in committees:
-        project = db.query(InfrastructureProject).filter(
-            InfrastructureProject.id == c.project_id
-        ).first()
+        project    = projects_map.get(c.project_id)
         vote_count = db.query(ICVote).filter(ICVote.committee_id == c.id).count()
         result.append({
             "committee_id":  c.id,

@@ -55,7 +55,7 @@ export default function PipelinePage() {
         projectsData.map(async (p: Project) => {
           try {
             const status = await pipelineApi.getProjectStatus(Number(p.id));
-            statuses[p.id] = status;
+            statuses[Number(p.id)] = status;
           } catch {
             // Project may not have pipeline status yet
           }
@@ -71,7 +71,7 @@ export default function PipelinePage() {
 
   const getProjectsByStage = (stageCode: string): Project[] => {
     return projects.filter((p) => {
-      const status = projectStatuses[p.id];
+      const status = projectStatuses[Number(p.id)];
       if (!status) return stageCode === 'sourcing'; // Default to sourcing
       return status.current_stage === stageCode;
     });
@@ -155,7 +155,7 @@ export default function PipelinePage() {
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-sm text-gray-500">{alert.days_in_stage} days</span>
-                  <span className={`text-xs px-2 py-1 rounded-full ${SLA_STATUS_COLORS[alert.sla_status]}`}>
+                  <span className={`text-xs px-2 py-1 rounded-full ${SLA_STATUS_COLORS[alert.sla_status ?? '']}`}>
                     {alert.sla_status === 'breached' ? `${Math.abs(alert.sla_remaining || 0)} days over` : `${alert.sla_remaining} days left`}
                   </span>
                 </div>
@@ -168,17 +168,17 @@ export default function PipelinePage() {
       {/* Kanban Board */}
       <div className="flex gap-4 overflow-x-auto pb-4">
         {stages.map((stage) => {
-          const stageProjects = getProjectsByStage(stage.code);
+          const stageProjects = getProjectsByStage(stage.code ?? '');
           return (
             <div
               key={stage.code}
               className="flex-shrink-0 w-72 bg-gray-50 rounded-xl"
             >
               {/* Stage Header */}
-              <div className={`px-4 py-3 rounded-t-xl ${STAGE_COLORS[stage.code]} bg-opacity-10 border-b-2 ${STAGE_COLORS[stage.code].replace('bg-', 'border-')}`}>
+              <div className={`px-4 py-3 rounded-t-xl ${STAGE_COLORS[stage.code ?? '']} bg-opacity-10 border-b-2 ${(STAGE_COLORS[stage.code ?? ''] ?? '').replace('bg-', 'border-')}`}>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <span className={`w-3 h-3 rounded-full ${STAGE_COLORS[stage.code]}`}></span>
+                    <span className={`w-3 h-3 rounded-full ${STAGE_COLORS[stage.code ?? '']}`}></span>
                     <span className="font-semibold text-gray-900">{stage.name}</span>
                   </div>
                   <span className="bg-white px-2 py-1 rounded-full text-sm font-medium text-gray-600">
@@ -208,7 +208,7 @@ export default function PipelinePage() {
                         <div className="flex items-center justify-between mt-2">
                           <span className="text-xs text-gray-400">{status.days_in_stage}d</span>
                           {status.sla_status !== 'ok' && (
-                            <span className={`text-xs px-2 py-0.5 rounded ${SLA_STATUS_COLORS[status.sla_status]}`}>
+                            <span className={`text-xs px-2 py-0.5 rounded ${SLA_STATUS_COLORS[status.sla_status ?? '']}`}>
                               {status.sla_status}
                             </span>
                           )}
@@ -224,7 +224,7 @@ export default function PipelinePage() {
                               key={s.code}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleMoveProject(project, s.code);
+                                handleMoveProject(project, s.code ?? '');
                               }}
                               className="text-xs px-2 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200 transition truncate"
                               title={`Move to ${s.name}`}
@@ -277,27 +277,27 @@ export default function PipelinePage() {
                 </div>
                 <div>
                   <span className="text-xs text-gray-500">Est. CAPEX</span>
-                  <div className="font-medium">${(selectedProject.estimated_capex / 1000000).toFixed(1)}M</div>
+                  <div className="font-medium">${((selectedProject.estimated_capex ?? 0) / 1000000).toFixed(1)}M</div>
                 </div>
               </div>
 
               {/* Current Pipeline Status */}
-              {projectStatuses[selectedProject.id] && (
+              {projectStatuses[Number(selectedProject.id)] && (
                 <div className="bg-gray-50 rounded-lg p-4">
                   <h4 className="font-medium text-gray-700 mb-2">Pipeline Status</h4>
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Current Stage</span>
-                      <span className="font-medium capitalize">{projectStatuses[selectedProject.id].current_stage}</span>
+                      <span className="font-medium capitalize">{projectStatuses[Number(selectedProject.id)].current_stage}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Days in Stage</span>
-                      <span className="font-medium">{projectStatuses[selectedProject.id].days_in_stage}</span>
+                      <span className="font-medium">{projectStatuses[Number(selectedProject.id)].days_in_stage}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">SLA Status</span>
-                      <span className={`px-2 py-0.5 rounded text-sm ${SLA_STATUS_COLORS[projectStatuses[selectedProject.id].sla_status]}`}>
-                        {projectStatuses[selectedProject.id].sla_status}
+                      <span className={`px-2 py-0.5 rounded text-sm ${SLA_STATUS_COLORS[projectStatuses[Number(selectedProject.id)].sla_status ?? '']}`}>
+                        {projectStatuses[Number(selectedProject.id)].sla_status}
                       </span>
                     </div>
                   </div>
@@ -328,7 +328,7 @@ export default function PipelinePage() {
                             <span className="font-medium capitalize">{log.to_stage}</span>
                           </div>
                           <div className="text-xs text-gray-500 mt-1">
-                            {new Date(log.timestamp).toLocaleDateString()}
+                            {log.timestamp ? new Date(log.timestamp).toLocaleDateString() : '—'}
                             {log.days_in_previous_stage && ` • ${log.days_in_previous_stage} days`}
                             {log.sla_breached && <span className="text-red-600 ml-2">SLA Breached</span>}
                           </div>

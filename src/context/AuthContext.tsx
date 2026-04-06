@@ -6,6 +6,7 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useRef,
   ReactNode,
 } from 'react';
 import { User, Session } from '@supabase/supabase-js';
@@ -58,6 +59,11 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
+  // mountedRef is used by fetchProfile to avoid setState-after-unmount.
+  // It is reset to true at the start of the auth effect so React Strict Mode
+  // double-invocation doesn't leave it permanently false.
+  const mountedRef = useRef(true);
+
   const [user, setUser]       = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -69,28 +75,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .select(PROFILE_COLS)
       .eq('id', userId)
       .single();
-    if (!error && data) {
+    // Guard: if the component unmounted while the Supabase query was in-flight,
+    // discard the result instead of setting state on an unmounted component.
+    if (!error && data && mountedRef.current) {
       setProfile(data as UserProfile);
     }
-  }, []);
+  }, []); // mountedRef is a stable ref object — safe to omit from deps
 
   useEffect(() => {
-    let mounted = true;
+    // Reset on each effect run so Strict Mode remount starts clean.
+    mountedRef.current = true;
 
     // Fast initial state from cookies (no network call)
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!mounted) return;
+      if (!mountedRef.current) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
         await fetchProfile(session.user.id);
       }
-      setIsLoading(false);
+      if (mountedRef.current) setIsLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        if (!mounted) return;
+        if (!mountedRef.current) return;
 
         // @supabase/ssr v0.9+ fires INITIAL_SESSION after a background getUser()
         // server-side verification. If that network call fails (timeout, project
@@ -109,12 +118,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setProfile(null);
         }
 
-        setIsLoading(false);
+        if (mountedRef.current) setIsLoading(false);
       }
     );
 
     return () => {
-      mounted = false;
+      mountedRef.current = false;
       subscription.unsubscribe();
     };
   }, [fetchProfile]);

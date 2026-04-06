@@ -4,6 +4,7 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useRef,
   useState,
   ReactNode,
 } from 'react';
@@ -49,15 +50,22 @@ const ICON_COLORS: Record<ToastVariant, string> = {
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
+  const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   const dismiss = useCallback((id: string) => {
+    const timer = timersRef.current.get(id);
+    if (timer !== undefined) {
+      clearTimeout(timer);
+      timersRef.current.delete(id);
+    }
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
   const toast = useCallback((message: string, variant: ToastVariant = 'info') => {
     const id = `${Date.now()}-${Math.random()}`;
     setToasts(prev => [...prev, { id, message, variant }]);
-    setTimeout(() => dismiss(id), 4000);
+    const timer = setTimeout(() => dismiss(id), 4000);
+    timersRef.current.set(id, timer);
   }, [dismiss]);
 
   const success = useCallback((msg: string) => toast(msg, 'success'), [toast]);

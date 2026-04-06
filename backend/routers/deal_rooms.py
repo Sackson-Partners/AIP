@@ -29,7 +29,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -139,11 +139,19 @@ def _get_room_or_404(room_id: str, db: Session) -> DealRoom:
 
 @router.get("")
 async def list_deal_rooms(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List all active deal rooms."""
-    rooms = db.query(DealRoom).filter(DealRoom.status == "active").all()
+    """List active deal rooms (paginated)."""
+    rooms = (
+        db.query(DealRoom)
+        .filter(DealRoom.status == "active")
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return {"deal_rooms": [_room_to_dict(r) for r in rooms], "count": len(rooms)}
 
 

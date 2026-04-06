@@ -33,6 +33,7 @@ export default function DealRoomsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [newDealRoom, setNewDealRoom] = useState({
     project_id: 0,
     name: '',
@@ -54,8 +55,8 @@ export default function DealRoomsPage() {
     try {
       const data = await dealRoomsApi.list() as DealRoom[];
       setDealRooms(data ?? []);
-    } catch (error) {
-      console.error('Failed to fetch deal rooms:', error);
+    } catch {
+      setError('Failed to load deal rooms. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -84,6 +85,7 @@ export default function DealRoomsPage() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const payload = {
         project_id: Number(newDealRoom.project_id),
@@ -109,10 +111,11 @@ export default function DealRoomsPage() {
         is_chat_enabled: true
       });
       fetchDealRooms();
-    } catch (error: unknown) {
-      console.error('Failed to create deal room:', error);
-      const axiosError = error as { response?: { data?: { detail?: string } } };
+    } catch (err: unknown) {
+      const axiosError = err as { response?: { data?: { detail?: string } } };
       setError(axiosError.response?.data?.detail || 'Failed to create deal room');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -162,6 +165,12 @@ export default function DealRoomsPage() {
           Create Deal Room
         </button>
       </div>
+
+      {error && !showCreateModal && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {error}
+        </div>
+      )}
 
       {dealRooms.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
@@ -367,9 +376,10 @@ export default function DealRoomsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Create Deal Room
+                  {isSubmitting ? 'Creating…' : 'Create Deal Room'}
                 </button>
               </div>
             </form>

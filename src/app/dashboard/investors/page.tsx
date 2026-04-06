@@ -16,6 +16,8 @@ export default function InvestorsPage() {
   const [matchedProjects, setMatchedProjects] = useState<Project[]>([]);
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<InvestorCreate>();
 
@@ -23,8 +25,9 @@ export default function InvestorsPage() {
     try {
       const data = await investorsApi.list();
       setInvestors(data);
-    } catch (error) {
-      console.error('Failed to fetch investors:', error);
+      setFetchError(null);
+    } catch {
+      setFetchError('Failed to load investors. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -43,6 +46,7 @@ export default function InvestorsPage() {
   }, [investors, searchQuery]);
 
   const onSubmit = async (data: InvestorCreate) => {
+    setIsSubmitting(true);
     try {
       const formattedData = {
         ...data,
@@ -50,14 +54,16 @@ export default function InvestorsPage() {
         country_focus: typeof data.country_focus === 'string'
           ? (data.country_focus as string).split(',').map((c: string) => c.trim())
           : data.country_focus,
-        sector_focus: Array.isArray(data.sector_focus) ? data.sector_focus : [data.sector_focus],
+        sector_focus: Array.isArray(data.sector_focus) ? data.sector_focus : (data.sector_focus ? [data.sector_focus] : undefined),
       };
       await investorsApi.create(formattedData);
       setShowModal(false);
       reset();
       fetchInvestors();
-    } catch (error) {
-      console.error('Failed to create investor:', error);
+    } catch {
+      setFetchError('Failed to create investor. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -92,6 +98,12 @@ export default function InvestorsPage() {
           New Investor
         </button>
       </div>
+
+      {fetchError && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+          {fetchError}
+        </div>
+      )}
 
       {/* Search bar */}
       <div className="mb-6">
@@ -309,9 +321,10 @@ export default function InvestorsPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Add Investor
+                  {isSubmitting ? 'Adding…' : 'Add Investor'}
                 </button>
               </div>
             </form>

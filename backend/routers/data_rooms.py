@@ -14,7 +14,7 @@ Endpoints:
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -35,9 +35,20 @@ class DataRoomCreate(BaseModel):
 
 
 @router.get("")
-async def list_data_rooms(db: Session = Depends(get_db)):
-    """List all active data rooms."""
-    rooms = db.query(DataRoom).filter(DataRoom.is_active == True).all()
+async def list_data_rooms(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List active data rooms (paginated)."""
+    rooms = (
+        db.query(DataRoom)
+        .filter(DataRoom.is_active == True)  # noqa: E712
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
     return {"data_rooms": rooms, "count": len(rooms)}
 
 

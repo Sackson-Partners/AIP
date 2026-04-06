@@ -34,6 +34,7 @@ from backend.routers.matching import router as matching_router
 from backend.routers.radar import router as radar_router
 from backend.routers.documents import router as documents_router
 from backend.routers.users import router as users_router
+from backend.middleware.security_headers import SecurityHeadersMiddleware
 
 logging.basicConfig(
     level=logging.INFO,
@@ -87,12 +88,15 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_get_cors_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    # Origin and X-Requested-With removed — they are CSRF-enabling headers
+    # and must not be allowed when credentials=True
+    allow_headers=["Authorization", "Content-Type", "Accept"],
 )
 
 

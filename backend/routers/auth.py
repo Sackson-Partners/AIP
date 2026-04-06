@@ -11,11 +11,12 @@ Endpoints:
 """
 
 import logging
+import re
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordRequestForm
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, field_validator
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -41,9 +42,25 @@ router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
 class UserCreate(BaseModel):
     email: EmailStr
-    password: str = Field(..., min_length=8, description="Min 8 characters")
+    password: str = Field(..., min_length=8, max_length=128, description="Min 8 chars, must contain uppercase, lowercase, digit, and special character")
     full_name: str | None = None
     organisation: str | None = None
+
+    @field_validator("password")
+    @classmethod
+    def password_complexity(cls, v: str) -> str:
+        errors = []
+        if not re.search(r"[A-Z]", v):
+            errors.append("one uppercase letter")
+        if not re.search(r"[a-z]", v):
+            errors.append("one lowercase letter")
+        if not re.search(r"\d", v):
+            errors.append("one digit")
+        if not re.search(r"[!@#$%^&*()_+\-=\[\]{};':\"\\|,.<>/?`~]", v):
+            errors.append("one special character")
+        if errors:
+            raise ValueError(f"Password must contain: {', '.join(errors)}")
+        return v
 
 
 class UserResponse(BaseModel):
@@ -65,7 +82,8 @@ class UserResponse(BaseModel):
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
-async def register(user_in: UserCreate, db: Session = Depends(get_db)):
+@limiter.limit("3/minute")
+async def register(request: Request, user_in: UserCreate, db: Session = Depends(get_db)):
     """Register a new AIP platform user."""
     existing = db.query(User).filter(User.email == user_in.email).first()
     if existing:

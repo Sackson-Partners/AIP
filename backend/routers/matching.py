@@ -260,18 +260,26 @@ async def get_matches(
         .limit(50)
         .all()
     )
-    result = []
-    for m in matches:
-        inv = db.query(Investor).filter(Investor.id == m.investor_id).first()
-        result.append({
+
+    # Preload all investors in one query instead of one query per match (N+1 fix)
+    investor_ids = [m.investor_id for m in matches]
+    investors_map = {
+        inv.id: inv
+        for inv in db.query(Investor).filter(Investor.id.in_(investor_ids)).all()
+    } if investor_ids else {}
+
+    result = [
+        {
             "match_id":      m.id,
             "investor_id":   m.investor_id,
-            "investor_name": inv.organisation_name if inv else None,
-            "investor_type": inv.investor_type if inv else None,
+            "investor_name": investors_map[m.investor_id].organisation_name if m.investor_id in investors_map else None,
+            "investor_type": investors_map[m.investor_id].investor_type if m.investor_id in investors_map else None,
             "match_score":   float(m.match_score) if m.match_score else 0,
             "status":        m.status,
             "run_at":        str(m.run_at),
-        })
+        }
+        for m in matches
+    ]
     return {"project_id": project_id, "matches": result}
 
 
@@ -298,48 +306,19 @@ async def update_match_status(
     return {"status": "updated", "match_id": match_id, "new_status": payload.status}
 
 
-# ── Root route fix ─────────────────────────────────────
-@router.get("", tags=["Matching"])
-async def matching_root(
-    db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
-):
-    """List investor matches."""
-    from backend.models import InvestorMatch
-    matches = db.query(InvestorMatch).limit(50).all()
-    return {"matches": matches, "count": len(matches)}
-
-
 @router.get("", tags=["Investor Matching"])
-async def matching_root(
+async def list_matches(
+    skip: int = 0,
+    limit: int = 50,
     db: Session = Depends(get_db),
-    current_user = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    """List investor matches."""
-    from backend.models import InvestorMatch
-    try:
-        matches = db.query(InvestorMatch).limit(50).all()
-        return {"matches": [{"id": str(m.id)} for m in matches], "count": len(matches)}
-    except Exception as e:
-        return {"matches": [], "count": 0, "note": str(e)}
-
-
-@router.get("", tags=["Investor Matching"])
-async def matching_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    """Matching root."""
-    try:
-        from backend.models import InvestorMatch
-        items = db.query(InvestorMatch).limit(50).all()
-        return {"matches": [{"id": str(m.id)} for m in items], "count": len(items)}
-    except Exception as e:
-        return {"matches": [], "count": 0, "error": str(e)}
-
-
-@router.get("")
-async def matching_root(db: Session = Depends(get_db), current_user = Depends(get_current_user)):
-    try:
-        from backend.models import InvestorMatch
-        items = db.query(InvestorMatch).limit(50).all()
-        return {"matches": [{"id": str(m.id)} for m in items], "count": len(items)}
-    except Exception as e:
-        return {"matches": [], "count": 0}
+    """List recent investor match records (paginated)."""
+    items = (
+        db.query(InvestorMatch)
+        .order_by(InvestorMatch.match_score.desc())
+        .offset(skip)
+        .limit(min(limit, 500))
+        .all()
+    )
+    return {"matches": [{"id": str(m.id), "project_id": m.project_id, "investor_id": m.investor_id, "match_score": float(m.match_score or 0)} for m in items], "count": len(items)}

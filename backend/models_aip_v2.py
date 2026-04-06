@@ -228,8 +228,8 @@ class ProjectPipeline(Base):
 
     id              = Column(String, primary_key=True, default=_uuid)
     project_id      = Column(String, ForeignKey("infrastructure_projects.id"),
-                             unique=True, nullable=False)
-    stage_code      = Column(String, ForeignKey("pipeline_stages.code"), nullable=False)
+                             unique=True, nullable=False, index=True)
+    stage_code      = Column(String, ForeignKey("pipeline_stages.code"), nullable=False, index=True)
     entered_at      = Column(DateTime(timezone=True), server_default=func.now())
     sla_due_at      = Column(DateTime(timezone=True), nullable=True)
     is_sla_breached = Column(Boolean, default=False)

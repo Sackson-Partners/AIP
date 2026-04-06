@@ -164,7 +164,19 @@ export default function Register() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
               <input
-                {...register('password', { required: 'Password is required', minLength: { value: 8, message: 'Minimum 8 characters' } })}
+                {...register('password', {
+                  required: 'Password is required',
+                  minLength: { value: 8, message: 'Minimum 8 characters' },
+                  maxLength: { value: 128, message: 'Maximum 128 characters' },
+                  validate: (v) => {
+                    const missing = [];
+                    if (!/[A-Z]/.test(v)) missing.push('uppercase letter');
+                    if (!/[a-z]/.test(v)) missing.push('lowercase letter');
+                    if (!/\d/.test(v)) missing.push('digit');
+                    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?`~]/.test(v)) missing.push('special character');
+                    return missing.length === 0 || `Must contain: ${missing.join(', ')}`;
+                  },
+                })}
                 type="password"
                 className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold transition-colors"
                 placeholder="••••••••"
