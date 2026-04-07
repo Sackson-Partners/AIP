@@ -4,17 +4,22 @@ import { supabase } from './supabase';
 
 export const AUTH_PROVIDER = 'supabase';
 
-// Module-level session cache — updated via onAuthStateChange so every request
-// reads the current token without an async getSession() call per request.
+// Module-level session cache. Updated immediately on auth state changes so
+// subsequent requests read the token synchronously with no async overhead.
+// _sessionReady resolves once after the initial getSession() call so that the
+// very first request on a page load waits for the session before firing.
 let _cachedSession: Session | null = null;
+let _sessionReady: Promise<void> = Promise.resolve();
 
 if (typeof window !== 'undefined') {
-  // Seed the cache synchronously on first load, then keep it fresh.
-  supabase.auth.getSession().then(({ data: { session } }) => {
+  _sessionReady = supabase.auth.getSession().then(({ data: { session } }) => {
     _cachedSession = session;
   });
   supabase.auth.onAuthStateChange((_event, session) => {
     _cachedSession = session;
+    // Once auth state has been observed at least once, future requests need
+    // not wait for _sessionReady — the cache is authoritative from here on.
+    _sessionReady = Promise.resolve();
   });
 }
 
@@ -27,8 +32,10 @@ export const api: AxiosInstance = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-api.interceptors.request.use((config) => {
-  // Use cached session — no async getSession() call per request
+api.interceptors.request.use(async (config) => {
+  // Wait for the initial getSession() to resolve on first page load.
+  // After that _sessionReady is already resolved so this is a no-op.
+  await _sessionReady;
   const token = _cachedSession?.access_token;
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -48,18 +55,24 @@ api.interceptors.response.use(
   async (error) => {
     const status: number | undefined = error.response?.status;
 
-    // Auth error — try to refresh session before signing out.
-    // A backend 401 can mean the JWT just expired; refresh may fix it.
-    // Only sign out if the Supabase session itself is gone.
-    if (status === 401) {
-      const { error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError) {
+    // Auth error — try to refresh the session once, then retry the request.
+    // Only sign out if the Supabase session itself cannot be renewed.
+    const config401 = error.config as typeof error.config & { _401Retried?: boolean };
+    if (status === 401 && !config401._401Retried) {
+      config401._401Retried = true;
+      const { data, error: refreshError } = await supabase.auth.refreshSession();
+      if (refreshError || !data.session) {
         await supabase.auth.signOut();
         if (typeof window !== 'undefined') {
           window.location.href = '/login';
         }
+        return Promise.reject(error);
       }
-      return Promise.reject(error);
+      // Refresh succeeded — update cache and retry original request with new token
+      _cachedSession = data.session;
+      config401.headers = config401.headers ?? {};
+      config401.headers.Authorization = `Bearer ${data.session.access_token}`;
+      return api(config401);
     }
 
     // Retry logic for transient server errors
