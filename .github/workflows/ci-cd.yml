@@ -145,6 +145,8 @@ jobs:
             -p 8000:8000 \
             -e DATABASE_URL=sqlite:///./smoke.db \
             -e SECRET_KEY=smoke-ci-key \
+            -e AIRTABLE_BASE_ID=ci-smoke-placeholder \
+            -e AIRTABLE_PROJECTS_TABLE=ci-smoke-placeholder \
             ${{ env.DOCKER_IMAGE }}:latest
           echo "=== Waiting 20s for startup ==="
           sleep 20
