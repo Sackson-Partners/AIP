@@ -18,12 +18,15 @@ Endpoints:
     GET  /api/ai/prompts               List available prompt templates
 """
 
+import asyncio
 import logging
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
+from backend.models import User
+from backend.security.auth import get_current_user, limiter
 from backend.services.claude_service import (
     call_claude_structured,
     INFRASTRUCTURE_ANALYST_SYSTEM,
@@ -148,10 +151,19 @@ async def _run_analysis(
         )
 
     try:
-        result = await call_claude_structured(
-            prompt=populated_prompt,
-            system_prompt=system_prompt,
-            max_tokens=max_tokens,
+        result = await asyncio.wait_for(
+            call_claude_structured(
+                prompt=populated_prompt,
+                system_prompt=system_prompt,
+                max_tokens=max_tokens,
+            ),
+            timeout=30.0,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Claude API timed out for prompt: %s", prompt_name)
+        raise HTTPException(
+            status_code=504,
+            detail="AI analysis timed out. Please try again.",
         )
     except Exception as exc:
         logger.error("Claude API error: %s", exc)
@@ -173,7 +185,12 @@ async def _run_analysis(
     response_model=AIResponse,
     summary="Full infrastructure project analysis",
 )
-async def analyze_project(request: ProjectAnalysisRequest):
+@limiter.limit("10/hour")
+async def analyze_project(
+    request: Request,
+    body: ProjectAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Generate a comprehensive AI intelligence brief for an infrastructure project.
     Covers strategic importance, financing, geopolitics, trade impact, risks, and
@@ -181,7 +198,7 @@ async def analyze_project(request: ProjectAnalysisRequest):
     """
     return await _run_analysis(
         prompt_name="infrastructure_project_analysis",
-        variables={"project_data": request.project_data},
+        variables={"project_data": body.project_data},
         system_prompt=INFRASTRUCTURE_ANALYST_SYSTEM,
         max_tokens=2500,
     )
@@ -192,7 +209,12 @@ async def analyze_project(request: ProjectAnalysisRequest):
     response_model=AIResponse,
     summary="Investor-grade project brief",
 )
-async def investment_brief(request: InvestmentBriefRequest):
+@limiter.limit("10/hour")
+async def investment_brief(
+    request: Request,
+    body: InvestmentBriefRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Generate a concise investor-grade brief covering deal structure,
     financial profile, risk/return matrix, and next steps.
@@ -200,8 +222,8 @@ async def investment_brief(request: InvestmentBriefRequest):
     return await _run_analysis(
         prompt_name="investor_summary",
         variables={
-            "project_data": request.project_data,
-            "investor_type": request.investor_type,
+            "project_data": body.project_data,
+            "investor_type": body.investor_type,
         },
         system_prompt=INVESTMENT_INTELLIGENCE_SYSTEM,
         max_tokens=2000,
@@ -213,7 +235,12 @@ async def investment_brief(request: InvestmentBriefRequest):
     response_model=AIResponse,
     summary="Country infrastructure and investment profile",
 )
-async def country_analysis(request: CountryAnalysisRequest):
+@limiter.limit("10/hour")
+async def country_analysis(
+    request: Request,
+    body: CountryAnalysisRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Produce a comprehensive country brief covering infrastructure overview,
     investment climate, key financiers, strategic corridors, and sector deep-dive.
@@ -221,9 +248,9 @@ async def country_analysis(request: CountryAnalysisRequest):
     return await _run_analysis(
         prompt_name="country_investment_brief",
         variables={
-            "country": request.country,
-            "sector": request.sector,
-            "context": request.context or "General infrastructure investment landscape",
+            "country": body.country,
+            "sector": body.sector,
+            "context": body.context or "General infrastructure investment landscape",
         },
         system_prompt=INFRASTRUCTURE_ANALYST_SYSTEM,
         max_tokens=2500,
@@ -235,7 +262,12 @@ async def country_analysis(request: CountryAnalysisRequest):
     response_model=AIResponse,
     summary="Ground Truth Podcast episode preparation",
 )
-async def podcast_prep(request: PodcastPrepRequest):
+@limiter.limit("10/hour")
+async def podcast_prep(
+    request: Request,
+    body: PodcastPrepRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Generate structured podcast preparation materials: guest profile,
     episode context, discussion questions, and host reference terms.
@@ -243,10 +275,10 @@ async def podcast_prep(request: PodcastPrepRequest):
     return await _run_analysis(
         prompt_name="podcast_question_generator",
         variables={
-            "guest_name": request.guest_name,
-            "guest_organisation": request.guest_organisation,
-            "episode_theme": request.episode_theme,
-            "background_notes": request.background_notes or "No additional notes provided.",
+            "guest_name": body.guest_name,
+            "guest_organisation": body.guest_organisation,
+            "episode_theme": body.episode_theme,
+            "background_notes": body.background_notes or "No additional notes provided.",
         },
         system_prompt=PODCAST_INTELLIGENCE_SYSTEM,
         max_tokens=2000,
@@ -258,7 +290,12 @@ async def podcast_prep(request: PodcastPrepRequest):
     response_model=AIResponse,
     summary="Infrastructure project risk assessment",
 )
-async def infrastructure_risk(request: RiskAssessmentRequest):
+@limiter.limit("10/hour")
+async def infrastructure_risk(
+    request: Request,
+    body: RiskAssessmentRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Conduct a structured risk assessment across political, financial, construction,
     social, and environmental dimensions with a mitigation framework.
@@ -266,11 +303,11 @@ async def infrastructure_risk(request: RiskAssessmentRequest):
     return await _run_analysis(
         prompt_name="infrastructure_risk_assessment",
         variables={
-            "project_name": request.project_name,
-            "country_region": request.country_region,
-            "sector": request.sector,
-            "project_stage": request.project_stage,
-            "context": request.context or "No additional context provided.",
+            "project_name": body.project_name,
+            "country_region": body.country_region,
+            "sector": body.sector,
+            "project_stage": body.project_stage,
+            "context": body.context or "No additional context provided.",
         },
         system_prompt=INFRASTRUCTURE_ANALYST_SYSTEM,
         max_tokens=2500,
@@ -282,15 +319,20 @@ async def infrastructure_risk(request: RiskAssessmentRequest):
     response_model=AIResponse,
     summary="Geopolitical analysis of infrastructure investment dynamics",
 )
-async def geopolitical_analysis(request: GeopoliticalRequest):
+@limiter.limit("10/hour")
+async def geopolitical_analysis(
+    request: Request,
+    body: GeopoliticalRequest,
+    current_user: User = Depends(get_current_user),
+):
     """
     Analyse geopolitical dynamics in African infrastructure: China vs. Western
     investment, sovereignty, conditionality, and strategic implications.
     """
-    countries_str = ", ".join(request.countries) if request.countries else "Africa broadly"
+    countries_str = ", ".join(body.countries) if body.countries else "Africa broadly"
     prompt = (
         f"Provide a detailed geopolitical analysis of the following topic:\n\n"
-        f"TOPIC: {request.topic}\n\n"
+        f"TOPIC: {body.topic}\n\n"
         f"GEOGRAPHIC FOCUS: {countries_str}\n\n"
         f"Cover: (1) China vs. Western investment dynamics, "
         f"(2) sovereignty and conditionality issues, "
@@ -299,10 +341,19 @@ async def geopolitical_analysis(request: GeopoliticalRequest):
     )
 
     try:
-        result = await call_claude_structured(
-            prompt=prompt,
-            system_prompt=GEOPOLITICS_SYSTEM,
-            max_tokens=2000,
+        result = await asyncio.wait_for(
+            call_claude_structured(
+                prompt=prompt,
+                system_prompt=GEOPOLITICS_SYSTEM,
+                max_tokens=2000,
+            ),
+            timeout=30.0,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Claude API timed out for geopolitical analysis")
+        raise HTTPException(
+            status_code=504,
+            detail="AI analysis timed out. Please try again.",
         )
     except Exception as exc:
         logger.error("Claude API error: %s", exc)
@@ -318,7 +369,11 @@ async def geopolitical_analysis(request: GeopoliticalRequest):
     "/prompts",
     summary="List available prompt templates",
 )
-async def list_prompts():
+@limiter.limit("10/hour")
+async def list_prompts(
+    request: Request,
+    current_user: User = Depends(get_current_user),
+):
     """
     Return all available prompt template names in the AIP prompt library.
     """

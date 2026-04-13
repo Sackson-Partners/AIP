@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 
@@ -72,7 +72,6 @@ type TabType = 'overview' | 'documents' | 'members' | 'meetings' | 'chat';
 
 export default function DealRoomDetailPage() {
   const params = useParams();
-  const router = useRouter();
   const dealRoomId = params.id as string;
 
   const [dealRoom, setDealRoom] = useState<DealRoom | null>(null);

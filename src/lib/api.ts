@@ -514,6 +514,8 @@ export const analyticsApi = {
 export interface UserStats {
   total: number;
   active: number;
+  inactive: number;
+  verified: number;
   by_role?: Record<string, number>;
 }
 

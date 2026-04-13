@@ -309,7 +309,7 @@ async def get_ein_by_id(
     ein = _get_ein_or_404(ein_id, db)
     sections = db.query(EINSection).filter(
         EINSection.ein_id == ein_id
-    ).order_by(EINSection.section_code).all()
+    ).order_by(EINSection.section_code).limit(20).all()
     return {
         "id":                ein.id,
         "project_id":        ein.project_id,
@@ -492,7 +492,7 @@ async def export_ein(
     ).first()
     sections = db.query(EINSection).filter(
         EINSection.ein_id == ein_id
-    ).order_by(EINSection.section_code).all()
+    ).order_by(EINSection.section_code).limit(20).all()
 
     return {
         "ein": {
@@ -609,7 +609,7 @@ async def validate_ein(
 ):
     """Validate EIN completeness before submission or export."""
     ein      = _get_ein_or_404(ein_id, db)
-    sections = db.query(EINSection).filter(EINSection.ein_id == ein_id).all()
+    sections = db.query(EINSection).filter(EINSection.ein_id == ein_id).limit(20).all()
     issues   = []
     if not ein.executive_summary:
         issues.append("Executive summary is empty")

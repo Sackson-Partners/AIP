@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { projectsApi, Project, ProjectCreate } from '../../../lib/api';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { PermissionGuard } from '@/components/PermissionGuard';
@@ -33,7 +33,7 @@ export default function ProjectsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  const fetchProjects = async () => {
+  const fetchProjects = useCallback(async () => {
     try {
       const params: Record<string, string> = {};
       if (filter.sector) params.sector = filter.sector;
@@ -47,11 +47,11 @@ export default function ProjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [filter]);
 
   useEffect(() => {
     fetchProjects();
-  }, [filter]);
+  }, [fetchProjects]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { projectsApi, petfelApi, aiApi, Project, PETFELAssessment, PETFELCriterion, ScoreInput } from '../../../lib/api';
+import { useToast } from '../../../context/ToastContext';
 
 // PETFEL Pillar configuration with weights
 const PILLARS = [
@@ -29,6 +30,7 @@ const RATING_COLORS: Record<string, string> = {
 };
 
 export default function PETFELPage() {
+  const { success } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [assessment, setAssessment] = useState<PETFELAssessment | null>(null);
@@ -228,7 +230,7 @@ export default function PETFELPage() {
         });
         setScores(newScores);
       }
-      alert('AI augmentation complete! Review the suggested scores.');
+      success('AI augmentation complete! Review the suggested scores.');
     } catch (err) {
       console.error('Failed to augment:', err);
       setError('Failed to get AI suggestions');

@@ -75,9 +75,9 @@ class User(Base):
     updated_at      = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    introductions = relationship("Introduction", back_populates="user")
-    analytics     = relationship("AnalyticsEvent", back_populates="user")
-    verifications = relationship("Verification", back_populates="user")
+    introductions = relationship("Introduction", back_populates="user", cascade="all, delete")
+    analytics     = relationship("AnalyticsEvent", back_populates="user", cascade="all, delete")
+    verifications = relationship("Verification", back_populates="user", cascade="all, delete-orphan")
 
 
 # ---------------------------------------------------------------------------
@@ -187,7 +187,7 @@ class Investor(Base):
     updated_at           = Column(DateTime(timezone=True), onupdate=func.now())
 
     # Relationships
-    introductions = relationship("Introduction", back_populates="investor")
+    introductions = relationship("Introduction", back_populates="investor", cascade="all, delete")
 
 
 # ---------------------------------------------------------------------------

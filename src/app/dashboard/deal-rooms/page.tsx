@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { projectsApi, dealRoomsApi } from '../../../lib/api';
 
@@ -44,8 +43,6 @@ export default function DealRoomsPage() {
     is_video_enabled: true,
     is_chat_enabled: true
   });
-  const router = useRouter();
-
   useEffect(() => {
     fetchDealRooms();
     fetchProjects();

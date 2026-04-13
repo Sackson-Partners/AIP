@@ -5,15 +5,29 @@ import time
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
+
+from backend.models import User
+from backend.security.auth import get_current_user
 
 logger = logging.getLogger("aip.airtable")
 router = APIRouter(prefix="/airtable", tags=["Airtable"])
 
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY", "")
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID", "appBWrnDeccJv9abz")
-AIRTABLE_TABLE = os.getenv("AIRTABLE_PROJECTS_TABLE", "tbltvszfwie3LzanF")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
+AIRTABLE_TABLE = os.getenv("AIRTABLE_PROJECTS_TABLE")
+
+if not AIRTABLE_BASE_ID:
+    raise RuntimeError(
+        "AIRTABLE_BASE_ID environment variable is not set. "
+        "Add it to your deployment environment before starting the server."
+    )
+if not AIRTABLE_TABLE:
+    raise RuntimeError(
+        "AIRTABLE_PROJECTS_TABLE environment variable is not set. "
+        "Add it to your deployment environment before starting the server."
+    )
 BASE_URL = "https://api.airtable.com/v0"
 TTL = int(os.getenv("AIRTABLE_CACHE_TTL", "300"))
 _cache: dict = {}
@@ -91,6 +105,7 @@ async def list_projects(
     sector: Optional[str] = Query(None),
     project_type: Optional[str] = Query(None),
     refresh: bool = Query(False),
+    current_user: User = Depends(get_current_user),
 ):
     data = None if refresh else _cache_get("all")
     is_cached = data is not None
@@ -108,7 +123,10 @@ async def list_projects(
 
 
 @router.get("/projects/search/{query}", response_model=ProjectsResponse)
-async def search_projects(query: str):
+async def search_projects(
+    query: str,
+    current_user: User = Depends(get_current_user),
+):
     data = _cache_get("all")
     if data is None:
         data = [_map(r) for r in await _fetch_records()]
@@ -122,7 +140,10 @@ async def search_projects(query: str):
 
 
 @router.get("/projects/{record_id}", response_model=AirtableProject)
-async def get_project(record_id: str):
+async def get_project(
+    record_id: str,
+    current_user: User = Depends(get_current_user),
+):
     url = f"{BASE_URL}/{AIRTABLE_BASE_ID}/{AIRTABLE_TABLE}/{record_id}"
     async with httpx.AsyncClient(timeout=15) as c:
         r = await c.get(url, headers=_headers())
@@ -133,12 +154,16 @@ async def get_project(record_id: str):
 
 
 @router.post("/cache/clear")
-async def clear_cache():
+async def clear_cache(
+    current_user: User = Depends(get_current_user),
+):
     _cache.clear()
     return {"message": "Cache cleared"}
 
 
 @router.get("/meta")
-async def meta():
+async def meta(
+    current_user: User = Depends(get_current_user),
+):
     return {"configured": bool(AIRTABLE_API_KEY), "base_id": AIRTABLE_BASE_ID,
             "table": AIRTABLE_TABLE, "cache_ttl": TTL}

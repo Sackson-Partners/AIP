@@ -260,8 +260,8 @@ async def get_assessment_by_id(
     ).first()
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
-    scores = db.query(PetfelScore).filter(PetfelScore.assessment_id == assessment_id).all()
-    flags  = db.query(PetfelFlag).filter(PetfelFlag.assessment_id == assessment_id).all()
+    scores = db.query(PetfelScore).filter(PetfelScore.assessment_id == assessment_id).limit(100).all()
+    flags  = db.query(PetfelFlag).filter(PetfelFlag.assessment_id == assessment_id).limit(100).all()
     return {
         "id":             assessment.id,
         "project_id":     assessment.project_id,
@@ -369,7 +369,7 @@ async def create_assessment(
     # Compute overall score
     all_scores = db.query(PetfelScore).filter(
         PetfelScore.assessment_id == assessment.id
-    ).all()
+    ).limit(100).all()
     overall, rating, gating = _compute_overall_score(all_scores)
     assessment.overall_score = overall
     assessment.rating        = rating
@@ -452,10 +452,10 @@ async def get_scorecard(
     assessment = _get_assessment_or_404(assessment_id, db)
     scores     = db.query(PetfelScore).filter(
         PetfelScore.assessment_id == assessment_id
-    ).all()
+    ).limit(100).all()
     flags      = db.query(PetfelFlag).filter(
         PetfelFlag.assessment_id == assessment_id
-    ).all()
+    ).limit(100).all()
 
     scorecard: dict = {pillar: [] for pillar in PETFEL_SUBCRITERIA}
     for s in scores:
@@ -500,7 +500,7 @@ async def list_flags(
     _get_assessment_or_404(assessment_id, db)
     flags = db.query(PetfelFlag).filter(
         PetfelFlag.assessment_id == assessment_id
-    ).all()
+    ).limit(100).all()
     return [
         {
             "id":          f.id,

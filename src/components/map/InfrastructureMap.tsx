@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import type { Project } from '@/types'
+import type { MarkerClusterGroup } from 'leaflet'
 import { CATEGORIES, STATUS_COLORS, COUNTRY_FLAGS } from '@/data/infrastructure'
 
 // ── Popup HTML ───────────────────────────────────────────────────────────────
@@ -40,7 +41,7 @@ function createPopupHTML(p: Project): string {
 
 function addMarkers(
   L: typeof import('leaflet'),
-  mcg: any,
+  mcg: MarkerClusterGroup,
   projects: Project[],
   onProjectClick?: (p: Project) => void,
 ) {

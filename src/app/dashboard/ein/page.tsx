@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { projectsApi, einApi, aiApi, Project, EIN, EINSection, EINTemplate } from '../../../lib/api';
+import { useToast } from '../../../context/ToastContext';
 
 const SECTION_NAMES = [
   'Cover & Executive Summary',
@@ -29,6 +30,7 @@ const RECOMMENDATION_OPTIONS = [
 ];
 
 export default function EINPage() {
+  const { success, error: toastError } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [ein, setEin] = useState<EIN | null>(null);
@@ -214,7 +216,7 @@ export default function EINPage() {
       loadSectionContent(updated, activeSection);
       setExecutiveSummary(updated.executive_summary || '');
       setRecommendation(updated.recommendation || '');
-      alert('AI generation complete! Please review and edit the content.');
+      success('AI generation complete! Please review and edit the content.');
     } catch (err) {
       console.error('Failed to generate:', err);
       setError('Failed to generate EIN with AI');
@@ -229,7 +231,7 @@ export default function EINPage() {
     try {
       const validation = await einApi.validate(ein.id);
       if (!validation.is_valid) {
-        alert('Cannot submit: ' + (validation.issues ?? []).join('\n'));
+        toastError('Cannot submit: ' + (validation.issues ?? []).join(', '));
         return;
       }
     } catch (err) {

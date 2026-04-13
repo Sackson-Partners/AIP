@@ -296,21 +296,23 @@ async def get_current_user(
     # 4. Look up user in local DB
     user = db.query(User).filter(User.email == token_data.email).first()
 
-    # 5. Auto-provision Supabase users on first login (role from JWT claims)
+    # 5. Auto-provision Supabase users on first login
+    # Role is always set to DEFAULT_ROLE — never trust JWT role claims on creation.
+    # Admins must assign elevated roles manually via the admin panel.
+    # is_verified is set to False — manual verification required.
     if user is None:
-        provisioned_role = token_data.role or DEFAULT_ROLE
         logger.info(
             "Auto-provisioning local user for Supabase account: %s (role: %s)",
             token_data.email,
-            provisioned_role,
+            DEFAULT_ROLE,
         )
         user = User(
             email=token_data.email,
             full_name=token_data.email.split("@")[0],
             hashed_password=hash_password(os.urandom(32).hex()),
-            role=provisioned_role,
+            role=DEFAULT_ROLE,
             is_active=True,
-            is_verified=True,
+            is_verified=False,
         )
         db.add(user)
         try:

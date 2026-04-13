@@ -83,6 +83,14 @@ frontend/out/
 
 # SQLite database
 *.db
+backend/*.db
+
+# Development artifacts (audit scripts, one-off file manipulators)
+audit.sh
+audit_output.txt
+write_files.js
+fix_files.js
+SECRETS.md
 
 # PythonAnywhere WSGI config with credentials
 pythonanywhere_wsgi.py
@@ -116,3 +124,10 @@ docker-compose.yml
 .vscode/
 .idea/
 .env*.local
+
+# OS
+Thumbs.db
+
+# Vim swap files
+*.swp
+*.swo

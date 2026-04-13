@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { usersApi } from '../../../lib/api';
+import { usersApi, UserStats } from '../../../lib/api';
+import { useToast } from '../../../context/ToastContext';
 
 type UserRole = 'admin' | 'analyst' | 'ic_member' | 'gov_partner' | 'epc' | 'investor' | 'viewer';
 
@@ -27,7 +28,10 @@ const ROLE_COLORS: Record<string, string> = {
 
 const ROLES: UserRole[] = ['admin', 'analyst', 'ic_member', 'gov_partner', 'epc', 'investor', 'viewer'];
 
+
 export default function UsersPage() {
+  const { success, error: toastError } = useToast();
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [users, setUsers] = useState<AIPUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -37,7 +41,7 @@ export default function UsersPage() {
   const [editingUser, setEditingUser] = useState<AIPUser | null>(null);
   const [newForm, setNewForm] = useState({ email: '', password: '', full_name: '', organisation: '', role: 'analyst' });
   const [editForm, setEditForm] = useState({ full_name: '', organisation: '', role: '', is_active: true });
-  const [stats, setStats] = useState<any>(null);
+  const [stats, setStats] = useState<UserStats | null>(null);
 
   const fetchUsers = async () => {
     setIsLoading(true);
@@ -71,14 +75,18 @@ export default function UsersPage() {
 
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       await usersApi.create(newForm);
       setShowNewModal(false);
       setNewForm({ email: '', password: '', full_name: '', organisation: '', role: 'analyst' });
       fetchUsers();
       fetchStats();
+      success('User created successfully');
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to create user');
+      toastError(err?.response?.data?.detail || 'Failed to create user');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -91,27 +99,36 @@ export default function UsersPage() {
   const handleUpdateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingUser) return;
+    setIsSubmitting(true);
     try {
       await usersApi.update(editingUser.id, editForm as any);
       setShowEditModal(false);
       fetchUsers();
+      success('User updated successfully');
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to update user');
+      toastError(err?.response?.data?.detail || 'Failed to update user');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (user: AIPUser) => {
     if (!confirm(`Delete user ${user.email}? This cannot be undone.`)) return;
+    setIsSubmitting(true);
     try {
       await usersApi.delete(user.id);
       fetchUsers();
       fetchStats();
+      success(`User ${user.email} deleted`);
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to delete user');
+      toastError(err?.response?.data?.detail || 'Failed to delete user');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const toggleActive = async (user: AIPUser) => {
+    setIsSubmitting(true);
     try {
       if (user.is_active) {
         await usersApi.deactivateUser(user.id);
@@ -120,16 +137,21 @@ export default function UsersPage() {
       }
       fetchUsers();
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to update status');
+      toastError(err?.response?.data?.detail || 'Failed to update status');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleVerify = async (user: AIPUser) => {
+    setIsSubmitting(true);
     try {
       await usersApi.verifyUser(user.id);
       fetchUsers();
     } catch (err: any) {
-      alert(err?.response?.data?.detail || 'Failed to verify user');
+      toastError(err?.response?.data?.detail || 'Failed to verify user');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -232,14 +254,14 @@ export default function UsersPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
-                      <button onClick={() => openEdit(u)} className="text-xs text-brand-gold hover:text-brand-gold-dark">Edit</button>
-                      <button onClick={() => toggleActive(u)} className="text-xs text-orange-600 hover:underline">
+                      <button onClick={() => openEdit(u)} disabled={isSubmitting} className="text-xs text-brand-gold hover:text-brand-gold-dark disabled:opacity-50">Edit</button>
+                      <button onClick={() => toggleActive(u)} disabled={isSubmitting} className="text-xs text-orange-600 hover:underline disabled:opacity-50">
                         {u.is_active ? 'Deactivate' : 'Activate'}
                       </button>
                       {!u.is_verified && (
-                        <button onClick={() => handleVerify(u)} className="text-xs text-green-600 hover:underline">Verify</button>
+                        <button onClick={() => handleVerify(u)} disabled={isSubmitting} className="text-xs text-green-600 hover:underline disabled:opacity-50">Verify</button>
                       )}
-                      <button onClick={() => handleDelete(u)} className="text-xs text-red-600 hover:underline">Delete</button>
+                      <button onClick={() => handleDelete(u)} disabled={isSubmitting} className="text-xs text-red-600 hover:underline disabled:opacity-50">Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -282,7 +304,7 @@ export default function UsersPage() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowNewModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600">Cancel</button>
-                <button type="submit" className="px-6 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark">Create User</button>
+                <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark disabled:opacity-50">{isSubmitting ? 'Creating...' : 'Create User'}</button>
               </div>
             </form>
           </div>
@@ -318,7 +340,7 @@ export default function UsersPage() {
               </div>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600">Cancel</button>
-                <button type="submit" className="px-6 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark">Save Changes</button>
+                <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark disabled:opacity-50">{isSubmitting ? 'Saving...' : 'Save Changes'}</button>
               </div>
             </form>
           </div>

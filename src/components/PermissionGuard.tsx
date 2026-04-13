@@ -27,7 +27,7 @@ export function PermissionGuard({
   fallback = null,
   children,
 }: PermissionGuardProps) {
-  const { can, canAny, canAll } = useRBAC();
+  const { canAny, canAll } = useRBAC();
 
   let allowed = true;
 

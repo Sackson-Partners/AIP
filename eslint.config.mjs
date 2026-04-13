@@ -27,11 +27,11 @@ const eslintConfig = defineConfig([
       },
     },
     rules: {
-      "no-unused-vars": "warn",
+      "no-unused-vars": "off",  // Disabled: @typescript-eslint/no-unused-vars handles TS files (avoids false positives on type-signature params)
       "no-console": "warn",
-      "@typescript-eslint/no-explicit-any": "warn",
-      "@typescript-eslint/no-unused-vars": "warn",
-      "react-hooks/exhaustive-deps": "warn",
+      "@typescript-eslint/no-explicit-any": "warn",  // TODO: promote to "error" — ~15 remaining `any` types across 6 files
+      "@typescript-eslint/no-unused-vars": "error",
+      "react-hooks/exhaustive-deps": "warn",          // TODO: promote to "error" — missing deps in deal-rooms/[id] and users pages
       "react-hooks/rules-of-hooks": "error",
     },
   },

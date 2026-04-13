@@ -50,7 +50,7 @@ const LOCATION_CATS = CATEGORIES.filter(c => ['coastal', 'inland'].includes(c.id
 
 interface Props {
   filters: FilterState
-  onFiltersChange: (f: FilterState) => void
+  onFiltersChange: (filters: FilterState) => void
   filteredCount: number
   totalCount: number
   countries: string[]

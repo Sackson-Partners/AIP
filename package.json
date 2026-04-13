@@ -11,18 +11,15 @@
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.47.0",
-    "@tanstack/react-query": "^5.90.16",
-    "axios": "^1.13.2",
+    "axios": "^1.15.0",
     "framer-motion": "^12.38.0",
-    "jwt-decode": "^4.0.0",
     "leaflet": "^1.9.4",
     "leaflet.markercluster": "^1.5.3",
-    "next": "^16.2.2",
+    "next": "^16.2.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "react-hook-form": "^7.69.0",
-    "react-leaflet": "^5.0.0",
-    "ws": "^8.20.0"
+    "react-leaflet": "^5.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -36,6 +33,6 @@
     "eslint-config-next": "^15.3.3",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
-    "typescript": "^6"
+    "typescript": "5.6.2"
   }
 }

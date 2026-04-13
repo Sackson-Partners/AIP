@@ -19,6 +19,7 @@ from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
@@ -68,16 +69,20 @@ async def user_stats(
     current_user: User = Depends(require_admin),
 ):
     """Return user count broken down by role and status."""
-    all_users = db.query(User).all()
-    by_role: dict = {}
-    for u in all_users:
-        by_role[u.role] = by_role.get(u.role, 0) + 1
+    total = db.query(func.count(User.id)).scalar()
+    active = db.query(func.count(User.id)).filter(User.is_active.is_(True)).scalar()
+    verified = db.query(func.count(User.id)).filter(User.is_verified.is_(True)).scalar()
+    by_role_rows = (
+        db.query(User.role, func.count(User.id))
+        .group_by(User.role)
+        .all()
+    )
     return {
-        "total": len(all_users),
-        "active": sum(1 for u in all_users if u.is_active),
-        "inactive": sum(1 for u in all_users if not u.is_active),
-        "verified": sum(1 for u in all_users if u.is_verified),
-        "by_role": by_role,
+        "total": total,
+        "active": active,
+        "inactive": total - active,
+        "verified": verified,
+        "by_role": {role: count for role, count in by_role_rows},
     }
 
 

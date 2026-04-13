@@ -7,6 +7,15 @@ import { useToast } from '@/context/ToastContext';
 
 type VoteOption = 'approve' | 'reject' | 'abstain' | 'defer';
 
+interface CommitteeDetail {
+  project_id: number;
+  status: string;
+  quorum_required: number;
+  quorum_met: boolean;
+  vote_summary: Record<string, number>;
+  votes: Array<{ voter_id: number; vote: string; rationale?: string }>;
+}
+
 const VOTE_COLORS: Record<string, string> = {
   approve:  'bg-green-100 text-green-800',
   reject:   'bg-red-100 text-red-800',
@@ -33,7 +42,7 @@ export default function ICPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
   const [selectedCommittee, setSelectedCommittee] = useState<ICCommittee | null>(null);
-  const [committeeDetail, setCommitteeDetail] = useState<any>(null);
+  const [committeeDetail, setCommitteeDetail] = useState<CommitteeDetail | null>(null);
   const [voteOption, setVoteOption] = useState<VoteOption>('approve');
   const [voteRationale, setVoteRationale] = useState('');
   const [isVoting, setIsVoting] = useState(false);
@@ -73,7 +82,7 @@ export default function ICPage() {
   const openCommittee = async (committee: ICCommittee) => {
     try {
       const detail = await icApi.getCommittee(committee.id);
-      setCommitteeDetail(detail);
+      setCommitteeDetail(detail as unknown as CommitteeDetail);
       setSelectedCommittee(committee);
     } catch (err) {
       console.error('Failed to fetch committee detail:', err);
@@ -107,7 +116,7 @@ export default function ICPage() {
         voteRationale || undefined,
       );
       const updated = await icApi.getCommittee(Number(selectedCommittee.committee_id));
-      setCommitteeDetail(updated);
+      setCommitteeDetail(updated as unknown as CommitteeDetail);
       toastSuccess('Vote submitted.');
       setVoteRationale('');
     } catch (err: any) {
@@ -122,7 +131,7 @@ export default function ICPage() {
     try {
       await icApi.recordDecision(Number(selectedCommittee.committee_id), outcome);
       const updated = await icApi.getCommittee(Number(selectedCommittee.committee_id));
-      setCommitteeDetail(updated);
+      setCommitteeDetail(updated as unknown as CommitteeDetail);
       toastSuccess('Decision recorded.');
       fetchCommittees();
     } catch (err: any) {

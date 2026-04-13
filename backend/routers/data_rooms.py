@@ -53,7 +53,11 @@ async def list_data_rooms(
 
 
 @router.get("/{room_id}")
-async def get_data_room(room_id: str, db: Session = Depends(get_db)):
+async def get_data_room(
+    room_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Return data room details including document list."""
     room = db.query(DataRoom).filter(DataRoom.id == room_id).first()
     if not room:
@@ -77,7 +81,11 @@ async def create_data_room(
 
 
 @router.get("/{room_id}/documents")
-async def list_documents(room_id: str, db: Session = Depends(get_db)):
+async def list_documents(
+    room_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """List all active documents in a data room."""
     docs = (
         db.query(DataRoomDocument)
