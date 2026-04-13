@@ -90,6 +90,9 @@ jobs:
       ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: 30
       ALLOWED_ORIGINS: http://localhost:3000
+      # Dummy values — allow import smoke test to pass without real Airtable credentials
+      AIRTABLE_BASE_ID: ci-test-placeholder
+      AIRTABLE_PROJECTS_TABLE: ci-test-placeholder
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python 3.11
