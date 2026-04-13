@@ -5,26 +5,24 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import Sidebar from '@/components/Sidebar';
-
-type Notif = { id: number; text: string; read: boolean; time: string };
-
-const SAMPLE_NOTIFS: Notif[] = [
-  { id: 1, text: 'New project submitted for review', read: false, time: '5m ago' },
-  { id: 2, text: 'IC session scheduled for next week', read: false, time: '2h ago' },
-  { id: 3, text: 'PESTEL analysis report ready', read: true, time: '1d ago' },
-];
+import { notificationsApi, type Notification } from '@/lib/api';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading, profile, user } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [notifs, setNotifs] = useState<Notif[]>(SAMPLE_NOTIFS);
+  const [notifs, setNotifs] = useState<Notification[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) router.replace('/login');
   }, [isAuthenticated, isLoading, router]);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    notificationsApi.list().then(setNotifs).catch(() => { /* non-fatal */ });
+  }, [isAuthenticated]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -36,7 +34,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const unread = notifs.filter(n => !n.read).length;
+  const unread = notifs.filter(n => !n.is_read).length;
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'User';
   const initial = displayName.charAt(0).toUpperCase();
 
@@ -110,7 +108,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <span className="text-sm font-semibold text-gray-900">Notifications</span>
                   {unread > 0 && (
                     <button
-                      onClick={() => setNotifs(n => n.map(x => ({ ...x, read: true })))}
+                      onClick={() => {
+                        notificationsApi.markAllRead().catch(() => { /* non-fatal */ });
+                        setNotifs(n => n.map(x => ({ ...x, is_read: true })));
+                      }}
                       className="text-xs text-brand-gold hover:text-brand-gold-dark transition-colors"
                     >
                       Mark all read
@@ -118,16 +119,24 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   )}
                 </div>
                 <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                  {notifs.length === 0 && (
+                    <p className="px-4 py-6 text-sm text-center text-gray-400">No notifications</p>
+                  )}
                   {notifs.map(n => (
                     <button
                       key={n.id}
-                      className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors ${!n.read ? 'bg-brand-gold/5' : ''}`}
-                      onClick={() => setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, read: true } : x))}
+                      className={`w-full text-left px-4 py-3 flex items-start gap-3 hover:bg-gray-50 transition-colors ${!n.is_read ? 'bg-brand-gold/5' : ''}`}
+                      onClick={() => {
+                        if (!n.is_read) {
+                          notificationsApi.markRead(n.id).catch(() => { /* non-fatal */ });
+                          setNotifs(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
+                        }
+                      }}
                     >
-                      <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${n.read ? 'bg-gray-300' : 'bg-brand-gold'}`} />
+                      <span className={`mt-1.5 w-2 h-2 rounded-full shrink-0 ${n.is_read ? 'bg-gray-300' : 'bg-brand-gold'}`} />
                       <div className="min-w-0">
-                        <p className={`text-sm ${n.read ? 'text-gray-500' : 'font-medium text-gray-900'}`}>{n.text}</p>
-                        <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
+                        <p className={`text-sm ${n.is_read ? 'text-gray-500' : 'font-medium text-gray-900'}`}>{n.text}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{new Date(n.created_at).toLocaleDateString()}</p>
                       </div>
                     </button>
                   ))}

@@ -615,4 +615,17 @@ export const aiApi = {
   augmentPETFEL: (d: object) => post<PETFELAssessment>('/ai/augment-petfel', d),
 };
 
+export interface Notification {
+  id: string;
+  text: string;
+  is_read: boolean;
+  created_at: string;
+}
+
+export const notificationsApi = {
+  list:       () => get<Notification[]>('/notifications'),
+  markRead:   (id: string) => patch<Notification>(`/notifications/${id}/read`),
+  markAllRead: () => patch<void>('/notifications/read-all'),
+};
+
 export default api;

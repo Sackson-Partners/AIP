@@ -33,6 +33,7 @@ from backend.routers.ic import router as ic_router
 from backend.routers.matching import router as matching_router
 from backend.routers.radar import router as radar_router
 from backend.routers.documents import router as documents_router
+from backend.routers.notifications import router as notifications_router
 from backend.routers.users import router as users_router
 from backend.middleware.security_headers import SecurityHeadersMiddleware
 
@@ -153,6 +154,7 @@ app.include_router(ic_router)
 app.include_router(matching_router)
 app.include_router(radar_router)
 app.include_router(documents_router)
+app.include_router(notifications_router)
 
 _static_dir = Path(__file__).parent / "static"
 if _static_dir.exists():

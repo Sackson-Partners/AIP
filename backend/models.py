@@ -78,6 +78,7 @@ class User(Base):
     introductions = relationship("Introduction", back_populates="user", cascade="all, delete")
     analytics     = relationship("AnalyticsEvent", back_populates="user", cascade="all, delete")
     verifications = relationship("Verification", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("Notification", back_populates="user", cascade="all, delete-orphan")
 
 
 # ---------------------------------------------------------------------------
@@ -418,6 +419,24 @@ class Verification(Base):
 
     # Relationships
     user = relationship("User", back_populates="verifications")
+
+
+# ---------------------------------------------------------------------------
+# Notifications
+# ---------------------------------------------------------------------------
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id         = Column(String, primary_key=True, default=_uuid)
+    user_id    = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    text       = Column(Text, nullable=False)
+    is_read    = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Relationships
+    user = relationship("User", back_populates="notifications")
 
 
 # ---------------------------------------------------------------------------
