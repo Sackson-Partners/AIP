@@ -43,6 +43,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger("aip")
 
+# ── Sentry — initialise only when DSN is present ─────────────────────────────
+_sentry_dsn = os.getenv("SENTRY_DSN")
+if _sentry_dsn:
+    import sentry_sdk
+    from sentry_sdk.integrations.fastapi import FastApiIntegration
+    from sentry_sdk.integrations.starlette import StarletteIntegration
+
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        environment=os.getenv("ENVIRONMENT", "production"),
+        traces_sample_rate=0.1,
+        integrations=[StarletteIntegration(), FastApiIntegration()],
+    )
+    logger.info("Sentry initialised (env=%s)", os.getenv("ENVIRONMENT", "production"))
+
 
 
 @asynccontextmanager
