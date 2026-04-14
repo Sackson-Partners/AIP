@@ -128,12 +128,57 @@ Azure Container Apps (FastAPI Backend)
   │  └─ Anthropic Claude API (AI features)
 ```
 
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        Users                                 │
+│          (Analysts, Admins, Investors, Sponsors)             │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ HTTPS
+┌──────────────────────────▼──────────────────────────────────┐
+│                  Vercel (Frontend)                           │
+│       Next.js 16 App Router · React 19 · TypeScript          │
+│       Sentry (browser tracing) · Supabase Auth client        │
+└──────────────────────────┬──────────────────────────────────┘
+                           │ REST / JSON
+┌──────────────────────────▼──────────────────────────────────┐
+│            Azure Container Apps (Backend)                    │
+│       FastAPI · Python 3.11 · SQLAlchemy 2 · Alembic         │
+│       SlowAPI (rate limiting) · Sentry (server tracing)      │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
+│  │  Auth       │  │  PETFEL DD   │  │  Pipeline / IC      │ │
+│  │  (JWT +     │  │  Engine      │  │  Governance         │ │
+│  │  Supabase)  │  │  (30 scores) │  │                     │ │
+│  └─────────────┘  └──────────────┘  └─────────────────────┘ │
+│  ┌─────────────┐  ┌──────────────┐  ┌─────────────────────┐ │
+│  │  Deal Rooms │  │  Data Rooms  │  │  EIN Generation     │ │
+│  │  + Meetings │  │  + Documents │  │  (AI-powered)       │ │
+│  └─────────────┘  └──────────────┘  └─────────────────────┘ │
+└──────┬───────────────────┬──────────────────────┬───────────┘
+       │                   │                      │
+┌──────▼──────┐  ┌─────────▼────────┐  ┌─────────▼──────────┐
+│  PostgreSQL │  │  Azure Blob       │  │  Anthropic Claude   │
+│  (Supabase) │  │  Storage          │  │  API                │
+│  prod DB    │  │  (documents)      │  │  (AI briefs)        │
+└─────────────┘  └──────────────────┘  └────────────────────┘
+```
+
 ## CI/CD Pipeline
 
 The pipeline (`.github/workflows/ci-cd.yml`) runs on every push to `main`:
 
-1. **Security Scan** — `npm audit`, ESLint, TypeScript check, `pip-audit`
-2. **Frontend Check** — TypeScript compilation
-3. **Backend Test** — pytest with coverage (≥50% required)
-4. **Docker Build + Push** — builds and pushes to Docker Hub, runs smoke test
-5. **Azure Deploy** — deploys to Azure Container Apps with automatic rollback on failure
+```
+push to main
+    │
+    ├── security-audit   (npm audit, ESLint, TypeScript, pip-audit)
+    │
+    ├── frontend-check   (TypeScript compilation)
+    │       │
+    │       └── e2e-tests   (Playwright against live Next.js server)
+    │
+    ├── backend-test     (pytest, coverage ≥75%)
+    │
+    └── docker-build ──► azure-deploy
+         (smoke test)     (Azure Container Apps, auto-rollback)
+```

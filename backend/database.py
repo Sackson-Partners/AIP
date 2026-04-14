@@ -1,5 +1,6 @@
 import os
-from sqlalchemy import create_engine, text
+import time
+from sqlalchemy import create_engine, event, text
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 import logging
@@ -37,6 +38,31 @@ else:
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
+
+# ---------------------------------------------------------------------------
+# Query performance logging
+# ---------------------------------------------------------------------------
+
+@event.listens_for(engine, "before_cursor_execute")
+def _before_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    conn.info.setdefault("query_start_time", []).append(time.monotonic())
+
+
+@event.listens_for(engine, "after_cursor_execute")
+def _after_cursor_execute(conn, cursor, statement, parameters, context, executemany):
+    elapsed = time.monotonic() - conn.info["query_start_time"].pop()
+    if elapsed >= 2.0:
+        try:
+            import sentry_sdk
+            sentry_sdk.capture_message(
+                f"Slow DB query ({elapsed:.2f}s): {statement[:200]}",
+                level="warning",
+            )
+        except Exception:
+            pass
+        logger.warning("SLOW QUERY (%.2fs): %.200s", elapsed, statement)
+    elif elapsed >= 0.5:
+        logger.info("QUERY (%.2fs): %.200s", elapsed, statement)
 
 def get_db():
     db = SessionLocal()

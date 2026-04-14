@@ -231,7 +231,7 @@ async def list_assessments(
     query = db.query(PetfelAssessment)
     if project_id:
         query = query.filter(PetfelAssessment.project_id == project_id)
-    assessments = query.order_by(PetfelAssessment.created_at.desc()).all()
+    assessments = query.order_by(PetfelAssessment.assessed_at.desc()).all()
     return [
         {
             "id":             a.id,
@@ -659,7 +659,7 @@ async def petfel_root(
     current_user: User    = Depends(get_current_user),
 ):
     """List recent PETFEL assessments."""
-    assessments = db.query(PetfelAssessment).order_by(PetfelAssessment.created_at.desc()).limit(50).all()
+    assessments = db.query(PetfelAssessment).order_by(PetfelAssessment.assessed_at.desc()).limit(50).all()
     return {
         "assessments": [
             {

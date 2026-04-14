@@ -13,13 +13,13 @@ Endpoints:
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import Investor
-from backend.security.auth import get_current_user
+from backend.security.auth import get_current_user, limiter
 from backend.models import User
 
 logger = logging.getLogger(__name__)
@@ -27,17 +27,17 @@ router = APIRouter(prefix="/api/investors", tags=["Investors"])
 
 
 class InvestorCreate(BaseModel):
-    organisation_name: str
-    investor_type: Optional[str] = None
-    aum_usd: Optional[str] = None
+    organisation_name: str = Field(..., min_length=1, max_length=255)
+    investor_type: Optional[str] = Field(None, max_length=100)
+    aum_usd: Optional[str] = Field(None, max_length=50)
     focus_sectors: Optional[list[str]] = None
     focus_regions: Optional[list[str]] = None
-    min_ticket_usd: Optional[str] = None
-    max_ticket_usd: Optional[str] = None
+    min_ticket_usd: Optional[str] = Field(None, max_length=50)
+    max_ticket_usd: Optional[str] = Field(None, max_length=50)
     preferred_structures: Optional[list[str]] = None
-    contact_name: Optional[str] = None
-    contact_email: Optional[str] = None
-    website: Optional[str] = None
+    contact_name: Optional[str] = Field(None, max_length=255)
+    contact_email: Optional[str] = Field(None, max_length=255)
+    website: Optional[str] = Field(None, max_length=500)
 
 
 @router.get("")
@@ -73,8 +73,10 @@ async def get_investor(
     return investor
 
 
+@limiter.limit("30/minute")
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_investor(
+    request: Request,
     investor_in: InvestorCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

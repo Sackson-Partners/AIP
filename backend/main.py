@@ -57,7 +57,7 @@ if _sentry_dsn:
         dsn=_sentry_dsn,
         environment=os.getenv("ENVIRONMENT", "production"),
         release=os.getenv("APP_VERSION", "aip@1.0.0"),
-        traces_sample_rate=0.1,
+        traces_sample_rate=1.0,
         integrations=[StarletteIntegration(), FastApiIntegration()],
     )
     logger.info("Sentry initialised (env=%s)", os.getenv("ENVIRONMENT", "production"))
@@ -195,6 +195,23 @@ async def add_request_id(request: Request, call_next):
     request.state.request_id = request_id
     response = await call_next(request)
     response.headers["X-Request-ID"] = request_id
+    return response
+
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    """Log each request with method, path, status code, and duration."""
+    import time
+    start = time.monotonic()
+    response = await call_next(request)
+    duration_ms = (time.monotonic() - start) * 1000
+    logger.info(
+        "%s %s %s %.1fms",
+        request.method,
+        request.url.path,
+        response.status_code,
+        duration_ms,
+    )
     return response
 
 

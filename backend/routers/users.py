@@ -17,14 +17,14 @@ Endpoints:
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel, ConfigDict, EmailStr
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import User
-from backend.security.auth import get_current_user, require_admin, hash_password
+from backend.security.auth import get_current_user, limiter, require_admin, hash_password
 from backend.utils.validators import validate_password_complexity
 
 logger = logging.getLogger(__name__)
@@ -112,8 +112,10 @@ async def list_users(
     return q.offset(skip).limit(limit).all()
 
 
+@limiter.limit("10/minute")
 @router.post("", response_model=UserOut, status_code=201)
 async def create_user(
+    request: Request,
     user_in: UserCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -159,8 +161,10 @@ async def get_user(
     return user
 
 
+@limiter.limit("20/minute")
 @router.put("/{user_id}", response_model=UserOut)
 async def update_user(
+    request: Request,
     user_id: str,
     user_in: UserUpdate,
     db: Session = Depends(get_db),

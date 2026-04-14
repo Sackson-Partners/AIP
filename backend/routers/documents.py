@@ -17,13 +17,13 @@ import os
 from datetime import timedelta
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import InfrastructureProject, ProjectDocument, User
-from backend.security.auth import get_current_user
+from backend.security.auth import get_current_user, limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/documents", tags=["Document Management"])
@@ -176,8 +176,10 @@ def _verify_document_access(document: ProjectDocument, current_user: User, db: S
 # ---------------------------------------------------------------------------
 
 
+@limiter.limit("20/minute")
 @router.post("/upload/{project_id}", status_code=201)
 async def upload_document(
+    request:       Request,
     project_id:    str,
     file:          UploadFile = File(...),
     document_type: str        = Form(default="other"),
@@ -308,8 +310,10 @@ async def list_project_documents(
     }
 
 
+@limiter.limit("10/minute")
 @router.delete("/{doc_id}", status_code=204)
 async def delete_document(
+    request:      Request,
     doc_id:       str,
     db:           Session = Depends(get_db),
     current_user: User    = Depends(get_current_user),

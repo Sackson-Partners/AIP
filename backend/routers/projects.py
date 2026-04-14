@@ -16,13 +16,13 @@ import json
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import InfrastructureProject
-from backend.security.auth import get_current_user, require_admin, require_analyst
+from backend.security.auth import get_current_user, limiter, require_admin, require_analyst
 from backend.models import User
 
 logger = logging.getLogger(__name__)
@@ -45,20 +45,20 @@ def _safe_json(value: Optional[str]) -> list:
 
 
 class ProjectCreate(BaseModel):
-    project_name: str
-    country: Optional[str] = None
-    region: Optional[str] = None
-    sector: Optional[str] = None
-    project_type: Optional[str] = None
-    estimated_cost: Optional[str] = None
-    status: Optional[str] = "planned"
+    project_name: str = Field(..., min_length=1, max_length=255)
+    country: Optional[str] = Field(None, max_length=100)
+    region: Optional[str] = Field(None, max_length=100)
+    sector: Optional[str] = Field(None, max_length=100)
+    project_type: Optional[str] = Field(None, max_length=100)
+    estimated_cost: Optional[str] = Field(None, max_length=50)
+    status: Optional[str] = Field("planned", max_length=50)
     investors: Optional[list[str]] = None
     developers: Optional[list[str]] = None
-    description: Optional[str] = None
-    strategic_notes: Optional[str] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
-    source_url: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=5000)
+    strategic_notes: Optional[str] = Field(None, max_length=5000)
+    latitude: Optional[float] = Field(None, ge=-90, le=90)
+    longitude: Optional[float] = Field(None, ge=-180, le=180)
+    source_url: Optional[str] = Field(None, max_length=500)
 
 
 class ProjectResponse(BaseModel):
@@ -155,8 +155,10 @@ async def get_project(
     return project
 
 
+@limiter.limit("30/minute")
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_project(
+    request: Request,
     project_in: ProjectCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst),
@@ -198,8 +200,10 @@ async def create_project(
         )
 
 
+@limiter.limit("30/minute")
 @router.put("/{project_id}")
 async def update_project(
+    request: Request,
     project_id: str,
     project_in: ProjectCreate,
     db: Session = Depends(get_db),
@@ -246,8 +250,10 @@ async def update_project(
         )
 
 
+@limiter.limit("10/minute")
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
+    request: Request,
     project_id: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_analyst),

@@ -29,7 +29,7 @@ import logging
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -39,7 +39,7 @@ from backend.models import (
     DealRoomMember, DealRoomDocument, DealRoomMeeting,
     User,
 )
-from backend.security.auth import get_current_user, require_admin
+from backend.security.auth import get_current_user, limiter, require_admin
 from backend.models import _uuid
 
 logger = logging.getLogger(__name__)
@@ -172,8 +172,10 @@ async def get_deal_room(
     return _room_to_dict(_get_room_or_404(room_id, db))
 
 
+@limiter.limit("20/minute")
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_deal_room(
+    request: Request,
     room_in: DealRoomCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin),
@@ -224,8 +226,10 @@ async def get_messages(
     }
 
 
+@limiter.limit("20/minute")
 @router.post("/{room_id}/messages", status_code=status.HTTP_201_CREATED)
 async def post_message(
+    request: Request,
     room_id: str,
     msg_in: MessageCreate,
     db: Session = Depends(get_db),
@@ -309,8 +313,10 @@ async def add_member(
     }
 
 
+@limiter.limit("10/minute")
 @router.delete("/{room_id}/members/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_member(
+    request: Request,
     room_id: str,
     user_id: str,
     db: Session = Depends(get_db),

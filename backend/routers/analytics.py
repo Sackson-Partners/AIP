@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import AnalyticsEvent
-from backend.security.auth import get_current_user, require_admin
+from backend.security.auth import get_current_user, limiter, require_admin
 from backend.models import User
 
 logger = logging.getLogger(__name__)
@@ -51,10 +51,11 @@ class TrackEvent(BaseModel):
         return v
 
 
+@limiter.limit("60/minute")
 @router.post("/track", status_code=201)
 async def track_event(
-    event_in: TrackEvent,
     request: Request,
+    event_in: TrackEvent,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
