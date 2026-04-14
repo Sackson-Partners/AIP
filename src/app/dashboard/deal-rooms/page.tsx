@@ -64,6 +64,7 @@ export default function DealRoomsPage() {
       const data = await projectsApi.list() as Project[];
       setProjects(data ?? []);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch projects:', error);
     }
   };

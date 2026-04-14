@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
+import { PlusIcon, XIcon } from '@/components/ui/icons';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { investorsApi, Investor, InvestorCreate, Project, projectsApi } from '../../../lib/api';
@@ -10,6 +11,7 @@ const INSTRUMENTS = ['Equity', 'Debt', 'Mezzanine'];
 
 export default function InvestorsPage() {
   const [investors, setInvestors] = useState<Investor[]>([]);
+  const [projectsCache, setProjectsCache] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedInvestor, setSelectedInvestor] = useState<Investor | null>(null);
@@ -21,7 +23,7 @@ export default function InvestorsPage() {
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<InvestorCreate>();
 
-  const fetchInvestors = async () => {
+  const fetchInvestors = useCallback(async () => {
     try {
       const data = await investorsApi.list();
       setInvestors(data);
@@ -31,11 +33,13 @@ export default function InvestorsPage() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchInvestors();
-  }, []);
+    // Pre-load projects once on mount so findMatches() uses the cache
+    projectsApi.list().then(setProjectsCache).catch(() => {});
+  }, [fetchInvestors]);
 
   const filteredInvestors = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -45,7 +49,7 @@ export default function InvestorsPage() {
     );
   }, [investors, searchQuery]);
 
-  const onSubmit = async (data: InvestorCreate) => {
+  const onSubmit = useCallback(async (data: InvestorCreate) => {
     setIsSubmitting(true);
     try {
       const formattedData = {
@@ -65,11 +69,12 @@ export default function InvestorsPage() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [fetchInvestors, reset]);
 
-  const findMatches = async (investor: Investor) => {
+  const findMatches = useCallback(async (investor: Investor) => {
     try {
-      const projects = await projectsApi.list();
+      // Use cached project list — avoids re-fetching on every "Find Matches" click
+      const projects = projectsCache.length > 0 ? projectsCache : await projectsApi.list();
       const sectorFocus  = investor.sector_focus  ?? [];
       const countryFocus = investor.country_focus ?? [];
       const matched = projects.filter((p: Project) =>
@@ -82,9 +87,10 @@ export default function InvestorsPage() {
       setSelectedInvestor(investor);
       setShowMatchModal(true);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to find matches:', error);
     }
-  };
+  }, [projectsCache]);
 
   return (
     <div>
@@ -408,18 +414,3 @@ function formatNumber(num: number) {
   return num.toString();
 }
 
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-  );
-}
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-  );
-}

@@ -192,8 +192,8 @@ class InvestorInterest(Base):
     __tablename__ = "investor_interests"
 
     id              = Column(String, primary_key=True, default=_uuid)
-    investor_id     = Column(String, ForeignKey("investors.id"), nullable=False)
-    project_id      = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
+    investor_id     = Column(String, ForeignKey("investors.id"), nullable=False, index=True)
+    project_id      = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False, index=True)
     status          = Column(String, default="new")
     interest_level  = Column(Integer, nullable=True)   # 1–5
     notes           = Column(Text, nullable=True)
@@ -244,7 +244,7 @@ class PipelineLog(Base):
     __tablename__ = "pipeline_logs"
 
     id         = Column(String, primary_key=True, default=_uuid)
-    project_id = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False)
+    project_id = Column(String, ForeignKey("infrastructure_projects.id"), nullable=False, index=True)
     from_stage = Column(String, nullable=True)
     to_stage   = Column(String, nullable=False)
     changed_by = Column(String, ForeignKey("users.id"), nullable=True)
@@ -263,8 +263,8 @@ class InvestmentCommittee(Base):
 
     id              = Column(String, primary_key=True, default=_uuid)
     project_id      = Column(String, ForeignKey("infrastructure_projects.id"),
-                             nullable=False)
-    ein_id          = Column(String, ForeignKey("executive_notes.id"), nullable=True)
+                             nullable=False, index=True)
+    ein_id          = Column(String, ForeignKey("executive_notes.id"), nullable=True, index=True)
     scheduled_date  = Column(DateTime(timezone=True), nullable=True)
     status          = Column(String, default="scheduled")
     # scheduled | in_progress | decided | deferred | cancelled

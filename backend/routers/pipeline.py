@@ -33,6 +33,35 @@ from backend.security.auth import get_current_user
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/pipeline", tags=["Pipeline Management"])
 
+
+def _build_pipeline_status_card(
+    project: "InfrastructureProject",
+    pos: "ProjectPipeline",
+    stage: "PipelineStage | None",
+    now: datetime,
+) -> dict:
+    """
+    Build the common pipeline status card dict shared across overview,
+    statuses, and SLA-alerts endpoints. Extracted to eliminate duplication.
+    """
+    entered = pos.entered_at.replace(tzinfo=timezone.utc) if pos.entered_at else now
+    days_in_stage = (now - entered).days
+    sla_days = stage.sla_days if stage else None
+    sla_remaining = (sla_days - days_in_stage) if sla_days else None
+    sla_status = "ok"
+    if sla_remaining is not None:
+        sla_status = "breached" if sla_remaining < 0 else ("warning" if sla_remaining <= 2 else "ok")
+    return {
+        "project_id":    project.id,
+        "project_name":  project.project_name,
+        "current_stage": pos.stage_code,
+        "entered_at":    str(pos.entered_at),
+        "days_in_stage": days_in_stage,
+        "sla_days":      sla_days,
+        "sla_status":    sla_status,
+        "sla_remaining": sla_remaining,
+    }
+
 DEFAULT_STAGES = [
     {"name": "Sourcing",      "code": "sourcing",   "order_index": 1, "sla_days": 5},
     {"name": "Screening",     "code": "screening",  "order_index": 2, "sla_days": 10},
@@ -409,24 +438,8 @@ async def list_project_statuses(
         project = projects_map.get(pos.project_id)
         if not project:
             continue
-        stage         = stages_map.get(pos.stage_code)
-        entered       = pos.entered_at.replace(tzinfo=timezone.utc) if pos.entered_at else now
-        days_in_stage = (now - entered).days
-        sla_days      = stage.sla_days if stage else None
-        sla_remaining = (sla_days - days_in_stage) if sla_days else None
-        sla_status    = "ok"
-        if sla_remaining is not None:
-            sla_status = "breached" if sla_remaining < 0 else ("warning" if sla_remaining <= 2 else "ok")
-        result.append({
-            "project_id":    project.id,
-            "project_name":  project.project_name,
-            "current_stage": pos.stage_code,
-            "entered_at":    str(pos.entered_at),
-            "days_in_stage": days_in_stage,
-            "sla_days":      sla_days,
-            "sla_status":    sla_status,
-            "sla_remaining": sla_remaining,
-        })
+        stage = stages_map.get(pos.stage_code)
+        result.append(_build_pipeline_status_card(project, pos, stage, now))
 
     return result
 

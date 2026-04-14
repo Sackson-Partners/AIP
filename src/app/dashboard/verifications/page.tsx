@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { verificationsApi, projectsApi, Verification, Project, VerificationCreate } from '../../../lib/api';
+import { PlusIcon, XIcon } from '@/components/ui/icons';
 
 const VERIFICATION_LEVELS = [
   { value: 'V0: Submitted', label: 'V0: Submitted', color: 'bg-gray-100 text-gray-800' },
@@ -38,6 +39,7 @@ export default function VerificationsPage() {
       setVerifications(verificationsData);
       setProjects(projectsData);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch data:', error);
     } finally {
       setIsLoading(false);
@@ -77,6 +79,7 @@ export default function VerificationsPage() {
       reset();
       fetchData();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to create verification:', error);
     }
   };
@@ -297,18 +300,3 @@ export default function VerificationsPage() {
   );
 }
 
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-  );
-}
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-  );
-}

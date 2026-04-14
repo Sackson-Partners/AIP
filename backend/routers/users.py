@@ -18,18 +18,20 @@ import logging
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, ConfigDict, EmailStr
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.models import User
 from backend.security.auth import get_current_user, require_admin, hash_password
+from backend.utils.validators import validate_password_complexity
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
 ROLES = ("viewer", "analyst", "admin", "ic_member", "gov_partner", "epc", "investor")
+ALLOWED_UPDATE_FIELDS = {"full_name", "organisation", "role", "is_verified", "is_active"}
 
 
 class UserCreate(BaseModel):
@@ -41,6 +43,8 @@ class UserCreate(BaseModel):
 
 
 class UserUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     full_name: Optional[str] = None
     organisation: Optional[str] = None
     role: Optional[str] = None
@@ -119,6 +123,7 @@ async def create_user(
         raise HTTPException(status_code=400, detail="Email already registered.")
     if user_in.role not in ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {ROLES}")
+    validate_password_complexity(user_in.password)
     user = User(
         email=user_in.email,
         hashed_password=hash_password(user_in.password),
@@ -168,6 +173,8 @@ async def update_user(
     if user_in.role and user_in.role not in ROLES:
         raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {ROLES}")
     for field, value in user_in.model_dump(exclude_unset=True).items():
+        if field not in ALLOWED_UPDATE_FIELDS:
+            raise HTTPException(status_code=400, detail=f"Field '{field}' cannot be updated")
         setattr(user, field, value)
     db.commit()
     db.refresh(user)

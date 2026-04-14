@@ -1,13 +1,14 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
+import { safeRedirect } from '@/lib/safeRedirect';
 
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url);
   const code       = searchParams.get('code');
   const tokenHash  = searchParams.get('token_hash');
   const type       = searchParams.get('type');
-  const next       = searchParams.get('next') ?? '/dashboard';
+  const next       = safeRedirect(searchParams.get('next'));
 
   // PKCE flow: email confirmation, OAuth, magic link
   if (code) {

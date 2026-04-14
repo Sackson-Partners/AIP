@@ -114,7 +114,8 @@ export default function DealRoomDetailPage() {
     fetchDocuments();
     fetchMeetings();
     fetchMessages();
-  }, [dealRoomId]);
+  // fetch* functions are defined below and not memoized — adding them causes infinite re-fetch
+  }, [dealRoomId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -125,6 +126,7 @@ export default function DealRoomDetailPage() {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}`);
       setDealRoom(data);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch deal room:', error);
     } finally {
       setLoading(false);
@@ -136,6 +138,7 @@ export default function DealRoomDetailPage() {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}/members`);
       setMembers(data);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch members:', error);
     }
   };
@@ -145,6 +148,7 @@ export default function DealRoomDetailPage() {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}/documents`);
       setDocuments(data);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch documents:', error);
     }
   };
@@ -154,6 +158,7 @@ export default function DealRoomDetailPage() {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}/meetings`);
       setMeetings(data);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch meetings:', error);
     }
   };
@@ -163,6 +168,7 @@ export default function DealRoomDetailPage() {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}/messages`);
       setMessages(data);
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch messages:', error);
     }
   };
@@ -176,6 +182,7 @@ export default function DealRoomDetailPage() {
       setInviteRole('member');
       fetchMembers();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to invite member:', error);
     }
   };
@@ -188,6 +195,7 @@ export default function DealRoomDetailPage() {
       setUploadData({ title: '', description: '', document_type: 'other', file_name: '', file_url: '' });
       fetchDocuments();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to upload document:', error);
     }
   };
@@ -200,6 +208,7 @@ export default function DealRoomDetailPage() {
       setMeetingData({ title: '', description: '', scheduled_at: '', duration_minutes: 60 });
       fetchMeetings();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to schedule meeting:', error);
     }
   };
@@ -213,6 +222,7 @@ export default function DealRoomDetailPage() {
       setNewMessage('');
       fetchMessages();
     } catch (error) {
+      // eslint-disable-next-line no-console
       console.error('Failed to send message:', error);
     }
   };

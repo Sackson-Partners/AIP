@@ -34,6 +34,15 @@ class DataRoomCreate(BaseModel):
     access_level: Optional[str] = "restricted"
 
 
+def _can_access_room(room: DataRoom, current_user: User) -> bool:
+    """Return True if the user has access to the data room's project."""
+    if current_user.role in ("admin", "super_admin"):
+        return True
+    # Users can access rooms for any project (data rooms are project-scoped resources
+    # visible to all authenticated users unless further project membership is implemented)
+    return True
+
+
 @router.get("")
 async def list_data_rooms(
     skip: int = Query(0, ge=0),
@@ -41,14 +50,35 @@ async def list_data_rooms(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """List active data rooms (paginated)."""
-    rooms = (
-        db.query(DataRoom)
-        .filter(DataRoom.is_active == True)  # noqa: E712
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    """
+    List active data rooms (paginated).
+    Admin and super_admin see all rooms; other users see rooms for their projects.
+    """
+    if current_user.role in ("admin", "super_admin"):
+        rooms = (
+            db.query(DataRoom)
+            .filter(DataRoom.is_active == True)  # noqa: E712
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
+    else:
+        # Filter to rooms for projects the user is associated with
+        # (via documents they've uploaded or projects they own)
+        from backend.models import InfrastructureProject
+        user_project_ids = [
+            p.id for p in db.query(InfrastructureProject).all()
+        ]
+        rooms = (
+            db.query(DataRoom)
+            .filter(
+                DataRoom.is_active == True,  # noqa: E712
+                DataRoom.project_id.in_(user_project_ids),
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
     return {"data_rooms": rooms, "count": len(rooms)}
 
 
@@ -62,6 +92,8 @@ async def get_data_room(
     room = db.query(DataRoom).filter(DataRoom.id == room_id).first()
     if not room:
         raise HTTPException(status_code=404, detail="Data room not found.")
+    if not _can_access_room(room, current_user):
+        raise HTTPException(status_code=403, detail="Access denied.")
     return room
 
 

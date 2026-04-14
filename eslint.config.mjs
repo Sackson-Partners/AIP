@@ -10,7 +10,18 @@ import reactHooks from "eslint-plugin-react-hooks";
  */
 const eslintConfig = defineConfig([
   {
-    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+    ignores: [
+      ".next/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+      "backend/static/**",
+      "venv/**",
+      "write_files.js",
+      "fix_files.js",
+      "scripts/**",
+      "coverage/**",
+    ],
   },
   {
     files: ["**/*.{ts,tsx}"],

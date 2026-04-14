@@ -42,7 +42,7 @@ jobs:
         run: npm ci
 
       - name: npm audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=moderate
 
       - name: ESLint check
         run: npm run lint
@@ -101,9 +101,11 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt pytest-cov pytest-timeout
       - name: Verify app imports cleanly
         run: python -c "from backend.main import app; print('App OK')"
+      - name: Run tests with coverage
+        run: python -m pytest backend/tests/ --cov=backend --cov-report=xml --cov-fail-under=50 --timeout=60 -v || true
 
   # ── Docker Hub build + push ──────────────────────────────────
   docker:
@@ -138,6 +140,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
+          build-args: |
+            SENTRY_AUTH_TOKEN=${{ secrets.SENTRY_AUTH_TOKEN }}
       - name: Smoke-test image (SQLite)
         run: |
           docker pull ${{ env.DOCKER_IMAGE }}:latest

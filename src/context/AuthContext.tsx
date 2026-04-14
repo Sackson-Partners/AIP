@@ -12,6 +12,7 @@ import React, {
 import { User, Session } from '@supabase/supabase-js';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import * as Sentry from '@sentry/nextjs';
 
 // Matches the confirmed profiles table schema
 export interface UserProfile {
@@ -132,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
     if (data.user) {
+      Sentry.setUser({ id: data.user.id, email: data.user.email });
       await fetchProfile(data.user.id);
     }
   };
@@ -157,7 +159,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       options: {
         data: {
           full_name: data.fullName,
-          role: data.role,
           organization: data.organization,
         },
       },
@@ -167,6 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = async (): Promise<void> => {
     await supabase.auth.signOut();
+    Sentry.setUser(null);
     setProfile(null);
     router.push('/login');
   };

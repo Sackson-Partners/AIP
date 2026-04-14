@@ -133,6 +133,13 @@ def _get_room_or_404(room_id: str, db: Session) -> DealRoom:
     return room
 
 
+def _require_room_admin(room: DealRoom, current_user: User) -> None:
+    """Raise 403 unless the user created the room or is an admin."""
+    if room.created_by == current_user.id or current_user.role in ("admin", "super_admin"):
+        return
+    raise HTTPException(status_code=403, detail="Room admin access required.")
+
+
 # ---------------------------------------------------------------------------
 # Deal room CRUD
 # ---------------------------------------------------------------------------
@@ -310,6 +317,8 @@ async def remove_member(
     current_user: User = Depends(get_current_user),
 ):
     """Remove a user from a deal room."""
+    room = _get_room_or_404(room_id, db)
+    _require_room_admin(room, current_user)
     member = db.query(DealRoomMember).filter(
         DealRoomMember.deal_room_id == room_id,
         DealRoomMember.user_id == user_id,
@@ -384,6 +393,8 @@ async def delete_document(
     current_user: User = Depends(get_current_user),
 ):
     """Delete a document from a deal room."""
+    room = _get_room_or_404(room_id, db)
+    _require_room_admin(room, current_user)
     doc = db.query(DealRoomDocument).filter(
         DealRoomDocument.id == doc_id,
         DealRoomDocument.deal_room_id == room_id,
@@ -466,6 +477,8 @@ async def cancel_meeting(
     current_user: User = Depends(get_current_user),
 ):
     """Cancel / delete a meeting."""
+    room = _get_room_or_404(room_id, db)
+    _require_room_admin(room, current_user)
     meeting = db.query(DealRoomMeeting).filter(
         DealRoomMeeting.id == meeting_id,
         DealRoomMeeting.deal_room_id == room_id,

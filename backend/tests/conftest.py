@@ -29,6 +29,22 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 
 # ---------------------------------------------------------------------------
+# Rate Limiter Reset
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(autouse=True)
+def reset_rate_limiter():
+    """Reset SlowAPI in-memory rate limit counters before each test."""
+    from backend.security.auth import limiter
+    try:
+        limiter._storage.reset()
+    except Exception:
+        pass
+    yield
+
+
+# ---------------------------------------------------------------------------
 # Core DB / Client Fixtures
 # ---------------------------------------------------------------------------
 
@@ -186,4 +202,3 @@ def sample_user_data():
         "password": "Test@123!",
         "full_name": "Fixture User"
     }
-EOF

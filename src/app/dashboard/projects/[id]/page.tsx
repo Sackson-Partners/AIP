@@ -56,6 +56,7 @@ export default function ProjectDetailPage() {
         setHistory(Array.isArray(logs) ? logs : []);
       })
       .catch((err) => {
+        // eslint-disable-next-line no-console
         console.error('Failed to load project:', err);
         setError('Failed to load project details. Please try again.');
       })

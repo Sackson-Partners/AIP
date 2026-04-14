@@ -63,6 +63,7 @@ export default function InvestorDetailPage() {
         setMatchedProjects(projects.filter((p) => matchesInvestor(p, inv)));
       })
       .catch((err) => {
+        // eslint-disable-next-line no-console
         console.error('Failed to load investor:', err);
         setError('Failed to load investor details. Please try again.');
       })

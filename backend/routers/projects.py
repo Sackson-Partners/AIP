@@ -93,17 +93,21 @@ async def list_projects(
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List infrastructure projects with optional filtering."""
     try:
         query = db.query(InfrastructureProject)
         if country:
+            # Prefix search (no leading wildcard) so a B-tree index on `country` can be used.
+            # Leading wildcards (%term%) prevent index usage and cause full table scans.
             query = query.filter(
-                InfrastructureProject.country.ilike(f"%{country}%")
+                InfrastructureProject.country.ilike(f"{country}%")
             )
         if sector:
+            # Exact sector values are short enumerations — prefix search is sufficient.
             query = query.filter(
-                InfrastructureProject.sector.ilike(f"%{sector}%")
+                InfrastructureProject.sector.ilike(f"{sector}%")
             )
         if status:
             query = query.filter(
@@ -111,7 +115,7 @@ async def list_projects(
             )
         if region:
             query = query.filter(
-                InfrastructureProject.region.ilike(f"%{region}%")
+                InfrastructureProject.region.ilike(f"{region}%")
             )
         projects = query.offset(offset).limit(limit).all()
         return [
@@ -137,6 +141,7 @@ async def list_projects(
 async def get_project(
     project_id: str,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """Return full details for a single project including AI brief if available."""
     project = db.query(InfrastructureProject).filter(

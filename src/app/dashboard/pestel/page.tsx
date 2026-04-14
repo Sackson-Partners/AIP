@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { projectsApi, petfelApi, aiApi, Project, PETFELAssessment, PETFELCriterion, ScoreInput } from '../../../lib/api';
+import { WarningIcon, ChevronIcon } from '@/components/ui/icons';
 import { useToast } from '../../../context/ToastContext';
 
 // PETFEL Pillar configuration with weights
@@ -62,6 +63,7 @@ export default function PETFELPage() {
         // Expand first pillar by default
         setExpandedPillars({ political: true });
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.error('Failed to fetch data:', err);
         setError('Failed to load data');
       } finally {
@@ -107,6 +109,7 @@ export default function PETFELPage() {
           setAssessment(null);
           setScores({});
         } else {
+          // eslint-disable-next-line no-console
           console.error('Failed to load assessment:', err);
         }
       } finally {
@@ -116,7 +119,7 @@ export default function PETFELPage() {
     loadAssessment();
   }, [selectedProjectId]);
 
-  const handleCreateAssessment = async () => {
+  const handleCreateAssessment = useCallback(async () => {
     if (!selectedProjectId) return;
     setIsSaving(true);
     try {
@@ -124,12 +127,13 @@ export default function PETFELPage() {
       setAssessment(data);
       setScores({});
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to create assessment:', err);
       setError('Failed to create assessment');
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [selectedProjectId]);
 
   const handleScoreChange = (pillar: string, criterion: string, score: number) => {
     setScores((prev): Record<string, Record<string, ScoreInput>> => ({
@@ -176,6 +180,7 @@ export default function PETFELPage() {
       const updated = await petfelApi.updateScores(assessment.id, scoresList);
       setAssessment(updated);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save scores:', err);
       setError('Failed to save scores');
     } finally {
@@ -192,6 +197,7 @@ export default function PETFELPage() {
       const updated = await petfelApi.calculate(assessment.id);
       setAssessment(updated);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to calculate:', err);
       setError('Failed to calculate scores');
     } finally {
@@ -199,7 +205,7 @@ export default function PETFELPage() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!assessment) return;
     if (!confirm('Submit this assessment for review? This action cannot be undone.')) return;
     setIsSaving(true);
@@ -207,12 +213,13 @@ export default function PETFELPage() {
       const updated = await petfelApi.submit(assessment.id);
       setAssessment(updated);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to submit:', err);
       setError('Failed to submit assessment');
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [assessment]);
 
   const handleAIAugment = async () => {
     if (!assessment) return;
@@ -232,6 +239,7 @@ export default function PETFELPage() {
       }
       success('AI augmentation complete! Review the suggested scores.');
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to augment:', err);
       setError('Failed to get AI suggestions');
     } finally {
@@ -243,9 +251,11 @@ export default function PETFELPage() {
     setExpandedPillars((prev) => ({ ...prev, [pillar]: !prev[pillar] }));
   };
 
-  const getPillarScore = (pillarCode: string): number => {
-    return assessment?.pillar_scores?.[pillarCode] || 0;
-  };
+  const pillarScores = useMemo(
+    () => assessment?.pillar_scores ?? {},
+    [assessment]
+  );
+  const getPillarScore = (pillarCode: string): number => pillarScores[pillarCode] || 0;
 
   if (isLoading && !projects.length) {
     return (
@@ -510,18 +520,3 @@ function SparklesIcon({ className }: { className?: string }) {
   );
 }
 
-function WarningIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-    </svg>
-  );
-}
-
-function ChevronIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-    </svg>
-  );
-}

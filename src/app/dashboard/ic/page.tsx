@@ -57,6 +57,7 @@ export default function ICPage() {
       const data = await icApi.listCommittees();
       setCommittees(data);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch IC sessions:', err);
     }
   };
@@ -71,6 +72,7 @@ export default function ICPage() {
         setCommittees(committeesData);
         setProjects(projectsData);
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.error('Failed to load IC page data:', err);
       } finally {
         setIsLoading(false);
@@ -85,6 +87,7 @@ export default function ICPage() {
       setCommitteeDetail(detail as unknown as CommitteeDetail);
       setSelectedCommittee(committee);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch committee detail:', err);
     }
   };
@@ -101,6 +104,7 @@ export default function ICPage() {
       setNewForm({ project_id: '', scheduled_date: '', quorum_required: 3 });
       toastSuccess('IC session scheduled.');
       fetchCommittees();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toastError(err?.response?.data?.detail || 'Failed to schedule IC session');
     }
@@ -119,6 +123,7 @@ export default function ICPage() {
       setCommitteeDetail(updated as unknown as CommitteeDetail);
       toastSuccess('Vote submitted.');
       setVoteRationale('');
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toastError(err?.response?.data?.detail || 'Failed to submit vote');
     } finally {
@@ -134,6 +139,7 @@ export default function ICPage() {
       setCommitteeDetail(updated as unknown as CommitteeDetail);
       toastSuccess('Decision recorded.');
       fetchCommittees();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (err: any) {
       toastError(err?.response?.data?.detail || 'Failed to record decision');
     }
@@ -165,7 +171,8 @@ export default function ICPage() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {committees.map((c: any) => (
+          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+          {(committees as any[]).map((c) => (
             <div
               key={c.committee_id}
               className="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-200 cursor-pointer transition-colors"
@@ -266,7 +273,7 @@ export default function ICPage() {
               <div>
                 <h3 className="font-semibold text-gray-700 mb-3">Vote Summary</h3>
                 <div className="grid grid-cols-4 gap-3">
-                  {Object.entries(committeeDetail.vote_summary || {}).map(([k, v]: any) => (
+                  {Object.entries(committeeDetail.vote_summary || {}).map(([k, v]: [string, number]) => (
                     <div key={k} className={`rounded-lg p-3 text-center ${VOTE_COLORS[k] || 'bg-gray-50'}`}>
                       <p className="text-2xl font-bold">{v}</p>
                       <p className="text-xs capitalize mt-1">{k}</p>
@@ -284,7 +291,7 @@ export default function ICPage() {
                 <div>
                   <h3 className="font-semibold text-gray-700 mb-2">Individual Votes</h3>
                   <div className="space-y-2">
-                    {committeeDetail.votes.map((v: any, i: number) => (
+                    {committeeDetail.votes.map((v, i) => (
                       <div key={i} className="flex items-start gap-3 bg-gray-50 rounded-lg p-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${VOTE_COLORS[v.vote] || 'bg-gray-100'}`}>{v.vote}</span>
                         <div>

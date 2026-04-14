@@ -4,6 +4,7 @@ import { Suspense, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { safeRedirect } from '@/lib/safeRedirect';
 import Link from 'next/link';
 import Image from 'next/image';
 
@@ -26,10 +27,7 @@ function LoginFormInner() {
     setError(null);
     try {
       await login(data.email, data.password);
-      const raw = searchParams.get('redirectTo') || '/dashboard';
-      // Only follow internal paths — never redirect to external URLs
-      const redirectTo = raw.startsWith('/') && !raw.startsWith('//') ? raw : '/dashboard';
-      router.push(redirectTo);
+      router.push(safeRedirect(searchParams.get('redirectTo')));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Invalid email or password');
     } finally {

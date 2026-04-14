@@ -154,6 +154,23 @@ def _get_doc_or_404(doc_id: str, db: Session) -> ProjectDocument:
     return doc
 
 
+def _verify_document_access(document: ProjectDocument, current_user: User, db: Session) -> None:
+    """Raise 403 if the user has no access to the document's project and is not admin."""
+    if current_user.role in ("admin", "super_admin"):
+        return
+    project = db.query(InfrastructureProject).filter(
+        InfrastructureProject.id == document.project_id
+    ).first()
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    # Uploader always has access; other users require admin role
+    if document.uploaded_by != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have access to this document.",
+        )
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -244,6 +261,7 @@ async def get_document_url(
     Return a time-limited signed URL (15-min TTL) for secure document download.
     """
     doc = _get_doc_or_404(doc_id, db)
+    _verify_document_access(doc, current_user, db)
     signed_url = _get_signed_url(doc.blob_path)
     if not signed_url:
         raise HTTPException(
@@ -298,6 +316,7 @@ async def delete_document(
 ):
     """Remove a document record (soft-delete by removing DB record, blob is retained)."""
     doc = _get_doc_or_404(doc_id, db)
+    _verify_document_access(doc, current_user, db)
     db.delete(doc)
     db.commit()
     logger.info("Document record deleted | doc_id=%s by=%s", doc_id, current_user.id)

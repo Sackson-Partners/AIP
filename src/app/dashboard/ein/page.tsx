@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { projectsApi, einApi, aiApi, Project, EIN, EINSection, EINTemplate } from '../../../lib/api';
+import { DocumentIcon, XIcon } from '@/components/ui/icons';
 import { useToast } from '../../../context/ToastContext';
 
 const SECTION_NAMES = [
@@ -58,6 +59,7 @@ export default function EINPage() {
         setProjects(projectsData);
         setTemplates(templatesData);
       } catch (err) {
+        // eslint-disable-next-line no-console
         console.error('Failed to fetch data:', err);
         setError('Failed to load data');
       } finally {
@@ -90,6 +92,7 @@ export default function EINPage() {
           setEin(null);
           resetForm();
         } else {
+          // eslint-disable-next-line no-console
           console.error('Failed to load EIN:', err);
         }
       } finally {
@@ -97,23 +100,24 @@ export default function EINPage() {
       }
     };
     loadEIN();
-  }, [selectedProjectId]);
+  // resetForm/activeSection excluded: re-running on section change would reset loaded EIN data
+  }, [selectedProjectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setSectionContent('');
     setExecutiveSummary('');
     setRecommendation('');
     setKeyGaps('');
     setNextSteps('');
     setActiveSection(0);
-  };
+  }, []);
 
   const loadSectionContent = (einData: EIN, sectionCode: number) => {
     const section = einData.sections?.find((s) => String(s.section_code) === String(sectionCode));
     setSectionContent(section?.content || '');
   };
 
-  const handleCreateEIN = async () => {
+  const handleCreateEIN = useCallback(async () => {
     if (!selectedProjectId) return;
     setIsSaving(true);
     try {
@@ -121,12 +125,13 @@ export default function EINPage() {
       setEin(data);
       resetForm();
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to create EIN:', err);
       setError('Failed to create EIN');
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [selectedProjectId, resetForm]);
 
   const handleSectionChange = (sectionCode: number) => {
     // Save current section first if changed
@@ -160,6 +165,7 @@ export default function EINPage() {
         }
       }
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save section:', err);
       setError('Failed to save section');
     } finally {
@@ -179,6 +185,7 @@ export default function EINPage() {
       });
       setEin(updated);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to save summary:', err);
       setError('Failed to save summary');
     } finally {
@@ -218,6 +225,7 @@ export default function EINPage() {
       setRecommendation(updated.recommendation || '');
       success('AI generation complete! Please review and edit the content.');
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to generate:', err);
       setError('Failed to generate EIN with AI');
     } finally {
@@ -225,7 +233,7 @@ export default function EINPage() {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = useCallback(async () => {
     if (!ein) return;
     // Validate first
     try {
@@ -235,6 +243,7 @@ export default function EINPage() {
         return;
       }
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Validation failed:', err);
     }
     if (!confirm('Submit this EIN for review?')) return;
@@ -243,12 +252,13 @@ export default function EINPage() {
       const updated = await einApi.submit(ein.id);
       setEin(updated);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to submit:', err);
       setError('Failed to submit EIN');
     } finally {
       setIsSaving(false);
     }
-  };
+  }, [ein, toastError]);
 
   const handleApprove = async () => {
     if (!ein) return;
@@ -258,6 +268,7 @@ export default function EINPage() {
       const updated = await einApi.approve(ein.id);
       setEin(updated);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to approve:', err);
       setError('Failed to approve EIN');
     } finally {
@@ -617,26 +628,10 @@ function SparklesIcon({ className }: { className?: string }) {
   );
 }
 
-function DocumentIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-    </svg>
-  );
-}
-
 function InfoIcon({ className }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" />
-    </svg>
-  );
-}
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
     </svg>
   );
 }

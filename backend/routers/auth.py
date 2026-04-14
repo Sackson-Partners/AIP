@@ -105,7 +105,7 @@ async def register(request: Request, user_in: UserCreate, db: Session = Depends(
 
 
 @router.post("/token", response_model=Token)
-@limiter.limit("10/minute")
+@limiter.limit("5/minute")
 async def login(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -147,7 +147,7 @@ async def logout():
 
 # Alias: /login → same as /token (frontend compatibility)
 @router.post("/login", response_model=Token, include_in_schema=True)
-@limiter.limit("10/minute")
+@limiter.limit("5/minute")
 async def login_alias(
     request: Request,
     form_data: OAuth2PasswordRequestForm = Depends(),

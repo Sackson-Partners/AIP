@@ -48,6 +48,7 @@ async def list_investors(
     limit: int = Query(50, le=200),
     offset: int = Query(0),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """List active investor profiles with optional filtering."""
     import json
@@ -60,7 +61,11 @@ async def list_investors(
 
 
 @router.get("/{investor_id}")
-async def get_investor(investor_id: str, db: Session = Depends(get_db)):
+async def get_investor(
+    investor_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     """Return full profile for a single investor."""
     investor = db.query(Investor).filter(Investor.id == investor_id).first()
     if not investor:

@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { projectsApi, pipelineApi, Project, PipelineStage, ProjectPipelineStatus, PipelineLog } from '../../../lib/api';
+import { WarningIcon, XIcon } from '@/components/ui/icons';
 import { KanbanSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/context/ToastContext';
 
@@ -63,19 +64,25 @@ export default function PipelinePage() {
       );
       setProjectStatuses(statuses);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch pipeline data:', err);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const getProjectsByStage = (stageCode: string): Project[] => {
-    return projects.filter((p) => {
+  const projectsByStage = useMemo(() => {
+    const map: Record<string, Project[]> = {};
+    for (const p of projects) {
       const status = projectStatuses[Number(p.id)];
-      if (!status) return stageCode === 'sourcing'; // Default to sourcing
-      return status.current_stage === stageCode;
-    });
-  };
+      const stage = status?.current_stage ?? 'sourcing';
+      if (!map[stage]) map[stage] = [];
+      map[stage].push(p);
+    }
+    return map;
+  }, [projects, projectStatuses]);
+
+  const getProjectsByStage = (stageCode: string): Project[] => projectsByStage[stageCode] ?? [];
 
   const handleProjectClick = async (project: Project) => {
     setSelectedProject(project);
@@ -83,6 +90,7 @@ export default function PipelinePage() {
       const history = await pipelineApi.getHistory(Number(project.id));
       setProjectHistory(history);
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to fetch history:', err);
       setProjectHistory([]);
     }
@@ -104,6 +112,7 @@ export default function PipelinePage() {
       toastSuccess(`Project moved to ${moveTarget.stage}.`);
       fetchData(); // Refresh
     } catch (err) {
+      // eslint-disable-next-line no-console
       console.error('Failed to move project:', err);
       toastError('Failed to move project. Please try again.');
     } finally {
@@ -391,19 +400,3 @@ export default function PipelinePage() {
   );
 }
 
-// Icon Components
-function WarningIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
-    </svg>
-  );
-}
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-  );
-}

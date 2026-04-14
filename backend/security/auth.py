@@ -26,12 +26,12 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+import bcrypt
 import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import jwt
 from jwt.exceptions import InvalidTokenError as JWTError
-from passlib.context import CryptContext
 from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
@@ -64,7 +64,6 @@ if not SECRET_KEY:
         "in Azure Key Vault / Vercel / Railway before starting the server."
     )
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token")
 
 
@@ -108,12 +107,12 @@ class TokenData(BaseModel):
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a plain-text password against its bcrypt hash."""
-    return pwd_context.verify(plain_password, hashed_password)
+    return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 
 def hash_password(password: str) -> str:
     """Hash a plain-text password using bcrypt."""
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
 
 
 # ---------------------------------------------------------------------------
@@ -324,20 +323,7 @@ async def get_current_user(
             user = db.query(User).filter(
                 User.email == token_data.email
             ).first()
-    elif token_data.role and user.role != token_data.role:
-        # Keep backend role in sync with Supabase role changes
-        logger.info(
-            "Syncing role for %s: %s → %s",
-            token_data.email,
-            user.role,
-            token_data.role,
-        )
-        user.role = token_data.role
-        try:
-            db.commit()
-        except Exception as e:
-            db.rollback()
-            logger.warning("Role sync failed: %s", e)
+    # role is never updated from token — only via admin API
 
     if user is None:
         raise credentials_exception
@@ -440,5 +426,7 @@ def authenticate_user(
     if not user:
         return None
     if not verify_password(password, user.hashed_password):
+        return None
+    if not user.is_active:
         return None
     return user

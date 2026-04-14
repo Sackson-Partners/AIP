@@ -102,6 +102,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    const controller = new AbortController();
     const fetchData = async () => {
       try {
         const [projects, investors, verifications, events] = await Promise.allSettled([
@@ -110,6 +111,7 @@ export default function Dashboard() {
           verificationsApi.list(),
           eventsApi.list(),
         ]);
+        if (controller.signal.aborted) return;
         const p = projects.status === 'fulfilled' ? projects.value : [];
         const i = investors.status === 'fulfilled' ? investors.value : [];
         const v = verifications.status === 'fulfilled' ? verifications.value : [];
@@ -119,10 +121,11 @@ export default function Dashboard() {
       } catch {
         // silently fail — empty state handles this
       } finally {
-        setIsLoading(false);
+        if (!controller.signal.aborted) setIsLoading(false);
       }
     };
     fetchData();
+    return () => controller.abort();
   }, []);
 
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'there';

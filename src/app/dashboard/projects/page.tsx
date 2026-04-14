@@ -1,6 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { PlusIcon, XIcon } from '@/components/ui/icons';
+import { useDebounce } from '@/hooks/useDebounce';
 import { projectsApi, Project, ProjectCreate } from '../../../lib/api';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { PermissionGuard } from '@/components/PermissionGuard';
@@ -28,6 +30,7 @@ export default function ProjectsPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [filter, setFilter] = useState({ sector: '', country: '', status: '' });
+  const debouncedFilter = useDebounce(filter, 300);
   const [newForm, setNewForm] = useState<ProjectCreate>({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
   const [editForm, setEditForm] = useState<ProjectCreate>({ project_name: '', sector: '', country: '', stage: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -36,9 +39,9 @@ export default function ProjectsPage() {
   const fetchProjects = useCallback(async () => {
     try {
       const params: Record<string, string> = {};
-      if (filter.sector) params.sector = filter.sector;
-      if (filter.country) params.country = filter.country;
-      if (filter.status) params.status = filter.status;
+      if (debouncedFilter.sector) params.sector = debouncedFilter.sector;
+      if (debouncedFilter.country) params.country = debouncedFilter.country;
+      if (debouncedFilter.status) params.status = debouncedFilter.status;
       const data = await projectsApi.list(params);
       setProjects(data);
       setFetchError(null);
@@ -47,13 +50,13 @@ export default function ProjectsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, [filter]);
+  }, [debouncedFilter]);
 
   useEffect(() => {
     fetchProjects();
   }, [fetchProjects]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleCreate = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
     try {
@@ -62,12 +65,13 @@ export default function ProjectsPage() {
       setNewForm({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
       toastSuccess('Project created successfully.');
       fetchProjects();
-    } catch (error: any) {
-      toastError(error?.response?.data?.detail || 'Failed to create project. Please try again.');
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to create project. Please try again.';
+      toastError(message);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [newForm, fetchProjects, toastSuccess, toastError]);
 
   const openEdit = (project: Project) => {
     setEditingProject(project);
@@ -87,33 +91,35 @@ export default function ProjectsPage() {
     setShowEditModal(true);
   };
 
-  const handleEdit = async (e: React.FormEvent) => {
+  const handleEdit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingProject) return;
     setIsSubmitting(true);
     try {
-      await projectsApi.update(editingProject.id as any, editForm);
+      await projectsApi.update(editingProject.id, editForm);
       setShowEditModal(false);
       setEditingProject(null);
       toastSuccess('Project updated successfully.');
       fetchProjects();
-    } catch (error: any) {
-      toastError(error?.response?.data?.detail || 'Failed to update project. Please try again.');
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to update project. Please try again.';
+      toastError(message);
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [editingProject, editForm, fetchProjects, toastSuccess, toastError]);
 
-  const handleDelete = async (id: string | number) => {
+  const handleDelete = useCallback(async (id: string | number) => {
     if (!confirm('Are you sure you want to delete this project?')) return;
     try {
-      await projectsApi.delete(id as any);
+      await projectsApi.delete(id);
       toastSuccess('Project deleted.');
       fetchProjects();
-    } catch (error: any) {
-      toastError(error?.response?.data?.detail || 'Failed to delete project. Please try again.');
+    } catch (error: unknown) {
+      const message = (error as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to delete project. Please try again.';
+      toastError(message);
     }
-  };
+  }, [fetchProjects, toastSuccess, toastError]);
 
   const countries = [...new Set(projects.map(p => p.country).filter(Boolean))];
 
@@ -538,18 +544,3 @@ function DetailItem({ label, value }: { label: string; value: string }) {
   );
 }
 
-function PlusIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-    </svg>
-  );
-}
-
-function XIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-    </svg>
-  );
-}

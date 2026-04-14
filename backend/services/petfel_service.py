@@ -184,12 +184,33 @@ class PETFELService:
         return (weighted_sum / total_weight)
 
     def calculate_overall_score(self, assessment_id: int) -> Tuple[float, Dict[str, float]]:
-        """Calculate overall PETFEL score and pillar breakdown"""
+        """Calculate overall PETFEL score and pillar breakdown (single batched DB query)."""
+        from collections import defaultdict
+
+        # One query for all pillars — avoids N separate queries per pillar
+        all_scores = self.db.query(PETFELScore).filter(
+            PETFELScore.assessment_id == assessment_id,
+            PETFELScore.score.isnot(None),
+        ).all()
+
+        scores_by_pillar: dict = defaultdict(list)
+        for s in all_scores:
+            scores_by_pillar[s.pillar].append(s)
+
         pillar_scores = {}
         overall = 0.0
 
         for pillar, weight in PILLAR_WEIGHTS.items():
-            pillar_score = self.calculate_pillar_score(assessment_id, pillar)
+            scores = scores_by_pillar.get(pillar, [])
+            if not scores:
+                pillar_score = 0.0
+            else:
+                total_weight = sum(s.sub_weight for s in scores)
+                if total_weight == 0:
+                    pillar_score = 0.0
+                else:
+                    weighted_sum = sum((s.score - 1) * 25 * s.sub_weight for s in scores)
+                    pillar_score = weighted_sum / total_weight
             pillar_scores[pillar.value] = pillar_score
             overall += pillar_score * weight
 

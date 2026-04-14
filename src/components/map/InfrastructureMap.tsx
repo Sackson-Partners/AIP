@@ -6,6 +6,7 @@ import 'leaflet/dist/leaflet.css'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import type { Project } from '@/types'
+import type L from 'leaflet'
 import type { MarkerClusterGroup } from 'leaflet'
 import { CATEGORIES, STATUS_COLORS, COUNTRY_FLAGS } from '@/data/infrastructure'
 
@@ -103,9 +104,9 @@ interface Props {
 
 export default function InfrastructureMap({ projects, onProjectClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const mapRef       = useRef<any>(null)
-  const clusterRef   = useRef<any>(null)
-  const LRef         = useRef<any>(null)
+  const mapRef       = useRef<L.Map | null>(null)
+  const clusterRef   = useRef<MarkerClusterGroup | null>(null)
+  const LRef         = useRef<typeof L | null>(null)
   const onClickRef   = useRef(onProjectClick)
   onClickRef.current = onProjectClick
 
