@@ -1,59 +1,48 @@
 """
-STEP-3: Role Security Tests
+Role Security Tests
 Verify role assignment is secure — no self-escalation, no JWT role injection.
 """
 import uuid
 import pytest
 
-REGISTER = "/api/auth/register"
-TOKEN    = "/api/auth/token"
-ME       = "/api/auth/me"
+ME    = "/api/auth/me"
+USERS = "/api/users"
 
 
 def make_email():
-    return f"role_{uuid.uuid4().hex[:8]}@aip.com"
+    return f"role_{uuid.uuid4().hex[:8]}@example.com"
 
 
 class TestRegistrationRoleSecurity:
-    """New users always get the default role; role cannot be self-assigned."""
+    """Role security via the admin user-creation endpoint."""
 
-    def test_registration_does_not_accept_role_parameter(self, client):
-        """Registration payload with a role field is ignored / filtered."""
-        email = make_email()
-        r = client.post(REGISTER, json={
-            "email": email,
-            "password": "Test@123!",
-            "full_name": "Role Test User",
-            "role": "admin",  # attacker tries to self-assign admin
-        })
-        # Should succeed (extra field is ignored by Pydantic)
-        assert r.status_code == 201, r.text
-
-    def test_newly_registered_user_gets_default_role(self, client):
-        """Newly registered users always receive 'analyst' (default) role."""
-        email = make_email()
-        r = client.post(REGISTER, json={
-            "email": email,
-            "password": "Test@123!",
-        })
-        assert r.status_code == 201, r.text
-        data = r.json()
-        # Role must be the default (analyst), never admin/super_admin
-        assert data["role"] not in ("admin", "super_admin"), (
-            f"New user got elevated role: {data['role']}"
-        )
-
-    def test_registered_user_cannot_get_admin_role_on_register(self, client):
-        """Even if user tries to include role=admin, they get analyst."""
-        email = make_email()
-        r = client.post(REGISTER, json={
-            "email": email,
+    def test_create_user_with_unknown_role_rejected(self, client, admin_headers):
+        """Admin cannot assign a non-existent role."""
+        r = client.post(USERS, json={
+            "email": make_email(),
             "password": "Test@123!",
             "role": "super_admin",
-        })
+        }, headers=admin_headers)
+        assert r.status_code == 400, r.text
+
+    def test_newly_created_user_gets_assigned_role(self, client, admin_headers):
+        """Admin-created users receive the role specified, never an elevated default."""
+        r = client.post(USERS, json={
+            "email": make_email(),
+            "password": "Test@123!",
+            "role": "analyst",
+        }, headers=admin_headers)
         assert r.status_code == 201, r.text
-        # Extra field should be stripped by Pydantic model
-        assert r.json()["role"] not in ("super_admin", "admin")
+        assert r.json()["role"] == "analyst"
+
+    def test_non_admin_cannot_create_users(self, client, analyst_headers):
+        """Non-admin users cannot create other users."""
+        r = client.post(USERS, json={
+            "email": make_email(),
+            "password": "Test@123!",
+            "role": "viewer",
+        }, headers=analyst_headers)
+        assert r.status_code == 403, r.text
 
 
 class TestAdminRoleManagement:
@@ -99,35 +88,39 @@ class TestAdminRoleManagement:
 
 
 class TestPasswordComplexity:
-    """Password complexity is enforced at registration and admin user creation."""
+    """Password complexity is enforced at admin user creation."""
 
-    def test_weak_password_rejected_at_registration(self, client):
-        """Passwords without special characters are rejected."""
-        r = client.post(REGISTER, json={
+    def test_weak_password_rejected_at_registration(self, client, admin_headers):
+        """Passwords without required complexity are rejected."""
+        r = client.post(USERS, json={
             "email": make_email(),
             "password": "weakpassword",
-        })
-        assert r.status_code == 422, r.text
+            "role": "viewer",
+        }, headers=admin_headers)
+        assert r.status_code in (400, 422), r.text
 
-    def test_no_uppercase_rejected(self, client):
-        r = client.post(REGISTER, json={
+    def test_no_uppercase_rejected(self, client, admin_headers):
+        r = client.post(USERS, json={
             "email": make_email(),
             "password": "nouppercase1!",
-        })
-        assert r.status_code == 422, r.text
+            "role": "viewer",
+        }, headers=admin_headers)
+        assert r.status_code in (400, 422), r.text
 
-    def test_no_digit_rejected(self, client):
-        r = client.post(REGISTER, json={
+    def test_no_digit_rejected(self, client, admin_headers):
+        r = client.post(USERS, json={
             "email": make_email(),
             "password": "NoDigitHere!",
-        })
-        assert r.status_code == 422, r.text
+            "role": "viewer",
+        }, headers=admin_headers)
+        assert r.status_code in (400, 422), r.text
 
-    def test_strong_password_accepted(self, client):
-        r = client.post(REGISTER, json={
+    def test_strong_password_accepted(self, client, admin_headers):
+        r = client.post(USERS, json={
             "email": make_email(),
             "password": "Strong@Pass1",
-        })
+            "role": "viewer",
+        }, headers=admin_headers)
         assert r.status_code == 201, r.text
 
     def test_admin_create_user_weak_password_rejected(self, client, admin_headers):

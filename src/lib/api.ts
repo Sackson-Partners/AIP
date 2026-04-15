@@ -522,7 +522,7 @@ export interface UserStats {
 export const usersApi = {
   list:           (params?: object) => get<User[]>('/users', params),
   get:            (id: string) => get<User>(`/users/${id}`),
-  getStats:       () => get<UserStats>('/users/stats'),
+  getStats:       () => get<UserStats>('/users/stats/summary'),
   create:         (d: object) => post<User>('/users', d),
   update:         (id: string, d: Partial<User>) => patch<User>(`/users/${id}`, d),
   delete:         (id: string) => del<void>(`/users/${id}`),

@@ -12,11 +12,11 @@ Endpoints:
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 
 from backend.models import User
-from backend.security.auth import get_current_user
+from backend.security.auth import get_current_user, limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
@@ -41,8 +41,9 @@ async def get_me(current_user: User = Depends(get_current_user)):
     return current_user
 
 
+@limiter.limit("20/minute")
 @router.post("/sync", response_model=UserResponse)
-async def sync_user(current_user: User = Depends(get_current_user)):
+async def sync_user(request: Request, current_user: User = Depends(get_current_user)):
     """
     Sync the authenticated Supabase user to the local AIP profile.
 
