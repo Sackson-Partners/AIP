@@ -98,6 +98,7 @@ class TokenData(BaseModel):
     email: Optional[str] = None
     user_id: Optional[str] = None
     role: Optional[str] = None
+    is_supabase: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -183,7 +184,7 @@ def _decode_supabase_token_offline(token: str) -> Optional[TokenData]:
         )
         backend_role = SUPABASE_TO_BACKEND_ROLE.get(raw_role or "", DEFAULT_ROLE)
         if email:
-            return TokenData(email=email, user_id=user_id, role=backend_role)
+            return TokenData(email=email, user_id=user_id, role=backend_role, is_supabase=True)
     except JWTError:
         pass
     return None
@@ -221,7 +222,7 @@ async def _verify_supabase_token_api(token: str) -> Optional[TokenData]:
             )
             backend_role = SUPABASE_TO_BACKEND_ROLE.get(raw_role or "", DEFAULT_ROLE)
             if email:
-                return TokenData(email=email, user_id=user_id, role=backend_role)
+                return TokenData(email=email, user_id=user_id, role=backend_role, is_supabase=True)
         else:
             logger.debug(
                 "Supabase API token check: %s %s",
@@ -292,10 +293,27 @@ async def get_current_user(
     if token_data is None or not token_data.email:
         raise credentials_exception
 
-    # 4. Look up user in local DB
-    user = db.query(User).filter(User.email == token_data.email).first()
+    # 4. Look up user in local DB.
+    # For Supabase tokens, prefer supabase_id lookup (stable across email changes).
+    user = None
+    if token_data.is_supabase and token_data.user_id:
+        user = db.query(User).filter(User.supabase_id == token_data.user_id).first()
+        if user is None:
+            # Fall back to email — backfills supabase_id for pre-existing accounts.
+            user = db.query(User).filter(User.email == token_data.email).first()
+            if user and not user.supabase_id:
+                user.supabase_id = token_data.user_id
+                try:
+                    db.commit()
+                    db.refresh(user)
+                except Exception as e:
+                    db.rollback()
+                    logger.warning("Could not backfill supabase_id: %s", e)
+                    user = db.query(User).filter(User.email == token_data.email).first()
+    else:
+        user = db.query(User).filter(User.email == token_data.email).first()
 
-    # 5. Auto-provision Supabase users on first login
+    # 5. Auto-provision Supabase users on first login.
     # Role is always set to DEFAULT_ROLE — never trust JWT role claims on creation.
     # Admins must assign elevated roles manually via the admin panel.
     # is_verified is set to False — manual verification required.
@@ -307,6 +325,7 @@ async def get_current_user(
         )
         user = User(
             email=token_data.email,
+            supabase_id=token_data.user_id if token_data.is_supabase else None,
             full_name=token_data.email.split("@")[0],
             hashed_password=hash_password(os.urandom(32).hex()),
             role=DEFAULT_ROLE,
@@ -320,9 +339,10 @@ async def get_current_user(
         except Exception as e:
             db.rollback()
             logger.warning("Race condition on user provision: %s", e)
-            user = db.query(User).filter(
-                User.email == token_data.email
-            ).first()
+            if token_data.is_supabase and token_data.user_id:
+                user = db.query(User).filter(User.supabase_id == token_data.user_id).first()
+            if user is None:
+                user = db.query(User).filter(User.email == token_data.email).first()
     # role is never updated from token — only via admin API
 
     if user is None:

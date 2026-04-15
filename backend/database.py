@@ -7,7 +7,13 @@ import logging
 
 logger = logging.getLogger("aip")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./aip.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL environment variable is not set. "
+        "Set it to a PostgreSQL connection string, e.g. "
+        "postgresql+psycopg2://user:pass@host:5432/aip"
+    )
 
 # Strip surrounding quotes if present (Azure CLI sometimes adds them)
 DATABASE_URL = DATABASE_URL.strip('"').strip("'")
@@ -20,11 +26,9 @@ logger.info(f"Database backend: {DATABASE_URL.split('@')[-1] if '@' in DATABASE_
 
 connect_args = {}
 if "sqlite" in DATABASE_URL:
+    # SQLite is only used in automated tests — not supported in production.
     connect_args = {"check_same_thread": False}
-    engine = create_engine(
-        DATABASE_URL,
-        connect_args=connect_args,
-    )
+    engine = create_engine(DATABASE_URL, connect_args=connect_args)
 else:
     engine = create_engine(
         DATABASE_URL,

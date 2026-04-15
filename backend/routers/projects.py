@@ -250,6 +250,25 @@ async def update_project(
         )
 
 
+@limiter.limit("30/minute")
+@router.patch("/{project_id}")
+async def patch_project(
+    request: Request,
+    project_id: str,
+    project_in: ProjectCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_analyst),
+):
+    """Partially update an existing infrastructure project (analyst or admin)."""
+    return await update_project(
+        request=request,
+        project_id=project_id,
+        project_in=project_in,
+        db=db,
+        current_user=current_user,
+    )
+
+
 @limiter.limit("10/minute")
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(

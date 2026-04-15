@@ -94,3 +94,76 @@ class TestCreateAccessToken:
         assert payload["sub"] == "claims@test.com"
         assert payload["user_id"] == "abc123"
         assert "exp" in payload
+
+
+class TestAuthenticateUser:
+    def test_valid_credentials_return_user(self, db_session):
+        from backend.models import User
+        from backend.security.auth import hash_password, authenticate_user
+        user = User(
+            email="auth@aip.test",
+            hashed_password=hash_password("ValidPass1!"),
+            is_active=True,
+            role="analyst",
+        )
+        db_session.add(user)
+        db_session.commit()
+        result = authenticate_user(db_session, "auth@aip.test", "ValidPass1!")
+        assert result is not None
+        assert result.email == "auth@aip.test"
+
+    def test_wrong_password_returns_none(self, db_session):
+        from backend.models import User
+        from backend.security.auth import hash_password, authenticate_user
+        user = User(
+            email="wrong@aip.test",
+            hashed_password=hash_password("CorrectPass1!"),
+            is_active=True,
+            role="analyst",
+        )
+        db_session.add(user)
+        db_session.commit()
+        result = authenticate_user(db_session, "wrong@aip.test", "WrongPass1!")
+        assert result is None
+
+    def test_nonexistent_user_returns_none(self, db_session):
+        from backend.security.auth import authenticate_user
+        result = authenticate_user(db_session, "nobody@aip.test", "AnyPass1!")
+        assert result is None
+
+    def test_inactive_user_returns_none(self, db_session):
+        from backend.models import User
+        from backend.security.auth import hash_password, authenticate_user
+        user = User(
+            email="inactive@aip.test",
+            hashed_password=hash_password("ActivePass1!"),
+            is_active=False,
+            role="analyst",
+        )
+        db_session.add(user)
+        db_session.commit()
+        result = authenticate_user(db_session, "inactive@aip.test", "ActivePass1!")
+        assert result is None
+
+
+class TestDecodeToken:
+    def test_valid_local_token_decoded(self):
+        from backend.security.auth import create_access_token, decode_token
+        token = create_access_token({"sub": "decode@test.com", "user_id": "u1"})
+        data = decode_token(token)
+        assert data.email == "decode@test.com"
+
+    def test_invalid_token_raises(self):
+        from fastapi import HTTPException
+        from backend.security.auth import decode_token
+        import pytest
+        with pytest.raises(HTTPException) as exc_info:
+            decode_token("invalid.token.here")
+        assert exc_info.value.status_code == 401
+
+    def test_supabase_flag_false_for_local_token(self):
+        from backend.security.auth import create_access_token, _decode_local_token
+        token = create_access_token({"sub": "local@test.com"})
+        data = _decode_local_token(token)
+        assert data is not None
+        assert data.is_supabase is False

@@ -4,12 +4,13 @@ AIP Investors Router
 Investor profile management for the AIP platform.
 
 Endpoints:
-    GET  /api/investors           - List investor profiles
-    GET  /api/investors/{id}      - Get investor profile
-    POST /api/investors           - Register investor profile
-    PUT  /api/investors/{id}      - Update investor profile
+    GET   /api/investors           - List investor profiles
+    GET   /api/investors/{id}      - Get investor profile
+    POST  /api/investors           - Register investor profile
+    PATCH /api/investors/{id}      - Update investor profile
 """
 
+import json
 import logging
 from typing import Optional
 
@@ -40,6 +41,21 @@ class InvestorCreate(BaseModel):
     website: Optional[str] = Field(None, max_length=500)
 
 
+class InvestorUpdate(BaseModel):
+    organisation_name: Optional[str] = Field(None, min_length=1, max_length=255)
+    investor_type: Optional[str] = Field(None, max_length=100)
+    aum_usd: Optional[str] = Field(None, max_length=50)
+    focus_sectors: Optional[list[str]] = None
+    focus_regions: Optional[list[str]] = None
+    min_ticket_usd: Optional[str] = Field(None, max_length=50)
+    max_ticket_usd: Optional[str] = Field(None, max_length=50)
+    preferred_structures: Optional[list[str]] = None
+    contact_name: Optional[str] = Field(None, max_length=255)
+    contact_email: Optional[str] = Field(None, max_length=255)
+    website: Optional[str] = Field(None, max_length=500)
+    is_active: Optional[bool] = None
+
+
 @router.get("")
 async def list_investors(
     investor_type: Optional[str] = Query(None),
@@ -51,8 +67,6 @@ async def list_investors(
     current_user: User = Depends(get_current_user),
 ):
     """List active investor profiles with optional filtering."""
-    import json
-
     query = db.query(Investor).filter(Investor.is_active == True)
     if investor_type:
         query = query.filter(Investor.investor_type == investor_type)
@@ -82,8 +96,6 @@ async def create_investor(
     current_user: User = Depends(get_current_user),
 ):
     """Register a new investor profile."""
-    import json
-
     investor = Investor(
         user_id=current_user.id,
         organisation_name=investor_in.organisation_name,
@@ -99,6 +111,32 @@ async def create_investor(
         website=investor_in.website,
     )
     db.add(investor)
+    db.commit()
+    db.refresh(investor)
+    return investor
+
+
+@limiter.limit("30/minute")
+@router.patch("/{investor_id}")
+async def update_investor(
+    request: Request,
+    investor_id: str,
+    investor_in: InvestorUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Update an existing investor profile."""
+    investor = db.query(Investor).filter(Investor.id == investor_id).first()
+    if not investor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investor not found.")
+
+    data = investor_in.model_dump(exclude_unset=True)
+    for field, value in data.items():
+        if field in ("focus_sectors", "focus_regions", "preferred_structures"):
+            setattr(investor, field, json.dumps(value or []))
+        else:
+            setattr(investor, field, value)
+
     db.commit()
     db.refresh(investor)
     return investor

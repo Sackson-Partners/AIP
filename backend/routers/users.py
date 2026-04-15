@@ -162,6 +162,7 @@ async def get_user(
 
 
 @limiter.limit("20/minute")
+@router.patch("/{user_id}", response_model=UserOut)
 @router.put("/{user_id}", response_model=UserOut)
 async def update_user(
     request: Request,

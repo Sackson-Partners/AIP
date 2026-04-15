@@ -6,6 +6,13 @@ Uses in-memory SQLite so tests are fast and isolated.
 CRITICAL: imports Base from backend.models (not backend.database) so that
 all ORM models — including v2 extensions — are registered in the metadata.
 """
+import os
+
+# Set required env vars before any backend module imports so that module-level
+# initialisation (database engine creation, SECRET_KEY check) does not fail.
+os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
+os.environ.setdefault("SECRET_KEY", "test-secret-key-do-not-use-in-production-32bytes!")
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker

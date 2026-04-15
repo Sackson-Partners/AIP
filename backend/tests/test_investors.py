@@ -164,7 +164,7 @@ class TestInvestorDataIntegrity:
         result = response.json()
         assert result["target_irr"] == 25.5
 
-    def test_multiple_investors_independent(self, client, sample_investor_data):
+    def test_multiple_investors_independent(self, client, sample_investor_data):  # noqa: F811
         """Test that multiple investors are stored independently."""
         # Create first investor
         response1 = client.post("/investors/", json=sample_investor_data)
@@ -185,3 +185,96 @@ class TestInvestorDataIntegrity:
 
         assert get1.json()["fund_name"] == sample_investor_data["fund_name"]
         assert get2.json()["fund_name"] == "Different Fund"
+
+
+# ── Tests for the actual AIP investors API ──────────────────────────────────
+
+import uuid
+from backend.models import User
+from backend.security.auth import hash_password, create_access_token
+
+INVESTORS = "/api/investors"
+
+
+def _make_analyst_headers(db_session):
+    user = User(
+        email=f"inv_{uuid.uuid4().hex[:8]}@aip.test",
+        hashed_password=hash_password("TestPass@123!"),
+        role="analyst",
+        is_active=True,
+        is_verified=True,
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    token = create_access_token({"sub": user.email, "user_id": user.id})
+    return {"Authorization": f"Bearer {token}"}
+
+
+class TestAIPInvestors:
+    def test_list_investors_authenticated(self, client, db_session):
+        headers = _make_analyst_headers(db_session)
+        r = client.get(INVESTORS, headers=headers)
+        assert r.status_code == 200
+        assert "investors" in r.json()
+
+    def test_list_investors_unauthenticated(self, client):
+        r = client.get(INVESTORS)
+        assert r.status_code == 401
+
+    def test_create_investor_aip_schema(self, client, db_session):
+        headers = _make_analyst_headers(db_session)
+        r = client.post(INVESTORS, json={
+            "organisation_name": "Africa Clean Energy Fund",
+            "investor_type": "private_fund",
+            "min_ticket_usd": "5000000",
+            "max_ticket_usd": "50000000",
+        }, headers=headers)
+        assert r.status_code == 201, r.text
+        data = r.json()
+        assert data["organisation_name"] == "Africa Clean Energy Fund"
+
+    def test_create_investor_missing_required_field(self, client, db_session):
+        headers = _make_analyst_headers(db_session)
+        r = client.post(INVESTORS, json={"investor_type": "dfi"}, headers=headers)
+        assert r.status_code == 422
+
+    def test_get_investor_by_id(self, client, db_session):
+        headers = _make_analyst_headers(db_session)
+        create_r = client.post(INVESTORS, json={
+            "organisation_name": "Get Me Fund",
+        }, headers=headers)
+        assert create_r.status_code == 201
+        investor_id = create_r.json()["id"]
+
+        r = client.get(f"{INVESTORS}/{investor_id}", headers=headers)
+        assert r.status_code == 200
+        assert r.json()["id"] == investor_id
+
+    def test_get_investor_not_found(self, client, db_session):
+        headers = _make_analyst_headers(db_session)
+        r = client.get(f"{INVESTORS}/nonexistent-id", headers=headers)
+        assert r.status_code == 404
+
+    def test_patch_investor(self, client, db_session):
+        headers = _make_analyst_headers(db_session)
+        create_r = client.post(INVESTORS, json={
+            "organisation_name": "Old Name Fund",
+        }, headers=headers)
+        assert create_r.status_code == 201
+        investor_id = create_r.json()["id"]
+
+        r = client.patch(f"{INVESTORS}/{investor_id}", json={
+            "organisation_name": "New Name Fund",
+            "investor_type": "dfi",
+        }, headers=headers)
+        assert r.status_code == 200, r.text
+        assert r.json()["organisation_name"] == "New Name Fund"
+        assert r.json()["investor_type"] == "dfi"
+
+    def test_patch_investor_not_found(self, client, db_session):
+        headers = _make_analyst_headers(db_session)
+        r = client.patch(f"{INVESTORS}/nonexistent-id", json={
+            "organisation_name": "Ghost",
+        }, headers=headers)
+        assert r.status_code == 404

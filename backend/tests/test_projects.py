@@ -129,3 +129,32 @@ class TestCreateProject:
         r = client.get(f"{PROJECTS}/{project_id}", headers=headers)
         assert r.status_code == 200, f"Get by ID failed: {r.text}"
         assert r.json()["id"] == project_id
+
+    def test_patch_project_authenticated(self, client, db_session):
+        """Authenticated user can patch a project with partial update."""
+        headers = _make_headers(db_session)
+        create_resp = client.post(PROJECTS, json={
+            "project_name": "Patch Me",
+            "country": "Rwanda",
+            "sector": "energy",
+        }, headers=headers)
+        assert create_resp.status_code in (200, 201)
+        project_id = create_resp.json()["id"]
+
+        r = client.patch(f"{PROJECTS}/{project_id}", json={
+            "project_name": "Patched Name",
+            "country": "Rwanda",
+            "sector": "energy",
+        }, headers=headers)
+        assert r.status_code == 200, f"Patch failed: {r.text}"
+        assert r.json()["project_name"] == "Patched Name"
+
+    def test_patch_project_not_found(self, client, db_session):
+        """PATCH on non-existent project returns 404."""
+        headers = _make_headers(db_session)
+        r = client.patch(f"{PROJECTS}/nonexistent-id", json={
+            "project_name": "Ghost",
+            "country": "Kenya",
+            "sector": "energy",
+        }, headers=headers)
+        assert r.status_code == 404
