@@ -1,259 +1,166 @@
 # tests/test_verifications.py
 import pytest
-from datetime import date
+
+VERIFICATIONS = "/api/verifications"
 
 
-class TestVerificationPing:
-    """Tests for verification service health check."""
+class TestSubmitVerification:
+    """Tests for verification submission endpoint."""
 
-    def test_ping_endpoint(self, client):
-        """Test the ping endpoint returns ok."""
-        response = client.get("/verifications/ping")
-        assert response.status_code == 200
-        assert response.json() == {"ok": True}
-
-
-class TestCreateVerification:
-    """Tests for verification creation endpoint."""
-
-    def test_create_verification_v0(self, client, db_session):
-        """Test creating a V0 (Submitted) verification."""
-        # Create a project first
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Verification Test Project",
-            sector=Sector.ENERGY,
-            country="Nigeria",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=10000000.0,
-            revenue_model="PPA"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        # Create verification
-        verification_data = {
-            "project_id": project.id,
-            "level": "V0: Submitted"
-        }
-        response = client.post("/verifications/", json=verification_data)
-        assert response.status_code == 200
+    def test_submit_email_verification(self, client, analyst_headers):
+        """Test submitting an email verification request."""
+        response = client.post(VERIFICATIONS, json={
+            "verification_type": "email",
+        }, headers=analyst_headers)
+        assert response.status_code == 201
         data = response.json()
-        assert data["project_id"] == project.id
-        assert data["level"] == "V0: Submitted"
+        assert data["verification_type"] == "email"
+        assert "id" in data
 
-    def test_create_verification_with_bankability_score(self, client, db_session):
-        """Test creating verification with full bankability scoring."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Bankability Test Project",
-            sector=Sector.TRANSPORT,
-            country="Kenya",
-            stage=ProjectStage.FEASIBILITY,
-            estimated_capex=50000000.0,
-            revenue_model="Toll collection"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        verification_data = {
-            "project_id": project.id,
-            "level": "V3: Bankability Screened",
-            "bankability": {
-                "technical_readiness": 85,
-                "financial_robustness": 78,
-                "legal_clarity": 90,
-                "esg_compliance": 82,
-                "overall_score": 83.75,
-                "risk_flags": ["Currency risk", "Political uncertainty"],
-                "last_verified": str(date.today())
-            }
-        }
-        response = client.post("/verifications/", json=verification_data)
-        assert response.status_code == 200
+    def test_submit_identity_verification(self, client, analyst_headers):
+        """Test submitting an identity verification request."""
+        response = client.post(VERIFICATIONS, json={
+            "verification_type": "identity",
+            "document_url": "s3://bucket/passport.jpg",
+        }, headers=analyst_headers)
+        assert response.status_code == 201
         data = response.json()
-        assert data["level"] == "V3: Bankability Screened"
+        assert data["verification_type"] == "identity"
 
-    def test_create_verification_project_not_found(self, client):
-        """Test creating verification for non-existent project fails."""
-        verification_data = {
-            "project_id": 99999,
-            "level": "V0: Submitted"
-        }
-        response = client.post("/verifications/", json=verification_data)
-        assert response.status_code == 404
-        assert "project not found" in response.json()["detail"].lower()
+    def test_submit_accreditation_verification(self, client, analyst_headers):
+        """Test submitting an accreditation verification request."""
+        response = client.post(VERIFICATIONS, json={
+            "verification_type": "accreditation",
+            "document_url": "s3://bucket/certificate.pdf",
+        }, headers=analyst_headers)
+        assert response.status_code == 201
+        assert response.json()["verification_type"] == "accreditation"
 
-    def test_create_verification_invalid_level(self, client, db_session):
-        """Test creating verification with invalid level fails."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Invalid Level Project",
-            sector=Sector.WATER,
-            country="Ghana",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=5000000.0,
-            revenue_model="Government contract"
-        )
-        db_session.add(project)
-        db_session.commit()
+    def test_submit_verification_requires_auth(self, client):
+        """Test that verification submission requires auth."""
+        response = client.post(VERIFICATIONS, json={"verification_type": "email"})
+        assert response.status_code == 401
 
-        verification_data = {
-            "project_id": project.id,
-            "level": "Invalid Level"
-        }
-        response = client.post("/verifications/", json=verification_data)
+    def test_submit_verification_missing_type(self, client, analyst_headers):
+        """Test that missing verification_type is rejected."""
+        response = client.post(VERIFICATIONS, json={
+            "document_url": "s3://bucket/doc.pdf",
+        }, headers=analyst_headers)
         assert response.status_code == 422
 
+    def test_submit_verification_with_document_url(self, client, analyst_headers):
+        """Test submitting verification with optional document_url."""
+        response = client.post(VERIFICATIONS, json={
+            "verification_type": "identity",
+            "document_url": "https://storage.example.com/docs/id.pdf",
+        }, headers=analyst_headers)
+        assert response.status_code == 201
+        assert response.json()["document_url"] == "https://storage.example.com/docs/id.pdf"
 
-class TestGetVerification:
-    """Tests for verification retrieval endpoint."""
+    def test_submit_verification_without_document_url(self, client, analyst_headers):
+        """Test submitting verification without optional document_url."""
+        response = client.post(VERIFICATIONS, json={
+            "verification_type": "email",
+        }, headers=analyst_headers)
+        assert response.status_code == 201
 
-    def test_get_verification_success(self, client, db_session):
-        """Test successful verification retrieval."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Get Verification Project",
-            sector=Sector.MINING,
-            country="Zambia",
-            stage=ProjectStage.PROCUREMENT,
-            estimated_capex=100000000.0,
-            revenue_model="Commodity sales"
-        )
-        db_session.add(project)
-        db_session.commit()
 
-        # Create verification
-        verification_data = {
-            "project_id": project.id,
-            "level": "V1: Sponsor Identity Verified"
-        }
-        create_response = client.post("/verifications/", json=verification_data)
-        verification_id = create_response.json()["id"]
+class TestVerificationStatus:
+    """Tests for user's own verification status endpoint."""
 
-        # Retrieve verification
-        response = client.get(f"/verifications/{verification_id}")
+    def test_get_own_status_empty(self, client, analyst_headers):
+        """Test getting verification status when none submitted."""
+        response = client.get(f"{VERIFICATIONS}/status", headers=analyst_headers)
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == verification_id
-        assert data["level"] == "V1: Sponsor Identity Verified"
+        assert "verifications" in data
+        assert data["verifications"] == []
 
-    def test_get_verification_not_found(self, client):
-        """Test retrieving non-existent verification returns 404."""
-        response = client.get("/verifications/99999")
-        assert response.status_code == 404
+    def test_get_own_status_after_submission(self, client, analyst_headers):
+        """Test that submitted verification appears in status."""
+        client.post(VERIFICATIONS, json={"verification_type": "email"}, headers=analyst_headers)
+        response = client.get(f"{VERIFICATIONS}/status", headers=analyst_headers)
+        assert response.status_code == 200
+        assert len(response.json()["verifications"]) == 1
+
+    def test_status_requires_auth(self, client):
+        """Test that status endpoint requires authentication."""
+        response = client.get(f"{VERIFICATIONS}/status")
+        assert response.status_code == 401
 
 
-class TestVerificationByProject:
-    """Tests for verification queries by project."""
+class TestListVerifications:
+    """Tests for admin verification listing endpoint."""
 
-    def test_list_verifications_by_project(self, client, db_session):
-        """Test listing all verifications for a project."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Multi Verification Project",
-            sector=Sector.AGRICULTURE,
-            country="Ethiopia",
-            stage=ProjectStage.FEASIBILITY,
-            estimated_capex=20000000.0,
-            revenue_model="Crop sales"
-        )
-        db_session.add(project)
-        db_session.commit()
+    def test_admin_can_list_verifications(self, client, admin_headers, analyst_headers):
+        """Test that admin can list all verifications."""
+        # Submit a verification as analyst
+        client.post(VERIFICATIONS, json={"verification_type": "email"}, headers=analyst_headers)
 
-        # Create multiple verifications
-        levels = ["V0: Submitted", "V1: Sponsor Identity Verified", "V2: Documents Verified"]
-        for level in levels:
-            client.post("/verifications/", json={
-                "project_id": project.id,
-                "level": level
-            })
-
-        # List verifications
-        response = client.get(f"/verifications/project/{project.id}")
+        response = client.get(VERIFICATIONS, headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
-        assert len(data) == 3
+        assert "verifications" in data
+        assert data["count"] >= 1
 
-    def test_list_verifications_project_not_found(self, client):
-        """Test listing verifications for non-existent project."""
-        response = client.get("/verifications/project/99999")
-        assert response.status_code == 404
+    def test_non_admin_cannot_list_verifications(self, client, analyst_headers):
+        """Test that non-admin cannot list all verifications."""
+        response = client.get(VERIFICATIONS, headers=analyst_headers)
+        assert response.status_code == 403
 
-    def test_get_latest_verification(self, client, db_session):
-        """Test getting the latest verification for a project."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Latest Verification Project",
-            sector=Sector.HEALTH,
-            country="Rwanda",
-            stage=ProjectStage.CONSTRUCTION,
-            estimated_capex=15000000.0,
-            revenue_model="Healthcare services"
-        )
-        db_session.add(project)
-        db_session.commit()
+    def test_list_requires_auth(self, client):
+        """Test that list endpoint requires authentication."""
+        response = client.get(VERIFICATIONS)
+        assert response.status_code == 401
 
-        # Create verifications in order
-        levels = ["V0: Submitted", "V1: Sponsor Identity Verified", "V2: Documents Verified"]
-        for level in levels:
-            client.post("/verifications/", json={
-                "project_id": project.id,
-                "level": level
-            })
 
-        # Get latest
-        response = client.get(f"/verifications/project/{project.id}/latest")
+class TestReviewVerification:
+    """Tests for admin verification review endpoint."""
+
+    def test_admin_can_approve_verification(self, client, admin_headers, analyst_headers):
+        """Test that admin can approve a verification."""
+        submit_r = client.post(VERIFICATIONS, json={
+            "verification_type": "identity",
+        }, headers=analyst_headers)
+        ver_id = submit_r.json()["id"]
+
+        response = client.put(f"{VERIFICATIONS}/{ver_id}/review", json={
+            "status": "approved",
+            "reviewer_notes": "Documents verified successfully.",
+        }, headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
-        assert data["level"] == "V2: Documents Verified"
+        assert data["status"] == "approved"
 
-    def test_get_latest_verification_no_verifications(self, client, db_session):
-        """Test getting latest verification when none exist."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="No Verification Project",
-            sector=Sector.PORTS,
-            country="Tanzania",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=200000000.0,
-            revenue_model="Port fees"
-        )
-        db_session.add(project)
-        db_session.commit()
+    def test_admin_can_reject_verification(self, client, admin_headers, analyst_headers):
+        """Test that admin can reject a verification."""
+        submit_r = client.post(VERIFICATIONS, json={
+            "verification_type": "accreditation",
+        }, headers=analyst_headers)
+        ver_id = submit_r.json()["id"]
 
-        response = client.get(f"/verifications/project/{project.id}/latest")
+        response = client.put(f"{VERIFICATIONS}/{ver_id}/review", json={
+            "status": "rejected",
+            "reviewer_notes": "Insufficient documentation.",
+        }, headers=admin_headers)
+        assert response.status_code == 200
+        assert response.json()["status"] == "rejected"
+
+    def test_review_not_found(self, client, admin_headers):
+        """Test reviewing non-existent verification returns 404."""
+        response = client.put(f"{VERIFICATIONS}/nonexistent-id/review", json={
+            "status": "approved",
+        }, headers=admin_headers)
         assert response.status_code == 404
 
+    def test_non_admin_cannot_review(self, client, analyst_headers, admin_headers):
+        """Test that non-admin cannot review verifications."""
+        submit_r = client.post(VERIFICATIONS, json={
+            "verification_type": "email",
+        }, headers=analyst_headers)
+        ver_id = submit_r.json()["id"]
 
-class TestVerificationLevels:
-    """Tests for all verification levels."""
-
-    def test_all_verification_levels(self, client, db_session):
-        """Test creating verifications at all levels."""
-        from backend.models import Project, Sector, ProjectStage
-        levels = [
-            "V0: Submitted",
-            "V1: Sponsor Identity Verified",
-            "V2: Documents Verified",
-            "V3: Bankability Screened"
-        ]
-
-        for i, level in enumerate(levels):
-            project = Project(
-                name=f"Level {i} Project",
-                sector=Sector.RAIL,
-                country="South Africa",
-                stage=ProjectStage.OPERATION,
-                estimated_capex=500000000.0,
-                revenue_model="Rail freight"
-            )
-            db_session.add(project)
-            db_session.commit()
-
-            response = client.post("/verifications/", json={
-                "project_id": project.id,
-                "level": level
-            })
-            assert response.status_code == 200
-            assert response.json()["level"] == level
+        response = client.put(f"{VERIFICATIONS}/{ver_id}/review", json={
+            "status": "approved",
+        }, headers=analyst_headers)
+        assert response.status_code == 403

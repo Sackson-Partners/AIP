@@ -1,243 +1,171 @@
 # tests/test_introductions.py
 import pytest
 
+INTRODUCTIONS = "/api/introductions"
+
 
 class TestCreateIntroduction:
     """Tests for introduction creation endpoint."""
 
-    def test_create_introduction_success(self, client, sample_investor_data, sample_project_data, db_session):
+    def test_create_introduction_success(self, client, analyst_headers, sample_project):
         """Test successful introduction creation."""
-        # First create an investor
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        investor_id = investor_response.json()["id"]
-
-        # Create a project directly in db (since projects endpoint may not exist)
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name=sample_project_data["name"],
-            sector=Sector.ENERGY,
-            country=sample_project_data["country"],
-            stage=ProjectStage.FEASIBILITY,
-            estimated_capex=sample_project_data["estimated_capex"],
-            revenue_model=sample_project_data["revenue_model"]
-        )
-        db_session.add(project)
-        db_session.commit()
-        project_id = project.id
-
-        # Create introduction
         intro_data = {
-            "investor_id": investor_id,
-            "project_id": project_id,
-            "message": "Interested in this project",
-            "nda_executed": False,
-            "sponsor_approved": False,
-            "status": "Pending"
+            "project_id": sample_project.id,
+            "notes": "Interested in this infrastructure project",
+            "initiated_by": "investor",
         }
-        response = client.post("/introductions/", json=intro_data)
-        assert response.status_code == 200
+        response = client.post(INTRODUCTIONS, json=intro_data, headers=analyst_headers)
+        assert response.status_code == 201
         data = response.json()
-        assert data["investor_id"] == investor_id
-        assert data["project_id"] == project_id
-        assert data["status"] == "Pending"
+        assert data["project_id"] == sample_project.id
+        assert data["notes"] == "Interested in this infrastructure project"
+        assert "id" in data
 
-    def test_create_introduction_minimal_data(self, client, sample_investor_data, db_session):
+    def test_create_introduction_minimal_data(self, client, analyst_headers, sample_project):
         """Test creating introduction with only required fields."""
-        # Create investor
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        investor_id = investor_response.json()["id"]
-
-        # Create project in db
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Test Project",
-            sector=Sector.ENERGY,
-            country="Kenya",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=10000000.0,
-            revenue_model="PPA"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        # Create introduction with minimal data
-        intro_data = {
-            "investor_id": investor_id,
-            "project_id": project.id
-        }
-        response = client.post("/introductions/", json=intro_data)
-        assert response.status_code == 200
+        intro_data = {"project_id": sample_project.id}
+        response = client.post(INTRODUCTIONS, json=intro_data, headers=analyst_headers)
+        assert response.status_code == 201
         data = response.json()
-        assert data["nda_executed"] == False
-        assert data["sponsor_approved"] == False
-        assert data["status"] == "Pending"
+        assert data["project_id"] == sample_project.id
 
-    def test_create_introduction_missing_investor_id(self, client):
-        """Test that missing investor_id is rejected."""
+    def test_create_introduction_with_investor_id(self, client, analyst_headers, sample_project, sample_investor):
+        """Test creating introduction with an associated investor."""
         intro_data = {
-            "project_id": 1,
-            "message": "Test message"
+            "project_id": sample_project.id,
+            "investor_id": sample_investor.id,
+            "initiated_by": "platform",
         }
-        response = client.post("/introductions/", json=intro_data)
+        response = client.post(INTRODUCTIONS, json=intro_data, headers=analyst_headers)
+        assert response.status_code == 201
+        data = response.json()
+        assert data["investor_id"] == sample_investor.id
+
+    def test_create_introduction_missing_project_id(self, client, analyst_headers):
+        """Test that missing project_id is rejected."""
+        intro_data = {"notes": "No project specified"}
+        response = client.post(INTRODUCTIONS, json=intro_data, headers=analyst_headers)
         assert response.status_code == 422
 
+    def test_create_introduction_project_not_found(self, client, analyst_headers):
+        """Test that non-existent project_id returns 404."""
+        intro_data = {"project_id": "nonexistent-project-id"}
+        response = client.post(INTRODUCTIONS, json=intro_data, headers=analyst_headers)
+        assert response.status_code == 404
+        assert "project not found" in response.json()["detail"].lower()
 
-class TestGetIntroduction:
-    """Tests for introduction retrieval endpoint."""
+    def test_create_introduction_requires_auth(self, client, sample_project):
+        """Test that unauthenticated request is rejected."""
+        intro_data = {"project_id": sample_project.id}
+        response = client.post(INTRODUCTIONS, json=intro_data)
+        assert response.status_code == 401
 
-    def test_get_introduction_success(self, client, sample_investor_data, db_session):
-        """Test successful introduction retrieval."""
-        # Create investor
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        investor_id = investor_response.json()["id"]
 
-        # Create project
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Test Project",
-            sector=Sector.TRANSPORT,
-            country="South Africa",
-            stage=ProjectStage.PROCUREMENT,
-            estimated_capex=75000000.0,
-            revenue_model="Toll collection"
-        )
-        db_session.add(project)
-        db_session.commit()
+class TestListIntroductions:
+    """Tests for introduction listing endpoint."""
 
-        # Create introduction
-        intro_data = {
-            "investor_id": investor_id,
-            "project_id": project.id,
-            "message": "Looking to invest",
-            "status": "Pending"
-        }
-        create_response = client.post("/introductions/", json=intro_data)
-        intro_id = create_response.json()["id"]
+    def test_list_introductions_empty(self, client, analyst_headers):
+        """Test listing introductions when none exist for user."""
+        response = client.get(INTRODUCTIONS, headers=analyst_headers)
+        assert response.status_code == 200
+        body = response.json()
+        assert "introductions" in body
+        assert body["introductions"] == []
+        assert body["count"] == 0
 
-        # Retrieve introduction
-        response = client.get(f"/introductions/{intro_id}")
+    def test_list_introductions_after_create(self, client, analyst_headers, sample_project):
+        """Test that created introductions appear in the list."""
+        client.post(INTRODUCTIONS, json={"project_id": sample_project.id},
+                    headers=analyst_headers)
+        response = client.get(INTRODUCTIONS, headers=analyst_headers)
+        assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 1
+
+    def test_list_introductions_requires_auth(self, client):
+        """Test that listing requires authentication."""
+        response = client.get(INTRODUCTIONS)
+        assert response.status_code == 401
+
+
+class TestUpdateIntroduction:
+    """Tests for introduction update endpoint."""
+
+    def test_update_introduction_status(self, client, analyst_headers, sample_project):
+        """Test updating introduction status."""
+        create_r = client.post(INTRODUCTIONS, json={
+            "project_id": sample_project.id,
+        }, headers=analyst_headers)
+        assert create_r.status_code == 201
+        intro_id = create_r.json()["id"]
+
+        response = client.put(f"{INTRODUCTIONS}/{intro_id}", json={
+            "status": "active",
+        }, headers=analyst_headers)
+        assert response.status_code == 200
+        assert response.json()["status"] == "active"
+
+    def test_update_introduction_with_notes(self, client, analyst_headers, sample_project):
+        """Test updating introduction notes."""
+        create_r = client.post(INTRODUCTIONS, json={
+            "project_id": sample_project.id,
+        }, headers=analyst_headers)
+        intro_id = create_r.json()["id"]
+
+        response = client.put(f"{INTRODUCTIONS}/{intro_id}", json={
+            "status": "completed",
+            "notes": "Deal successfully closed.",
+        }, headers=analyst_headers)
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == intro_id
-        assert data["message"] == "Looking to invest"
+        assert data["status"] == "completed"
+        assert data["notes"] == "Deal successfully closed."
 
-    def test_get_introduction_not_found(self, client):
-        """Test retrieving non-existent introduction returns 404."""
-        response = client.get("/introductions/99999")
+    def test_update_introduction_not_found(self, client, analyst_headers):
+        """Test updating non-existent introduction returns 404."""
+        response = client.put(f"{INTRODUCTIONS}/nonexistent-id", json={
+            "status": "active",
+        }, headers=analyst_headers)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
+    def test_update_introduction_requires_auth(self, client, analyst_headers, sample_project):
+        """Test that update without auth is rejected."""
+        create_r = client.post(INTRODUCTIONS, json={
+            "project_id": sample_project.id,
+        }, headers=analyst_headers)
+        intro_id = create_r.json()["id"]
+
+        response = client.put(f"{INTRODUCTIONS}/{intro_id}", json={"status": "active"})
+        assert response.status_code == 401
+
 
 class TestIntroductionWorkflow:
-    """Tests for introduction workflow states."""
+    """Tests for introduction workflow and field handling."""
 
-    def test_introduction_default_status(self, client, sample_investor_data, db_session):
-        """Test that new introductions default to Pending status."""
-        # Setup
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        investor_id = investor_response.json()["id"]
-
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Default Status Project",
-            sector=Sector.WATER,
-            country="Ghana",
-            stage=ProjectStage.CONSTRUCTION,
-            estimated_capex=25000000.0,
-            revenue_model="Government contract"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        # Create introduction without specifying status
+    def test_initiated_by_platform(self, client, analyst_headers, sample_project):
+        """Test introduction initiated by platform."""
         intro_data = {
-            "investor_id": investor_id,
-            "project_id": project.id
+            "project_id": sample_project.id,
+            "initiated_by": "platform",
         }
-        response = client.post("/introductions/", json=intro_data)
-        assert response.status_code == 200
-        assert response.json()["status"] == "Pending"
+        response = client.post(INTRODUCTIONS, json=intro_data, headers=analyst_headers)
+        assert response.status_code == 201
+        assert response.json()["initiated_by"] == "platform"
 
-    def test_introduction_nda_defaults_to_false(self, client, sample_investor_data, db_session):
-        """Test that NDA executed defaults to False."""
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        investor_id = investor_response.json()["id"]
+    def test_initiated_by_investor_default(self, client, analyst_headers, sample_project):
+        """Test that initiated_by defaults to investor."""
+        intro_data = {"project_id": sample_project.id}
+        response = client.post(INTRODUCTIONS, json=intro_data, headers=analyst_headers)
+        assert response.status_code == 201
+        assert response.json()["initiated_by"] == "investor"
 
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="NDA Test Project",
-            sector=Sector.MINING,
-            country="Zambia",
-            stage=ProjectStage.OPERATION,
-            estimated_capex=150000000.0,
-            revenue_model="Commodity sales"
-        )
-        db_session.add(project)
-        db_session.commit()
-
+    def test_introduction_with_long_notes(self, client, analyst_headers, sample_project):
+        """Test introduction with long notes string."""
+        long_notes = "A" * 500
         intro_data = {
-            "investor_id": investor_id,
-            "project_id": project.id
+            "project_id": sample_project.id,
+            "notes": long_notes,
         }
-        response = client.post("/introductions/", json=intro_data)
-        assert response.status_code == 200
-        assert response.json()["nda_executed"] == False
-
-    def test_introduction_with_nda_executed(self, client, sample_investor_data, db_session):
-        """Test creating introduction with NDA already executed."""
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        investor_id = investor_response.json()["id"]
-
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="NDA Executed Project",
-            sector=Sector.AGRICULTURE,
-            country="Ethiopia",
-            stage=ProjectStage.FEASIBILITY,
-            estimated_capex=8000000.0,
-            revenue_model="Crop sales"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        intro_data = {
-            "investor_id": investor_id,
-            "project_id": project.id,
-            "nda_executed": True,
-            "status": "In Progress"
-        }
-        response = client.post("/introductions/", json=intro_data)
-        assert response.status_code == 200
-        assert response.json()["nda_executed"] == True
-        assert response.json()["status"] == "In Progress"
-
-
-class TestIntroductionValidation:
-    """Tests for introduction data validation."""
-
-    def test_introduction_with_long_message(self, client, sample_investor_data, db_session):
-        """Test introduction with a long message."""
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        investor_id = investor_response.json()["id"]
-
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Long Message Project",
-            sector=Sector.HEALTH,
-            country="Rwanda",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=20000000.0,
-            revenue_model="Healthcare services"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        long_message = "A" * 1000  # 1000 character message
-        intro_data = {
-            "investor_id": investor_id,
-            "project_id": project.id,
-            "message": long_message
-        }
-        response = client.post("/introductions/", json=intro_data)
-        assert response.status_code == 200
-        assert len(response.json()["message"]) == 1000
+        response = client.post(INTRODUCTIONS, json=intro_data, headers=analyst_headers)
+        assert response.status_code == 201

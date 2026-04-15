@@ -203,6 +203,17 @@ def sample_project_data():
         "description": "Phase 3 expansion of Apapa Container Terminal",
     }
 @pytest.fixture
+def sample_investor_data():
+    """Dict for investor creation API calls."""
+    return {
+        "organisation_name": "Africa Infrastructure Fund I",
+        "investor_type": "private_fund",
+        "min_ticket_usd": "5000000",
+        "max_ticket_usd": "100000000",
+    }
+
+
+@pytest.fixture
 def sample_user_data():
     return {
         "email": "fixture@test.com",

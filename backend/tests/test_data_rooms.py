@@ -1,243 +1,163 @@
 # tests/test_data_rooms.py
 import pytest
 
+DATA_ROOMS = "/api/data-rooms"
+
 
 class TestCreateDataRoom:
     """Tests for data room creation endpoint."""
 
-    def test_create_data_room_success(self, client, db_session):
+    def test_create_data_room_success(self, client, admin_headers):
         """Test successful data room creation."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Data Room Test Project",
-            sector=Sector.ENERGY,
-            country="Nigeria",
-            stage=ProjectStage.FEASIBILITY,
-            estimated_capex=25000000.0,
-            revenue_model="PPA"
-        )
-        db_session.add(project)
-        db_session.commit()
-
         data_room_data = {
-            "project_id": project.id,
-            "nda_required": True,
-            "access_users": [1, 2, 3],
-            "documents": {"feasibility_study": "s3://bucket/doc1.pdf"}
+            "project_id": "proj-001",
+            "name": "Nairobi Solar Farm - Due Diligence Room",
         }
-        response = client.post("/data-rooms/", json=data_room_data)
-        assert response.status_code == 200
+        response = client.post(DATA_ROOMS, json=data_room_data, headers=admin_headers)
+        assert response.status_code == 201
         data = response.json()
-        assert data["project_id"] == project.id
-        assert data["nda_required"] == True
+        assert data["project_id"] == "proj-001"
+        assert data["name"] == "Nairobi Solar Farm - Due Diligence Room"
         assert "id" in data
 
-    def test_create_data_room_no_nda_required(self, client, db_session):
-        """Test creating data room without NDA requirement."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Public Data Room Project",
-            sector=Sector.WATER,
-            country="Kenya",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=5000000.0,
-            revenue_model="Government contract"
-        )
-        db_session.add(project)
-        db_session.commit()
-
+    def test_create_data_room_with_description(self, client, admin_headers):
+        """Test creating data room with optional description."""
         data_room_data = {
-            "project_id": project.id,
-            "nda_required": False
+            "project_id": "proj-002",
+            "name": "Lagos Port - Investor Room",
+            "description": "Restricted access room for accredited investors only",
         }
-        response = client.post("/data-rooms/", json=data_room_data)
-        assert response.status_code == 200
+        response = client.post(DATA_ROOMS, json=data_room_data, headers=admin_headers)
+        assert response.status_code == 201
         data = response.json()
-        assert data["nda_required"] == False
+        assert data["description"] == "Restricted access room for accredited investors only"
 
-    def test_create_data_room_with_documents(self, client, db_session):
-        """Test creating data room with multiple documents."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Document Test Project",
-            sector=Sector.TRANSPORT,
-            country="Ghana",
-            stage=ProjectStage.PROCUREMENT,
-            estimated_capex=80000000.0,
-            revenue_model="Toll collection"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        documents = {
-            "feasibility_study": "s3://bucket/feasibility.pdf",
-            "environmental_impact": "s3://bucket/eia.pdf",
-            "financial_model": "s3://bucket/model.xlsx",
-            "legal_documents": "s3://bucket/contracts.pdf"
-        }
+    def test_create_data_room_with_access_level(self, client, admin_headers):
+        """Test creating data room with specified access level."""
         data_room_data = {
-            "project_id": project.id,
-            "nda_required": True,
-            "documents": documents
+            "project_id": "proj-003",
+            "name": "Public Project Room",
+            "access_level": "public",
         }
-        response = client.post("/data-rooms/", json=data_room_data)
-        assert response.status_code == 200
+        response = client.post(DATA_ROOMS, json=data_room_data, headers=admin_headers)
+        assert response.status_code == 201
 
     def test_create_data_room_missing_project_id(self, client, admin_headers):
         """Test that missing project_id is rejected."""
         data_room_data = {
-            "nda_required": True
+            "name": "Orphan Room",
         }
         response = client.post("/api/data-rooms", json=data_room_data, headers=admin_headers)
         assert response.status_code == 422
+
+    def test_create_data_room_missing_name(self, client, admin_headers):
+        """Test that missing name is rejected."""
+        data_room_data = {
+            "project_id": "proj-004",
+        }
+        response = client.post(DATA_ROOMS, json=data_room_data, headers=admin_headers)
+        assert response.status_code == 422
+
+    def test_create_data_room_requires_admin(self, client, analyst_headers):
+        """Test that non-admin cannot create data rooms."""
+        data_room_data = {
+            "project_id": "proj-005",
+            "name": "Unauthorized Room",
+        }
+        response = client.post(DATA_ROOMS, json=data_room_data, headers=analyst_headers)
+        assert response.status_code == 403
+
+    def test_create_data_room_requires_auth(self, client):
+        """Test that unauthenticated request is rejected."""
+        data_room_data = {"project_id": "proj-006", "name": "No Auth Room"}
+        response = client.post(DATA_ROOMS, json=data_room_data)
+        assert response.status_code == 401
 
 
 class TestGetDataRoom:
     """Tests for data room retrieval endpoint."""
 
-    def test_get_data_room_success(self, client, db_session):
+    def test_get_data_room_success(self, client, admin_headers, analyst_headers):
         """Test successful data room retrieval."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Get Data Room Project",
-            sector=Sector.MINING,
-            country="South Africa",
-            stage=ProjectStage.CONSTRUCTION,
-            estimated_capex=150000000.0,
-            revenue_model="Commodity sales"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        # Create data room
-        data_room_data = {
-            "project_id": project.id,
-            "nda_required": True,
-            "access_users": [10, 20],
-            "documents": {"report": "s3://bucket/report.pdf"}
-        }
-        create_response = client.post("/data-rooms/", json=data_room_data)
+        create_response = client.post(DATA_ROOMS, json={
+            "project_id": "proj-get-001",
+            "name": "Retrievable Room",
+        }, headers=admin_headers)
+        assert create_response.status_code == 201
         room_id = create_response.json()["id"]
 
-        # Retrieve data room
-        response = client.get(f"/data-rooms/{room_id}")
+        response = client.get(f"{DATA_ROOMS}/{room_id}", headers=analyst_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == room_id
-        assert data["project_id"] == project.id
+        assert data["project_id"] == "proj-get-001"
 
-    def test_get_data_room_not_found(self, client):
+    def test_get_data_room_not_found(self, client, analyst_headers):
         """Test retrieving non-existent data room returns 404."""
-        response = client.get("/data-rooms/99999")
+        response = client.get(f"{DATA_ROOMS}/nonexistent-id", headers=analyst_headers)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_get_data_room_invalid_id(self, client):
-        """Test retrieving with invalid ID format."""
-        response = client.get("/data-rooms/invalid")
-        assert response.status_code == 422
+    def test_get_data_room_requires_auth(self, client):
+        """Test that unauthenticated access is rejected."""
+        response = client.get(f"{DATA_ROOMS}/some-id")
+        assert response.status_code == 401
 
 
-class TestDataRoomAccessControl:
-    """Tests for data room access control features."""
+class TestListDataRooms:
+    """Tests for data room listing endpoint."""
 
-    def test_data_room_empty_access_list(self, client, db_session):
-        """Test data room with empty access list."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Empty Access Project",
-            sector=Sector.AGRICULTURE,
-            country="Ethiopia",
-            stage=ProjectStage.FEASIBILITY,
-            estimated_capex=8000000.0,
-            revenue_model="Crop sales"
-        )
-        db_session.add(project)
-        db_session.commit()
-
-        data_room_data = {
-            "project_id": project.id,
-            "nda_required": True,
-            "access_users": []
-        }
-        response = client.post("/data-rooms/", json=data_room_data)
+    def test_list_data_rooms_empty(self, client, admin_headers):
+        """Test listing data rooms when none exist."""
+        response = client.get(DATA_ROOMS, headers=admin_headers)
         assert response.status_code == 200
+        body = response.json()
+        assert body["data_rooms"] == []
+        assert body["count"] == 0
 
-    def test_data_room_large_access_list(self, client, db_session):
-        """Test data room with many users."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Large Access Project",
-            sector=Sector.HEALTH,
-            country="Rwanda",
-            stage=ProjectStage.OPERATION,
-            estimated_capex=12000000.0,
-            revenue_model="Healthcare services"
-        )
-        db_session.add(project)
-        db_session.commit()
+    def test_list_data_rooms_multiple(self, client, admin_headers):
+        """Test listing multiple data rooms."""
+        for i in range(3):
+            client.post(DATA_ROOMS, json={
+                "project_id": f"proj-list-{i}",
+                "name": f"Room {i}",
+            }, headers=admin_headers)
 
-        # Create access list with 50 users
-        access_users = list(range(1, 51))
-        data_room_data = {
-            "project_id": project.id,
-            "nda_required": True,
-            "access_users": access_users
-        }
-        response = client.post("/data-rooms/", json=data_room_data)
+        response = client.get(DATA_ROOMS, headers=admin_headers)
         assert response.status_code == 200
+        body = response.json()
+        assert body["count"] == 3
+
+    def test_list_data_rooms_requires_auth(self, client):
+        """Test that listing data rooms requires authentication."""
+        response = client.get(DATA_ROOMS)
+        assert response.status_code == 401
 
 
 class TestDataRoomDocuments:
     """Tests for data room document management."""
 
-    def test_data_room_empty_documents(self, client, db_session):
-        """Test data room with no documents."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="No Docs Project",
-            sector=Sector.PORTS,
-            country="Tanzania",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=300000000.0,
-            revenue_model="Port fees"
-        )
-        db_session.add(project)
-        db_session.commit()
+    def test_list_documents_empty(self, client, admin_headers, analyst_headers):
+        """Test listing documents in an empty data room."""
+        create_r = client.post(DATA_ROOMS, json={
+            "project_id": "proj-docs-001",
+            "name": "Empty Doc Room",
+        }, headers=admin_headers)
+        room_id = create_r.json()["id"]
 
-        data_room_data = {
-            "project_id": project.id,
-            "nda_required": False,
-            "documents": {}
-        }
-        response = client.post("/data-rooms/", json=data_room_data)
+        response = client.get(f"{DATA_ROOMS}/{room_id}/documents", headers=analyst_headers)
         assert response.status_code == 200
+        body = response.json()
+        assert body["documents"] == []
+        assert body["count"] == 0
 
-    def test_data_room_document_types(self, client, db_session):
-        """Test data room with various document types."""
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Doc Types Project",
-            sector=Sector.RAIL,
-            country="Mozambique",
-            stage=ProjectStage.PROCUREMENT,
-            estimated_capex=1000000000.0,
-            revenue_model="Rail freight"
-        )
-        db_session.add(project)
-        db_session.commit()
+    def test_list_documents_requires_auth(self, client, admin_headers):
+        """Test that listing documents requires authentication."""
+        create_r = client.post(DATA_ROOMS, json={
+            "project_id": "proj-docs-002",
+            "name": "Auth Check Room",
+        }, headers=admin_headers)
+        room_id = create_r.json()["id"]
 
-        documents = {
-            "pdf_doc": "s3://bucket/document.pdf",
-            "excel_model": "s3://bucket/model.xlsx",
-            "word_doc": "s3://bucket/memo.docx",
-            "presentation": "s3://bucket/pitch.pptx",
-            "image": "s3://bucket/site_photo.jpg"
-        }
-        data_room_data = {
-            "project_id": project.id,
-            "nda_required": True,
-            "documents": documents
-        }
-        response = client.post("/data-rooms/", json=data_room_data)
-        assert response.status_code == 200
+        response = client.get(f"{DATA_ROOMS}/{room_id}/documents")
+        assert response.status_code == 401

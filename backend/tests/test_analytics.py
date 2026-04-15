@@ -1,259 +1,129 @@
 # tests/test_analytics.py
 import pytest
 
+TRACK = "/api/analytics/track"
+SUMMARY = "/api/analytics/summary"
+ANALYTICS = "/api/analytics"
 
-class TestCreateAnalyticReport:
-    """Tests for analytic report creation endpoint."""
 
-    def test_create_report_success(self, client):
-        """Test successful report creation."""
-        report_data = {
-            "title": "Q4 2024 Infrastructure Investment Report",
-            "sector": "Energy",
-            "country": "Nigeria",
-            "content": "Detailed analysis of energy sector investments in Nigeria..."
+class TestTrackEvent:
+    """Tests for analytics event tracking endpoint."""
+
+    def test_track_event_success(self, client, analyst_headers):
+        """Test successful event tracking."""
+        event_data = {"event_type": "project_view"}
+        response = client.post(TRACK, json=event_data, headers=analyst_headers)
+        assert response.status_code == 201
+        assert response.json()["success"] is True
+
+    def test_track_event_with_entity(self, client, analyst_headers):
+        """Test tracking event with entity info."""
+        event_data = {
+            "event_type": "investor_profile_view",
+            "entity_type": "investor",
+            "entity_id": "inv-001",
         }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["title"] == report_data["title"]
-        assert data["sector"] == "Energy"
-        assert "id" in data
-        assert "created_at" in data
+        response = client.post(TRACK, json=event_data, headers=analyst_headers)
+        assert response.status_code == 201
+        assert response.json()["success"] is True
 
-    def test_create_report_minimal_data(self, client):
-        """Test creating report with only required fields."""
-        report_data = {
-            "title": "Basic Report",
-            "content": "Report content here"
+    def test_track_event_with_metadata(self, client, analyst_headers):
+        """Test tracking event with metadata dict."""
+        event_data = {
+            "event_type": "search",
+            "metadata": {"query": "solar energy Nigeria", "results": "5"},
         }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-        data = response.json()
-        assert data["title"] == "Basic Report"
-        assert data["sector"] is None
-        assert data["country"] is None
+        response = client.post(TRACK, json=event_data, headers=analyst_headers)
+        assert response.status_code == 201
 
-    def test_create_report_all_sectors(self, client):
-        """Test creating reports for all sectors."""
-        sectors = ["Energy", "Mining", "Water", "Transport", "Ports", "Rail", "Roads", "Agriculture", "Health"]
-        for sector in sectors:
-            report_data = {
-                "title": f"{sector} Sector Analysis",
-                "sector": sector,
-                "content": f"Comprehensive analysis of the {sector.lower()} sector..."
-            }
-            response = client.post("/analytics/", json=report_data)
-            assert response.status_code == 200
-            assert response.json()["sector"] == sector
-
-    def test_create_report_with_country(self, client):
-        """Test creating country-specific report."""
-        report_data = {
-            "title": "Kenya Infrastructure Overview",
-            "country": "Kenya",
-            "content": "Analysis of Kenya's infrastructure development..."
-        }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-        assert response.json()["country"] == "Kenya"
-
-    def test_create_report_missing_required_fields(self, client):
-        """Test that missing required fields are rejected."""
-        incomplete_data = {"title": "Incomplete Report"}
-        response = client.post("/analytics/", json=incomplete_data)
+    def test_track_event_missing_required_field(self, client, analyst_headers):
+        """Test that missing event_type is rejected."""
+        response = client.post(TRACK, json={"entity_type": "project"}, headers=analyst_headers)
         assert response.status_code == 422
 
-    def test_create_report_long_content(self, client):
-        """Test creating report with long content."""
-        long_content = "A" * 10000  # 10,000 characters
-        report_data = {
-            "title": "Long Content Report",
-            "content": long_content
-        }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-        assert len(response.json()["content"]) == 10000
+    def test_track_event_requires_auth(self, client):
+        """Test that tracking without auth returns 401."""
+        response = client.post(TRACK, json={"event_type": "page_view"})
+        assert response.status_code == 401
 
+    def test_track_multiple_event_types(self, client, analyst_headers):
+        """Test tracking various event types."""
+        event_types = ["page_view", "project_view", "search", "download", "login"]
+        for event_type in event_types:
+            r = client.post(TRACK, json={"event_type": event_type}, headers=analyst_headers)
+            assert r.status_code == 201
 
-class TestGetAnalyticReport:
-    """Tests for analytic report retrieval endpoint."""
-
-    def test_get_report_success(self, client):
-        """Test successful report retrieval."""
-        # Create report
-        report_data = {
-            "title": "Retrievable Report",
-            "sector": "Mining",
-            "country": "South Africa",
-            "content": "Mining sector analysis for South Africa"
-        }
-        create_response = client.post("/analytics/", json=report_data)
-        report_id = create_response.json()["id"]
-
-        # Retrieve report
-        response = client.get(f"/analytics/{report_id}")
-        assert response.status_code == 200
-        data = response.json()
-        assert data["id"] == report_id
-        assert data["title"] == "Retrievable Report"
-        assert data["sector"] == "Mining"
-
-    def test_get_report_not_found(self, client):
-        """Test retrieving non-existent report returns 404."""
-        response = client.get("/analytics/99999")
-        assert response.status_code == 404
-        assert "not found" in response.json()["detail"].lower()
-
-    def test_get_report_invalid_id(self, client):
-        """Test retrieving with invalid ID format."""
-        response = client.get("/analytics/invalid")
+    def test_track_event_metadata_too_many_keys(self, client, analyst_headers):
+        """Test that metadata with more than 10 keys is rejected."""
+        metadata = {f"key_{i}": f"value_{i}" for i in range(11)}
+        event_data = {"event_type": "test", "metadata": metadata}
+        response = client.post(TRACK, json=event_data, headers=analyst_headers)
         assert response.status_code == 422
 
-
-class TestReportContent:
-    """Tests for report content variations."""
-
-    def test_report_with_markdown_content(self, client):
-        """Test report with markdown-formatted content."""
-        content = """
-# Executive Summary
-
-## Key Findings
-- Finding 1
-- Finding 2
-- Finding 3
-
-## Recommendations
-1. First recommendation
-2. Second recommendation
-
-### Detailed Analysis
-Lorem ipsum dolor sit amet...
-        """
-        report_data = {
-            "title": "Markdown Report",
-            "content": content
+    def test_track_event_metadata_value_too_long(self, client, analyst_headers):
+        """Test that metadata value exceeding 255 characters is rejected."""
+        event_data = {
+            "event_type": "test",
+            "metadata": {"key": "x" * 256},
         }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-        assert "# Executive Summary" in response.json()["content"]
+        response = client.post(TRACK, json=event_data, headers=analyst_headers)
+        assert response.status_code == 422
 
-    def test_report_with_special_characters(self, client):
-        """Test report with special characters."""
-        content = "Revenue: $1.5M | Growth: 15% | Countries: Nigeria & Kenya"
-        report_data = {
-            "title": "Special Chars Report",
-            "content": content
-        }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-        assert "$1.5M" in response.json()["content"]
-
-    def test_report_with_unicode(self, client):
-        """Test report with unicode characters."""
-        content = "African Union: Aфрика - アフリカ - 非洲"
-        report_data = {
-            "title": "Unicode Report",
-            "content": content
-        }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
+    def test_track_event_metadata_max_keys_allowed(self, client, analyst_headers):
+        """Test that metadata with exactly 10 keys is accepted."""
+        metadata = {f"key_{i}": f"value_{i}" for i in range(10)}
+        event_data = {"event_type": "test", "metadata": metadata}
+        response = client.post(TRACK, json=event_data, headers=analyst_headers)
+        assert response.status_code == 201
 
 
-class TestReportTypes:
-    """Tests for different report use cases."""
+class TestAnalyticsSummary:
+    """Tests for analytics summary endpoint."""
 
-    def test_sector_analysis_report(self, client):
-        """Test creating a sector analysis report."""
-        report_data = {
-            "title": "Energy Sector Deep Dive",
-            "sector": "Energy",
-            "content": """
-                Energy sector analysis covering:
-                - Solar installations
-                - Wind farms
-                - Hydroelectric projects
-                - Grid infrastructure
-            """
-        }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-
-    def test_country_overview_report(self, client):
-        """Test creating a country overview report."""
-        report_data = {
-            "title": "Ethiopia Country Profile",
-            "country": "Ethiopia",
-            "content": """
-                Country investment profile:
-                - GDP growth trends
-                - Infrastructure gaps
-                - Key opportunities
-                - Risk factors
-            """
-        }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-
-    def test_cross_sector_report(self, client):
-        """Test creating a cross-sector regional report."""
-        report_data = {
-            "title": "West Africa Infrastructure Index",
-            "content": """
-                Regional infrastructure index covering:
-                - Nigeria
-                - Ghana
-                - Senegal
-                - Côte d'Ivoire
-
-                Sectors covered:
-                - Energy
-                - Transport
-                - Ports
-            """
-        }
-        response = client.post("/analytics/", json=report_data)
-        assert response.status_code == 200
-
-
-class TestReportDataIntegrity:
-    """Tests for report data integrity."""
-
-    def test_multiple_reports_independent(self, client):
-        """Test that multiple reports are stored independently."""
-        # Create first report
-        response1 = client.post("/analytics/", json={
-            "title": "Report One",
-            "content": "Content one"
-        })
-        id1 = response1.json()["id"]
-
-        # Create second report
-        response2 = client.post("/analytics/", json={
-            "title": "Report Two",
-            "content": "Content two"
-        })
-        id2 = response2.json()["id"]
-
-        # Verify they are different
-        assert id1 != id2
-
-        # Verify both can be retrieved correctly
-        get1 = client.get(f"/analytics/{id1}")
-        get2 = client.get(f"/analytics/{id2}")
-
-        assert get1.json()["title"] == "Report One"
-        assert get2.json()["title"] == "Report Two"
-
-    def test_report_timestamp(self, client):
-        """Test that reports have creation timestamps."""
-        report_data = {
-            "title": "Timestamped Report",
-            "content": "Content with timestamp"
-        }
-        response = client.post("/analytics/", json=report_data)
+    def test_summary_admin_access(self, client, admin_headers):
+        """Test that admin can access summary."""
+        response = client.get(SUMMARY, headers=admin_headers)
         assert response.status_code == 200
         data = response.json()
-        assert "created_at" in data
-        assert data["created_at"] is not None
+        assert "total_events" in data
+        assert "by_type" in data
+
+    def test_summary_non_admin_forbidden(self, client, analyst_headers):
+        """Test that non-admin users cannot access summary."""
+        response = client.get(SUMMARY, headers=analyst_headers)
+        assert response.status_code == 403
+
+    def test_summary_requires_auth(self, client):
+        """Test that summary requires authentication."""
+        response = client.get(SUMMARY)
+        assert response.status_code == 401
+
+    def test_summary_counts_tracked_events(self, client, admin_headers):
+        """Test that summary correctly counts tracked events."""
+        # Track some events first
+        for _ in range(3):
+            client.post(TRACK, json={"event_type": "project_view"}, headers=admin_headers)
+        client.post(TRACK, json={"event_type": "search"}, headers=admin_headers)
+
+        response = client.get(SUMMARY, headers=admin_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["total_events"] == 4
+        assert data["by_type"]["project_view"] == 3
+        assert data["by_type"]["search"] == 1
+
+
+class TestAnalyticsRoot:
+    """Tests for analytics root endpoint."""
+
+    def test_analytics_root_authenticated(self, client, analyst_headers):
+        """Test that authenticated users can access the analytics root."""
+        response = client.get(ANALYTICS, headers=analyst_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "total_events" in data
+
+    def test_analytics_root_requires_auth(self, client):
+        """Test that analytics root requires authentication."""
+        response = client.get(ANALYTICS)
+        assert response.status_code == 401

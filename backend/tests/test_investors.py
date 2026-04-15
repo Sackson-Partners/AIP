@@ -1,190 +1,147 @@
 # tests/test_investors.py
 import pytest
 
+INVESTORS = "/api/investors"
+
 
 class TestCreateInvestor:
     """Tests for investor creation endpoint."""
 
-    def test_create_investor_success(self, client, sample_investor_data):
+    def test_create_investor_success(self, client, sample_investor_data, analyst_headers):
         """Test successful investor creation."""
-        response = client.post("/investors/", json=sample_investor_data)
-        assert response.status_code == 200
+        response = client.post(INVESTORS, json=sample_investor_data, headers=analyst_headers)
+        assert response.status_code == 201
         data = response.json()
-        assert data["fund_name"] == sample_investor_data["fund_name"]
-        assert data["aum"] == sample_investor_data["aum"]
-        assert data["ticket_size_min"] == sample_investor_data["ticket_size_min"]
-        assert data["ticket_size_max"] == sample_investor_data["ticket_size_max"]
+        assert data["organisation_name"] == sample_investor_data["organisation_name"]
         assert "id" in data
 
-    def test_create_investor_minimal_data(self, client):
+    def test_create_investor_minimal_data(self, client, analyst_headers):
         """Test creating investor with only required fields."""
-        minimal_data = {
-            "fund_name": "Minimal Fund",
-            "ticket_size_min": 500000.0,
-            "ticket_size_max": 10000000.0,
-            "instruments": ["Equity"],
-            "country_focus": ["Kenya"],
-            "sector_focus": ["Energy"]
-        }
-        response = client.post("/investors/", json=minimal_data)
-        assert response.status_code == 200
+        minimal_data = {"organisation_name": "Minimal Fund"}
+        response = client.post(INVESTORS, json=minimal_data, headers=analyst_headers)
+        assert response.status_code == 201
         data = response.json()
-        assert data["fund_name"] == "Minimal Fund"
-        assert data["aum"] is None  # Optional field
+        assert data["organisation_name"] == "Minimal Fund"
 
-    def test_create_investor_missing_required_fields(self, client):
+    def test_create_investor_missing_required_fields(self, client, analyst_headers):
         """Test that missing required fields are rejected."""
-        incomplete_data = {"fund_name": "Incomplete Fund"}
-        response = client.post("/investors/", json=incomplete_data)
-        assert response.status_code == 422  # Validation error
+        incomplete_data = {"investor_type": "dfi"}
+        response = client.post(INVESTORS, json=incomplete_data, headers=analyst_headers)
+        assert response.status_code == 422
 
-    def test_create_investor_with_custom_instrument(self, client):
-        """Test that custom instrument values are accepted (stored as strings)."""
+    def test_create_investor_with_preferred_structures(self, client, analyst_headers):
+        """Test that preferred_structures list is accepted."""
         data = {
-            "fund_name": "Custom Instrument Fund",
-            "ticket_size_min": 500000.0,
-            "ticket_size_max": 10000000.0,
-            "instruments": ["CustomInstrument"],
-            "country_focus": ["Kenya"],
-            "sector_focus": ["Energy"]
+            "organisation_name": "Structured Fund",
+            "preferred_structures": ["equity", "mezzanine"],
         }
-        response = client.post("/investors/", json=data)
-        # API accepts any string for instruments (flexible schema)
-        assert response.status_code == 200
-        assert "CustomInstrument" in response.json()["instruments"]
+        response = client.post(INVESTORS, json=data, headers=analyst_headers)
+        assert response.status_code == 201
 
-    def test_create_investor_with_custom_sector(self, client):
-        """Test that custom sector values are accepted (stored as strings)."""
+    def test_create_investor_with_focus_sectors(self, client, analyst_headers):
+        """Test that focus_sectors list is accepted."""
         data = {
-            "fund_name": "Custom Sector Fund",
-            "ticket_size_min": 500000.0,
-            "ticket_size_max": 10000000.0,
-            "instruments": ["Equity"],
-            "country_focus": ["Kenya"],
-            "sector_focus": ["CustomSector"]
+            "organisation_name": "Sector Fund",
+            "focus_sectors": ["energy", "transport"],
         }
-        response = client.post("/investors/", json=data)
-        # API accepts any string for sector_focus (flexible schema)
-        assert response.status_code == 200
-        assert "CustomSector" in response.json()["sector_focus"]
+        response = client.post(INVESTORS, json=data, headers=analyst_headers)
+        assert response.status_code == 201
 
-    def test_create_investor_multiple_instruments(self, client):
-        """Test creating investor with multiple instruments."""
+    def test_create_investor_multiple_focus_fields(self, client, analyst_headers):
+        """Test creating investor with multiple list fields."""
         data = {
-            "fund_name": "Multi Instrument Fund",
-            "ticket_size_min": 1000000.0,
-            "ticket_size_max": 50000000.0,
-            "instruments": ["Equity", "Debt", "Mezzanine"],
-            "country_focus": ["Nigeria", "Kenya"],
-            "sector_focus": ["Energy", "Transport", "Water"]
+            "organisation_name": "Multi-Focus Fund",
+            "focus_sectors": ["energy", "transport", "water"],
+            "focus_regions": ["East Africa", "West Africa"],
+            "preferred_structures": ["equity", "debt"],
         }
-        response = client.post("/investors/", json=data)
-        assert response.status_code == 200
-        result = response.json()
-        assert len(result["instruments"]) == 3
-        assert len(result["sector_focus"]) == 3
+        response = client.post(INVESTORS, json=data, headers=analyst_headers)
+        assert response.status_code == 201
 
 
 class TestGetInvestor:
     """Tests for investor retrieval endpoint."""
 
-    def test_get_investor_success(self, client, sample_investor_data):
+    def test_get_investor_success(self, client, sample_investor_data, analyst_headers):
         """Test successful investor retrieval."""
-        # Create investor first
-        create_response = client.post("/investors/", json=sample_investor_data)
+        create_response = client.post(INVESTORS, json=sample_investor_data, headers=analyst_headers)
         investor_id = create_response.json()["id"]
 
-        # Retrieve investor
-        response = client.get(f"/investors/{investor_id}")
+        response = client.get(f"{INVESTORS}/{investor_id}", headers=analyst_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == investor_id
-        assert data["fund_name"] == sample_investor_data["fund_name"]
+        assert data["organisation_name"] == sample_investor_data["organisation_name"]
 
-    def test_get_investor_not_found(self, client):
+    def test_get_investor_not_found(self, client, analyst_headers):
         """Test retrieving non-existent investor returns 404."""
-        response = client.get("/investors/99999")
+        response = client.get(f"{INVESTORS}/nonexistent-id", headers=analyst_headers)
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
 
-    def test_get_investor_invalid_id(self, client):
-        """Test retrieving with invalid ID format."""
-        response = client.get("/investors/invalid")
-        assert response.status_code == 422  # Validation error
+    def test_get_investor_unauthenticated(self, client):
+        """Test retrieving investor without auth returns 401."""
+        response = client.get(f"{INVESTORS}/some-id")
+        assert response.status_code == 401
 
 
 class TestInvestorDataIntegrity:
     """Tests for investor data integrity and edge cases."""
 
-    def test_investor_ticket_size_range(self, client):
-        """Test investor with valid ticket size range."""
+    def test_investor_ticket_size_strings(self, client, analyst_headers):
+        """Test investor with min/max ticket size as strings."""
         data = {
-            "fund_name": "Range Test Fund",
-            "ticket_size_min": 100000.0,
-            "ticket_size_max": 100000000.0,
-            "instruments": ["Equity"],
-            "country_focus": ["Kenya"],
-            "sector_focus": ["Energy"]
+            "organisation_name": "Range Test Fund",
+            "min_ticket_usd": "1000000",
+            "max_ticket_usd": "100000000",
         }
-        response = client.post("/investors/", json=data)
-        assert response.status_code == 200
+        response = client.post(INVESTORS, json=data, headers=analyst_headers)
+        assert response.status_code == 201
         result = response.json()
-        assert result["ticket_size_min"] == 100000.0
-        assert result["ticket_size_max"] == 100000000.0
+        assert result["min_ticket_usd"] == "1000000"
+        assert result["max_ticket_usd"] == "100000000"
 
-    def test_investor_with_esg_constraints(self, client):
-        """Test investor with ESG constraints."""
+    def test_investor_with_contact_info(self, client, analyst_headers):
+        """Test investor with contact name and email."""
         data = {
-            "fund_name": "ESG Fund",
-            "ticket_size_min": 1000000.0,
-            "ticket_size_max": 50000000.0,
-            "instruments": ["Equity"],
-            "country_focus": ["Nigeria"],
-            "sector_focus": ["Energy"],
-            "esg_constraints": "No fossil fuels, minimum 30% women in management"
+            "organisation_name": "Contact Fund",
+            "contact_name": "Jane Smith",
+            "contact_email": "jane@fund.example.com",
         }
-        response = client.post("/investors/", json=data)
-        assert response.status_code == 200
+        response = client.post(INVESTORS, json=data, headers=analyst_headers)
+        assert response.status_code == 201
         result = response.json()
-        assert result["esg_constraints"] == data["esg_constraints"]
+        assert result["contact_name"] == "Jane Smith"
 
-    def test_investor_with_target_irr(self, client):
-        """Test investor with target IRR."""
+    def test_investor_with_aum(self, client, analyst_headers):
+        """Test investor with AUM field."""
         data = {
-            "fund_name": "High Return Fund",
-            "ticket_size_min": 5000000.0,
-            "ticket_size_max": 100000000.0,
-            "instruments": ["Equity", "Mezzanine"],
-            "target_irr": 25.5,
-            "country_focus": ["South Africa"],
-            "sector_focus": ["Mining"]
+            "organisation_name": "Large AUM Fund",
+            "aum_usd": "500000000",
+            "investor_type": "dfi",
         }
-        response = client.post("/investors/", json=data)
-        assert response.status_code == 200
+        response = client.post(INVESTORS, json=data, headers=analyst_headers)
+        assert response.status_code == 201
         result = response.json()
-        assert result["target_irr"] == 25.5
+        assert result["aum_usd"] == "500000000"
 
-    def test_multiple_investors_independent(self, client, sample_investor_data):  # noqa: F811
+    def test_multiple_investors_independent(self, client, sample_investor_data, analyst_headers):
         """Test that multiple investors are stored independently."""
-        # Create first investor
-        response1 = client.post("/investors/", json=sample_investor_data)
+        response1 = client.post(INVESTORS, json=sample_investor_data, headers=analyst_headers)
         id1 = response1.json()["id"]
 
-        # Create second investor with different name
         modified_data = sample_investor_data.copy()
-        modified_data["fund_name"] = "Different Fund"
-        response2 = client.post("/investors/", json=modified_data)
+        modified_data["organisation_name"] = "Different Fund"
+        response2 = client.post(INVESTORS, json=modified_data, headers=analyst_headers)
         id2 = response2.json()["id"]
 
-        # Verify they are different
         assert id1 != id2
 
-        # Verify both can be retrieved
-        get1 = client.get(f"/investors/{id1}")
-        get2 = client.get(f"/investors/{id2}")
+        get1 = client.get(f"{INVESTORS}/{id1}", headers=analyst_headers)
+        get2 = client.get(f"{INVESTORS}/{id2}", headers=analyst_headers)
 
-        assert get1.json()["fund_name"] == sample_investor_data["fund_name"]
-        assert get2.json()["fund_name"] == "Different Fund"
+        assert get1.json()["organisation_name"] == sample_investor_data["organisation_name"]
+        assert get2.json()["organisation_name"] == "Different Fund"
 
 
 # ── Tests for the actual AIP investors API ──────────────────────────────────

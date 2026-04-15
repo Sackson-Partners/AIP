@@ -4,261 +4,222 @@ Integration tests for end-to-end workflows.
 These tests verify that multiple components work together correctly.
 """
 import pytest
-from datetime import date, timedelta
+from datetime import datetime, timezone, timedelta
+
+
+def _make_project(db_session, name="Test Project", country="Kenya", sector="energy"):
+    """Helper: create an InfrastructureProject directly in the test DB."""
+    from backend.models import InfrastructureProject
+    project = InfrastructureProject(
+        project_name=name,
+        country=country,
+        sector=sector,
+        region="East Africa",
+        project_type="IPP",
+        estimated_cost="USD 50M",
+        status="planned",
+    )
+    db_session.add(project)
+    db_session.commit()
+    db_session.refresh(project)
+    return project
 
 
 class TestProjectInvestorIntroductionWorkflow:
     """
     Test the complete workflow:
-    Project creation -> Investor creation -> Introduction -> NDA -> Approval
+    Project → Investor registration → Introduction
     """
 
-    def test_complete_introduction_workflow(self, client, sample_investor_data, db_session):
-        """Test the full introduction workflow from project to approval."""
-        # Step 1: Create a project
-        from backend.models import Project, Sector, ProjectStage
-        project = Project(
-            name="Lagos Solar Farm",
-            sector=Sector.ENERGY,
-            country="Nigeria",
-            region="Lagos",
-            stage=ProjectStage.FEASIBILITY,
-            estimated_capex=50000000.0,
-            funding_gap=30000000.0,
-            revenue_model="Power Purchase Agreement with Nigerian government"
-        )
-        db_session.add(project)
-        db_session.commit()
-        project_id = project.id
+    def test_complete_introduction_workflow(self, client, analyst_headers, db_session):
+        """Test the full introduction workflow: project + investor + introduction."""
+        # Step 1: Create a project in DB
+        project = _make_project(db_session, name="Lagos Solar Farm", country="Nigeria", sector="energy")
 
-        # Verify project exists via API
-        project_response = client.get(f"/projects/{project_id}")
-        assert project_response.status_code == 200
-        assert project_response.json()["name"] == "Lagos Solar Farm"
-
-        # Step 2: Create an investor
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        assert investor_response.status_code == 200
-        investor_id = investor_response.json()["id"]
+        # Step 2: Create an investor via API
+        investor_r = client.post("/api/investors", json={
+            "organisation_name": "Africa Clean Energy Fund",
+            "investor_type": "private_fund",
+            "min_ticket_usd": "5000000",
+            "max_ticket_usd": "100000000",
+        }, headers=analyst_headers)
+        assert investor_r.status_code == 201
+        investor_id = investor_r.json()["id"]
 
         # Step 3: Create an introduction
-        introduction_data = {
+        intro_r = client.post("/api/introductions", json={
+            "project_id": project.id,
             "investor_id": investor_id,
-            "project_id": project_id,
-            "message": "We are interested in investing in this solar project",
-            "nda_executed": False,
-            "sponsor_approved": False,
-            "status": "Pending"
-        }
-        intro_response = client.post("/introductions/", json=introduction_data)
-        assert intro_response.status_code == 200
-        intro_id = intro_response.json()["id"]
+            "notes": "Interested in this solar project",
+            "initiated_by": "investor",
+        }, headers=analyst_headers)
+        assert intro_r.status_code == 201
+        intro_id = intro_r.json()["id"]
+        assert intro_r.json()["project_id"] == project.id
 
-        # Verify introduction was created
-        get_intro = client.get(f"/introductions/{intro_id}")
-        assert get_intro.status_code == 200
-        assert get_intro.json()["status"] == "Pending"
+        # Step 4: Verify it appears in user's introductions list
+        list_r = client.get("/api/introductions", headers=analyst_headers)
+        assert list_r.status_code == 200
+        assert list_r.json()["count"] == 1
+
+        # Step 5: Update introduction status to active
+        update_r = client.put(f"/api/introductions/{intro_id}", json={
+            "status": "active",
+            "notes": "NDA signed, progressing to due diligence.",
+        }, headers=analyst_headers)
+        assert update_r.status_code == 200
+        assert update_r.json()["status"] == "active"
 
 
-class TestProjectVerificationWorkflow:
+class TestVerificationWorkflow:
     """
-    Test the verification workflow:
-    Project -> V0 -> V1 -> V2 -> V3 (with bankability scores)
+    Test the user verification workflow.
     """
 
-    def test_verification_progression(self, client, db_session):
-        """Test progressing a project through all verification levels."""
-        from backend.models import Project, Sector, ProjectStage
+    def test_verification_submission_and_review(self, client, analyst_headers, admin_headers):
+        """Test a user submitting a verification and admin reviewing it."""
+        # Submit verification as analyst
+        submit_r = client.post("/api/verifications", json={
+            "verification_type": "identity",
+            "document_url": "https://storage.example.com/docs/passport.jpg",
+        }, headers=analyst_headers)
+        assert submit_r.status_code == 201
+        ver_id = submit_r.json()["id"]
+        assert submit_r.json()["verification_type"] == "identity"
 
-        # Create project
-        project = Project(
-            name="Kenya Wind Farm",
-            sector=Sector.ENERGY,
-            country="Kenya",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=120000000.0,
-            revenue_model="PPA"
-        )
-        db_session.add(project)
-        db_session.commit()
-        project_id = project.id
+        # Admin lists all verifications
+        list_r = client.get("/api/verifications", headers=admin_headers)
+        assert list_r.status_code == 200
+        assert list_r.json()["count"] >= 1
 
-        # V0: Submitted
-        v0_response = client.post("/verifications/", json={
-            "project_id": project_id,
-            "level": "V0: Submitted"
-        })
-        assert v0_response.status_code == 200
+        # Admin approves the verification
+        review_r = client.put(f"/api/verifications/{ver_id}/review", json={
+            "status": "approved",
+            "reviewer_notes": "Identity confirmed.",
+        }, headers=admin_headers)
+        assert review_r.status_code == 200
+        assert review_r.json()["status"] == "approved"
 
-        # V1: Sponsor Identity Verified
-        v1_response = client.post("/verifications/", json={
-            "project_id": project_id,
-            "level": "V1: Sponsor Identity Verified"
-        })
-        assert v1_response.status_code == 200
+    def test_multiple_verification_types(self, client, analyst_headers):
+        """Test submitting all three verification types."""
+        for ver_type in ["email", "identity", "accreditation"]:
+            r = client.post("/api/verifications", json={
+                "verification_type": ver_type,
+            }, headers=analyst_headers)
+            assert r.status_code == 201
 
-        # V2: Documents Verified
-        v2_response = client.post("/verifications/", json={
-            "project_id": project_id,
-            "level": "V2: Documents Verified"
-        })
-        assert v2_response.status_code == 200
-
-        # V3: Bankability Screened (with scores)
-        v3_response = client.post("/verifications/", json={
-            "project_id": project_id,
-            "level": "V3: Bankability Screened",
-            "bankability": {
-                "technical_readiness": 88,
-                "financial_robustness": 75,
-                "legal_clarity": 92,
-                "esg_compliance": 85,
-                "overall_score": 85.0,
-                "risk_flags": ["Currency volatility"],
-                "last_verified": str(date.today())
-            }
-        })
-        assert v3_response.status_code == 200
-
-        # Verify all verifications exist
-        all_verifications = client.get(f"/verifications/project/{project_id}")
-        assert all_verifications.status_code == 200
-        assert len(all_verifications.json()) == 4
-
-        # Verify latest is V3
-        latest = client.get(f"/verifications/project/{project_id}/latest")
-        assert latest.status_code == 200
-        assert latest.json()["level"] == "V3: Bankability Screened"
+        # Status should show all three
+        status_r = client.get("/api/verifications/status", headers=analyst_headers)
+        assert status_r.status_code == 200
+        assert len(status_r.json()["verifications"]) == 3
 
 
 class TestProjectDataRoomWorkflow:
     """
     Test the data room workflow:
-    Project -> Create Data Room -> Add Documents -> Grant Access
+    Project → Create Data Room → List Documents
     """
 
-    def test_data_room_setup(self, client, db_session):
+    def test_data_room_setup(self, client, admin_headers, analyst_headers):
         """Test setting up a data room for a project."""
-        from backend.models import Project, Sector, ProjectStage
+        # Create data room
+        room_r = client.post("/api/data-rooms", json={
+            "project_id": "proj-ghana-port-001",
+            "name": "Ghana Port Expansion - Due Diligence",
+            "description": "Restricted room for accredited investors",
+            "access_level": "restricted",
+        }, headers=admin_headers)
+        assert room_r.status_code == 201
+        room_id = room_r.json()["id"]
 
-        # Create project
-        project = Project(
-            name="Ghana Port Expansion",
-            sector=Sector.PORTS,
-            country="Ghana",
-            stage=ProjectStage.PROCUREMENT,
-            estimated_capex=500000000.0,
-            revenue_model="Port fees"
-        )
-        db_session.add(project)
-        db_session.commit()
-        project_id = project.id
+        # Retrieve data room
+        get_r = client.get(f"/api/data-rooms/{room_id}", headers=analyst_headers)
+        assert get_r.status_code == 200
+        assert get_r.json()["project_id"] == "proj-ghana-port-001"
 
-        # Create data room with NDA requirement
-        data_room_response = client.post("/data-rooms/", json={
-            "project_id": project_id,
-            "nda_required": True,
-            "access_users": [101, 102, 103],
-            "documents": {
-                "executive_summary": "s3://aip-docs/ghana-port/exec-summary.pdf",
-                "feasibility_study": "s3://aip-docs/ghana-port/feasibility.pdf",
-                "financial_model": "s3://aip-docs/ghana-port/model.xlsx",
-                "environmental_impact": "s3://aip-docs/ghana-port/eia.pdf"
-            }
-        })
-        assert data_room_response.status_code == 200
-        room_id = data_room_response.json()["id"]
-
-        # Retrieve and verify data room
-        get_room = client.get(f"/data-rooms/{room_id}")
-        assert get_room.status_code == 200
-        room_data = get_room.json()
-        assert room_data["project_id"] == project_id
-        assert room_data["nda_required"] == True
+        # List documents (should be empty initially)
+        docs_r = client.get(f"/api/data-rooms/{room_id}/documents", headers=analyst_headers)
+        assert docs_r.status_code == 200
+        assert docs_r.json()["count"] == 0
 
 
-class TestEventProjectAssociation:
+class TestEventWorkflow:
     """
-    Test events with associated projects.
+    Test project event creation and listing.
     """
 
-    def test_event_with_multiple_projects(self, client, db_session):
-        """Test creating an event that involves multiple projects."""
-        from backend.models import Project, Sector, ProjectStage
+    def test_event_with_project(self, client, admin_headers):
+        """Test creating and retrieving a project event."""
+        event_r = client.post("/api/events", json={
+            "project_id": "proj-sa-energy-001",
+            "event_type": "milestone",
+            "title": "South Africa Solar Farm Financial Close",
+            "description": "Achieved financial close with Standard Bank and DFI partners",
+            "event_date": (datetime.now(timezone.utc) + timedelta(days=60)).isoformat(),
+        }, headers=admin_headers)
+        assert event_r.status_code == 201
+        event_id = event_r.json()["id"]
 
-        # Create multiple projects
-        project_ids = []
-        for i in range(3):
-            project = Project(
-                name=f"Event Project {i}",
-                sector=Sector.ENERGY,
-                country="South Africa",
-                stage=ProjectStage.FEASIBILITY,
-                estimated_capex=10000000.0 * (i + 1),
-                revenue_model="PPA"
-            )
-            db_session.add(project)
-            db_session.commit()
-            project_ids.append(project.id)
+        # Retrieve event
+        get_r = client.get(f"/api/events/{event_id}")
+        assert get_r.status_code == 200
+        assert get_r.json()["title"] == "South Africa Solar Farm Financial Close"
 
-        # Create event involving all projects
-        event_response = client.post("/events/", json={
-            "name": "South Africa Energy Summit",
-            "description": "Showcase of energy projects in South Africa",
-            "event_date": str(date.today() + timedelta(days=60)),
-            "type": "Forum",
-            "projects_involved": project_ids
-        })
-        assert event_response.status_code == 200
-        event_data = event_response.json()
-        assert event_data["name"] == "South Africa Energy Summit"
+    def test_events_filter_by_project(self, client, admin_headers):
+        """Test filtering events by project_id."""
+        # Create events for two different projects
+        for proj_id, title in [
+            ("proj-a", "Project A Milestone"),
+            ("proj-b", "Project B Milestone"),
+            ("proj-a", "Project A Second Event"),
+        ]:
+            client.post("/api/events", json={
+                "project_id": proj_id,
+                "event_type": "milestone",
+                "title": title,
+            }, headers=admin_headers)
+
+        # Filter for proj-a only
+        list_r = client.get("/api/events?project_id=proj-a")
+        assert list_r.status_code == 200
+        assert list_r.json()["count"] == 2
+        for event in list_r.json()["events"]:
+            assert event["project_id"] == "proj-a"
 
 
-class TestAnalyticsWithProjectData:
+class TestAnalyticsWorkflow:
     """
-    Test analytics reports that reference project data.
+    Test analytics tracking across platform actions.
     """
 
-    def test_sector_report_with_projects(self, client, db_session):
-        """Test creating an analytics report after creating sector projects."""
-        from backend.models import Project, Sector, ProjectStage
+    def test_track_events_and_check_summary(self, client, admin_headers, analyst_headers):
+        """Test tracking events and verifying they appear in the summary."""
+        # Track several events as analyst
+        for event_type in ["project_view", "project_view", "investor_search", "search"]:
+            r = client.post("/api/analytics/track", json={
+                "event_type": event_type,
+            }, headers=analyst_headers)
+            assert r.status_code == 201
 
-        # Create projects in the energy sector
-        for i in range(5):
-            project = Project(
-                name=f"Energy Project {i}",
-                sector=Sector.ENERGY,
-                country="Nigeria",
-                stage=ProjectStage.FEASIBILITY,
-                estimated_capex=20000000.0 * (i + 1),
-                revenue_model="PPA"
-            )
-            db_session.add(project)
-        db_session.commit()
+        # Admin checks summary
+        summary_r = client.get("/api/analytics/summary", headers=admin_headers)
+        assert summary_r.status_code == 200
+        data = summary_r.json()
+        assert data["total_events"] == 4
+        assert data["by_type"]["project_view"] == 2
 
-        # Create sector analysis report
-        report_response = client.post("/analytics/", json={
-            "title": "Nigeria Energy Sector Q4 Analysis",
-            "sector": "Energy",
-            "country": "Nigeria",
-            "content": """
-                Nigeria Energy Sector Analysis
-                ==============================
-
-                Key Findings:
-                - 5 active projects in pipeline
-                - Total estimated capex: $300M
-                - All projects at feasibility stage
-
-                Recommendations:
-                - Accelerate permitting process
-                - Strengthen grid infrastructure
-                - Attract more DFI participation
-            """
-        })
-        assert report_response.status_code == 200
-        assert report_response.json()["sector"] == "Energy"
-        assert report_response.json()["country"] == "Nigeria"
+    def test_track_event_with_entity_context(self, client, analyst_headers):
+        """Test tracking events with full entity context and metadata."""
+        r = client.post("/api/analytics/track", json={
+            "event_type": "investor_profile_view",
+            "entity_type": "investor",
+            "entity_id": "inv-001",
+            "metadata": {
+                "source": "search_results",
+                "position": "3",
+            },
+        }, headers=analyst_headers)
+        assert r.status_code == 201
 
 
 class TestFullPlatformWorkflow:
@@ -266,158 +227,108 @@ class TestFullPlatformWorkflow:
     Test a complete platform workflow simulating real usage.
     """
 
-    def test_complete_deal_flow(self, client, sample_investor_data, db_session):
+    def test_complete_deal_flow(self, client, admin_headers, analyst_headers, db_session):
         """
         Simulate a complete deal flow:
-        1. Sponsor submits project
-        2. Project gets verified
-        3. Investor registers
-        4. Introduction is made
-        5. Data room is created
-        6. Event is scheduled
-        7. Analytics report is generated
+        1. Project exists in DB
+        2. Investor registers
+        3. Introduction is made
+        4. Data room is created
+        5. Event is scheduled
+        6. Analytics events are tracked
         """
-        from backend.models import Project, Sector, ProjectStage
+        # 1. Project in DB
+        project = _make_project(db_session, name="Tanzania Rail Corridor", country="Tanzania", sector="transport")
 
-        # 1. Sponsor submits project
-        project = Project(
-            name="Tanzania Rail Corridor",
-            sector=Sector.RAIL,
-            country="Tanzania",
-            stage=ProjectStage.CONCEPT,
-            estimated_capex=2000000000.0,
-            funding_gap=1500000000.0,
-            revenue_model="Rail freight and passenger revenue"
-        )
-        db_session.add(project)
-        db_session.commit()
-        project_id = project.id
+        # 2. Investor registers
+        inv_r = client.post("/api/investors", json={
+            "organisation_name": "Meridian Infrastructure Partners",
+            "investor_type": "private_fund",
+            "min_ticket_usd": "50000000",
+        }, headers=analyst_headers)
+        assert inv_r.status_code == 201
+        investor_id = inv_r.json()["id"]
 
-        # 2. Project gets verified through levels
-        for level in ["V0: Submitted", "V1: Sponsor Identity Verified"]:
-            verify_response = client.post("/verifications/", json={
-                "project_id": project_id,
-                "level": level
-            })
-            assert verify_response.status_code == 200
-
-        # 3. Investor registers
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        assert investor_response.status_code == 200
-        investor_id = investor_response.json()["id"]
-
-        # 4. Introduction is made
-        intro_response = client.post("/introductions/", json={
+        # 3. Introduction
+        intro_r = client.post("/api/introductions", json={
+            "project_id": project.id,
             "investor_id": investor_id,
-            "project_id": project_id,
-            "message": "Interested in the rail corridor project",
-            "status": "Pending"
-        })
-        assert intro_response.status_code == 200
+            "notes": "Interested in rail corridor project",
+        }, headers=analyst_headers)
+        assert intro_r.status_code == 201
 
-        # 5. Data room is created
-        room_response = client.post("/data-rooms/", json={
-            "project_id": project_id,
-            "nda_required": True,
-            "access_users": [investor_id],
-            "documents": {
-                "pre_feasibility": "s3://docs/tanzania-rail/prefeas.pdf"
-            }
-        })
-        assert room_response.status_code == 200
+        # 4. Data room
+        room_r = client.post("/api/data-rooms", json={
+            "project_id": project.id,
+            "name": "Tanzania Rail - Investor Room",
+        }, headers=admin_headers)
+        assert room_r.status_code == 201
 
-        # 6. Event is scheduled
-        event_response = client.post("/events/", json={
-            "name": "Tanzania Rail Project Presentation",
-            "description": "Investor presentation for Tanzania Rail Corridor",
-            "event_date": str(date.today() + timedelta(days=14)),
-            "type": "Presentation",
-            "projects_involved": [project_id]
-        })
-        assert event_response.status_code == 200
+        # 5. Milestone event
+        event_r = client.post("/api/events", json={
+            "project_id": project.id,
+            "event_type": "milestone",
+            "title": "Tanzania Rail Pre-Feasibility Complete",
+        }, headers=admin_headers)
+        assert event_r.status_code == 201
 
-        # 7. Analytics report is generated
-        report_response = client.post("/analytics/", json={
-            "title": "Tanzania Rail Investment Opportunity",
-            "sector": "Rail",
-            "country": "Tanzania",
-            "content": "Analysis of the Tanzania Rail Corridor investment opportunity..."
-        })
-        assert report_response.status_code == 200
-
-        # Verify complete flow succeeded
-        assert client.get(f"/projects/{project_id}").status_code == 200
-        assert client.get(f"/investors/{investor_id}").status_code == 200
-        assert len(client.get(f"/verifications/project/{project_id}").json()) == 2
+        # 6. Track analytics
+        r = client.post("/api/analytics/track", json={
+            "event_type": "project_view",
+            "entity_type": "project",
+            "entity_id": project.id,
+        }, headers=analyst_headers)
+        assert r.status_code == 201
 
 
 class TestConcurrentOperations:
     """
-    Test multiple concurrent operations on the system.
+    Test multiple operations on shared resources.
     """
 
-    def test_multiple_investors_same_project(self, client, db_session):
+    def test_multiple_investors_same_project(self, client, analyst_headers, db_session):
         """Test multiple investors expressing interest in the same project."""
-        from backend.models import Project, Sector, ProjectStage
+        project = _make_project(db_session, name="Popular Mining Project", country="Zambia", sector="mining")
 
-        # Create project
-        project = Project(
-            name="Popular Mining Project",
-            sector=Sector.MINING,
-            country="Zambia",
-            stage=ProjectStage.PROCUREMENT,
-            estimated_capex=300000000.0,
-            revenue_model="Copper sales"
-        )
-        db_session.add(project)
-        db_session.commit()
-        project_id = project.id
-
-        # Create multiple investors and introductions
-        for i in range(5):
-            investor_response = client.post("/investors/", json={
-                "fund_name": f"Fund {i}",
-                "ticket_size_min": 1000000.0,
-                "ticket_size_max": 50000000.0,
-                "instruments": ["Equity"],
-                "country_focus": ["Zambia"],
-                "sector_focus": ["Mining"]
-            })
-            investor_id = investor_response.json()["id"]
-
-            intro_response = client.post("/introductions/", json={
-                "investor_id": investor_id,
-                "project_id": project_id,
-                "message": f"Interest from Fund {i}",
-                "status": "Pending"
-            })
-            assert intro_response.status_code == 200
-
-    def test_multiple_projects_same_investor(self, client, sample_investor_data, db_session):
-        """Test one investor interested in multiple projects."""
-        from backend.models import Project, Sector, ProjectStage
-
-        # Create investor
-        investor_response = client.post("/investors/", json=sample_investor_data)
-        investor_id = investor_response.json()["id"]
-
-        # Create multiple projects and introductions
+        # Create 3 investor introductions for the same project
         for i in range(3):
-            project = Project(
-                name=f"Multi-Interest Project {i}",
-                sector=Sector.ENERGY,
-                country="Kenya",
-                stage=ProjectStage.FEASIBILITY,
-                estimated_capex=15000000.0 * (i + 1),
-                revenue_model="PPA"
-            )
-            db_session.add(project)
-            db_session.commit()
+            inv_r = client.post("/api/investors", json={
+                "organisation_name": f"Mining Fund {i}",
+                "investor_type": "private_fund",
+            }, headers=analyst_headers)
+            assert inv_r.status_code == 201
+            investor_id = inv_r.json()["id"]
 
-            intro_response = client.post("/introductions/", json={
-                "investor_id": investor_id,
+            intro_r = client.post("/api/introductions", json={
                 "project_id": project.id,
-                "message": f"Interest in project {i}",
-                "status": "Pending"
-            })
-            assert intro_response.status_code == 200
+                "investor_id": investor_id,
+            }, headers=analyst_headers)
+            assert intro_r.status_code == 201
+
+    def test_multiple_projects_same_investor(self, client, analyst_headers, db_session):
+        """Test one investor interested in multiple projects."""
+        inv_r = client.post("/api/investors", json={
+            "organisation_name": "Diversified Africa Fund",
+        }, headers=analyst_headers)
+        assert inv_r.status_code == 201
+        investor_id = inv_r.json()["id"]
+
+        # Create introductions for 3 different projects
+        sectors = ["energy", "transport", "water"]
+        for i, sector in enumerate(sectors):
+            project = _make_project(
+                db_session,
+                name=f"Multi-Interest Project {i}",
+                country="Kenya",
+                sector=sector,
+            )
+            intro_r = client.post("/api/introductions", json={
+                "project_id": project.id,
+                "investor_id": investor_id,
+            }, headers=analyst_headers)
+            assert intro_r.status_code == 201
+
+        # Verify all introductions appear in list
+        list_r = client.get("/api/introductions", headers=analyst_headers)
+        assert list_r.status_code == 200
+        assert list_r.json()["count"] == 3
