@@ -83,12 +83,12 @@ class TestCreateDataRoom:
         response = client.post("/data-rooms/", json=data_room_data)
         assert response.status_code == 200
 
-    def test_create_data_room_missing_project_id(self, client):
+    def test_create_data_room_missing_project_id(self, client, admin_headers):
         """Test that missing project_id is rejected."""
         data_room_data = {
             "nda_required": True
         }
-        response = client.post("/data-rooms/", json=data_room_data)
+        response = client.post("/api/data-rooms", json=data_room_data, headers=admin_headers)
         assert response.status_code == 422
 
 

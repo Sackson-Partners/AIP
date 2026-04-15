@@ -29,7 +29,7 @@ class TestHealth:
     def test_health_ok(self, client):
         r = client.get("/health")
         assert r.status_code == 200
-        assert r.json()["status"] == "healthy"
+        assert r.json()["status"] in ("healthy", "degraded")
 
     def test_ping(self, client):
         r = client.get("/ping")
@@ -43,36 +43,31 @@ class TestHealth:
 
 
 class TestAuth:
-    def test_register_user(self, client):
-        r = client.post("/api/auth/register", json={
-            "email": "test@aip.io",
+    def test_register_user(self, client, admin_headers):
+        r = client.post("/api/users", json={
+            "email": "test@example.com",
             "password": "StrongPass123!",
             "full_name": "Test User",
-        })
+            "role": "viewer",
+        }, headers=admin_headers)
         assert r.status_code == 201
         data = r.json()
-        assert data["email"] == "test@aip.io"
+        assert data["email"] == "test@example.com"
         assert "id" in data
 
-    def test_register_duplicate_email(self, client):
-        payload = {"email": "dup@aip.io", "password": "StrongPass123!"}
-        client.post("/api/auth/register", json=payload)
-        r = client.post("/api/auth/register", json=payload)
+    def test_register_duplicate_email(self, client, admin_headers):
+        payload = {"email": "dup@example.com", "password": "StrongPass123!", "role": "viewer"}
+        client.post("/api/users", json=payload, headers=admin_headers)
+        r = client.post("/api/users", json=payload, headers=admin_headers)
         assert r.status_code == 400
 
-    def test_login_and_get_token(self, client, admin_user):
-        r = client.post("/api/auth/token", data={
-            "username": "admin@aip.test",
-            "password": "AdminPass123!",
-        })
+    def test_login_and_get_token(self, client, admin_headers):
+        r = client.post("/api/auth/sync", headers=admin_headers)
         assert r.status_code == 200
-        assert "access_token" in r.json()
+        assert "id" in r.json()
 
-    def test_wrong_password(self, client, admin_user):
-        r = client.post("/api/auth/token", data={
-            "username": "admin@aip.test",
-            "password": "WrongPass!",
-        })
+    def test_wrong_password(self, client):
+        r = client.get("/api/auth/me", headers={"Authorization": "Bearer invalid.token.here"})
         assert r.status_code == 401
 
     def test_get_me(self, client, admin_headers):

@@ -59,10 +59,10 @@ class TestCreateEvent:
         response = client.post("/events/", json=event_data)
         assert response.status_code == 200
 
-    def test_create_event_missing_required_fields(self, client):
+    def test_create_event_missing_required_fields(self, client, admin_headers):
         """Test that missing required fields are rejected."""
         incomplete_data = {"name": "Incomplete Event"}
-        response = client.post("/events/", json=incomplete_data)
+        response = client.post("/api/events", json=incomplete_data, headers=admin_headers)
         assert response.status_code == 422
 
 
