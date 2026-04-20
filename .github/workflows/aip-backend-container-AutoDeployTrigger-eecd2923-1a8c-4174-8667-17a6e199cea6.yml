@@ -5,20 +5,19 @@ on:
   # Automatically trigger it when detected changes in repo
   push:
     branches:
-  - main
+      - main
     paths:
-  - 'backend/**'
-  - 'Dockerfile'
+      - 'backend/**'
+      - 'Dockerfile'
+      - '.github/workflows/aip-backend-container-AutoDeployTrigger-eecd2923-1a8c-4174-8667-17a6e199cea6.yml'
 
-    - '.github/workflows/aip-backend-container-AutoDeployTrigger-eecd2923-1a8c-4174-8667-17a6e199cea6.yml'
-
-  # Allow manual trigger 
-  workflow_dispatch:      
+  # Allow manual trigger
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    permissions: 
+    permissions:
       id-token: write #This is required for requesting the OIDC JWT Token
       contents: read #Required when GH token is used to authenticate with private repo
 
@@ -44,6 +43,3 @@ jobs:
           containerAppName: aip-backend-container
           resourceGroup: AIP-RG
           imageToBuild: sacksons/aip-backend-container:${{ github.sha }}
-      
-
-

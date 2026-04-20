@@ -1,108 +1,97 @@
-# routers/investors.py
-from fastapi import APIRouter, Depends, HTTPException
+"""
+AIP Investors Router
+---------------------
+Investor profile management for the AIP platform.
+
+Endpoints:
+    GET  /api/investors           - List investor profiles
+    GET  /api/investors/{id}      - Get investor profile
+    POST /api/investors           - Register investor profile
+    PUT  /api/investors/{id}      - Update investor profile
+"""
+
+import logging
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
-from backend.schemas import Investor, InvestorCreate
+
 from backend.database import get_db
-from backend import models
+from backend.models import Investor
+from backend.security.auth import get_current_user
+from backend.models import User
 
-router = APIRouter(prefix="/investors", tags=["investors"])
-
-
-def _serialize_investor(investor: InvestorCreate) -> dict:
-    """Convert Pydantic model with lists to dict with comma-separated strings."""
-    data = investor.model_dump()
-    # Convert string lists to comma-separated strings
-    data["instruments"] = ",".join(investor.instruments)
-    data["country_focus"] = ",".join(investor.country_focus)
-    data["sector_focus"] = ",".join(investor.sector_focus)
-    return data
+logger = logging.getLogger(__name__)
+router = APIRouter(prefix="/api/investors", tags=["Investors"])
 
 
-def _deserialize_investor(db_inv: models.Investor) -> Investor:
-    """Convert database model with strings to Pydantic model with lists."""
-    return Investor(
-        id=db_inv.id,
-        fund_name=db_inv.fund_name,
-        aum=db_inv.aum,
-        ticket_size_min=db_inv.ticket_size_min,
-        ticket_size_max=db_inv.ticket_size_max,
-        instruments=db_inv.instruments.split(",") if db_inv.instruments else [],
-        target_irr=db_inv.target_irr,
-        country_focus=db_inv.country_focus.split(",") if db_inv.country_focus else [],
-        sector_focus=db_inv.sector_focus.split(",") if db_inv.sector_focus else [],
-        esg_constraints=db_inv.esg_constraints
+class InvestorCreate(BaseModel):
+    organisation_name: str
+    investor_type: Optional[str] = None
+    aum_usd: Optional[str] = None
+    focus_sectors: Optional[list[str]] = None
+    focus_regions: Optional[list[str]] = None
+    min_ticket_usd: Optional[str] = None
+    max_ticket_usd: Optional[str] = None
+    preferred_structures: Optional[list[str]] = None
+    contact_name: Optional[str] = None
+    contact_email: Optional[str] = None
+    website: Optional[str] = None
+
+
+@router.get("")
+async def list_investors(
+    investor_type: Optional[str] = Query(None),
+    sector: Optional[str] = Query(None),
+    region: Optional[str] = Query(None),
+    limit: int = Query(50, le=200),
+    offset: int = Query(0),
+    db: Session = Depends(get_db),
+):
+    """List active investor profiles with optional filtering."""
+    import json
+
+    query = db.query(Investor).filter(Investor.is_active == True)
+    if investor_type:
+        query = query.filter(Investor.investor_type == investor_type)
+    investors = query.offset(offset).limit(limit).all()
+    return {"investors": investors, "count": len(investors)}
+
+
+@router.get("/{investor_id}")
+async def get_investor(investor_id: str, db: Session = Depends(get_db)):
+    """Return full profile for a single investor."""
+    investor = db.query(Investor).filter(Investor.id == investor_id).first()
+    if not investor:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Investor not found.")
+    return investor
+
+
+@router.post("", status_code=status.HTTP_201_CREATED)
+async def create_investor(
+    investor_in: InvestorCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Register a new investor profile."""
+    import json
+
+    investor = Investor(
+        user_id=current_user.id,
+        organisation_name=investor_in.organisation_name,
+        investor_type=investor_in.investor_type,
+        aum_usd=investor_in.aum_usd,
+        focus_sectors=json.dumps(investor_in.focus_sectors or []),
+        focus_regions=json.dumps(investor_in.focus_regions or []),
+        min_ticket_usd=investor_in.min_ticket_usd,
+        max_ticket_usd=investor_in.max_ticket_usd,
+        preferred_structures=json.dumps(investor_in.preferred_structures or []),
+        contact_name=investor_in.contact_name,
+        contact_email=investor_in.contact_email,
+        website=investor_in.website,
     )
-
-
-@router.get("/", response_model=list[Investor])
-def list_all(db: Session = Depends(get_db)):
-    """Get all investors."""
-    db_investors = db.query(models.Investor).all()
-    return [_deserialize_investor(inv) for inv in db_investors]
-
-
-@router.post("/", response_model=Investor)
-def create(investor: InvestorCreate, db: Session = Depends(get_db)):
-    """Create a new investor."""
-    data = _serialize_investor(investor)
-    db_investor = models.Investor(**data)
-    db.add(db_investor)
+    db.add(investor)
     db.commit()
-    db.refresh(db_investor)
-    return _deserialize_investor(db_investor)
-
-
-@router.get("/{investor_id}", response_model=Investor)
-def read(investor_id: int, db: Session = Depends(get_db)):
-    """Get an investor by ID."""
-    db_inv = db.query(models.Investor).filter(models.Investor.id == investor_id).first()
-    if db_inv is None:
-        raise HTTPException(status_code=404, detail="Investor not found")
-    return _deserialize_investor(db_inv)
-
-
-@router.get("/{investor_id}/match")
-def match_investor(investor_id: int, db: Session = Depends(get_db)):
-    """Match an investor with compatible projects based on sector and ticket size."""
-    db_inv = db.query(models.Investor).filter(models.Investor.id == investor_id).first()
-    if db_inv is None:
-        raise HTTPException(status_code=404, detail="Investor not found")
-
-    investor = _deserialize_investor(db_inv)
-    all_projects = db.query(models.Project).all()
-
-    matched = []
-    for project in all_projects:
-        score = 0
-        reasons = []
-
-        # Sector match
-        project_sector = project.sector.value if hasattr(project.sector, 'value') else str(project.sector)
-        if project_sector in investor.sector_focus:
-            score += 40
-            reasons.append(f"Sector match: {project_sector}")
-
-        # Country match
-        if project.country in investor.country_focus:
-            score += 30
-            reasons.append(f"Country match: {project.country}")
-
-        # Ticket size match
-        if project.estimated_capex:
-            if investor.ticket_size_min <= project.estimated_capex <= investor.ticket_size_max:
-                score += 30
-                reasons.append(f"CAPEX within ticket range")
-
-        if score > 0:
-            matched.append({
-                "project_id": project.id,
-                "project_name": project.name,
-                "country": project.country,
-                "sector": project_sector,
-                "estimated_capex": project.estimated_capex,
-                "match_score": score,
-                "match_reasons": reasons
-            })
-
-    matched.sort(key=lambda x: x["match_score"], reverse=True)
-    return {"investor_id": investor_id, "matches": matched}
+    db.refresh(investor)
+    return investor

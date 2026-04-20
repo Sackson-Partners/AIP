@@ -8,6 +8,8 @@ from .blockchain import BlockchainRecord
 from .investor import InvestorPreferences, Match
 from .dealroom import DealRoom, Message, Meeting, TermSheet, Signature
 from .audit import AuditLog
+from .radar import RadarSignal, RadarProject, StrategicCorridor, RadarScanLog
+from .infrastructure_map import InfrastructureMapProject, IntelligenceBrief, MapLayer
 
 __all__ = [
     # User
@@ -41,4 +43,13 @@ __all__ = [
     "Signature",
     # Audit
     "AuditLog",
+    # Radar
+    "RadarSignal",
+    "RadarProject",
+    "StrategicCorridor",
+    "RadarScanLog",
+    # Infrastructure Map
+    "InfrastructureMapProject",
+    "IntelligenceBrief",
+    "MapLayer",
 ]

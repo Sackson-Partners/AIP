@@ -111,6 +111,33 @@ jobs:
           resourceGroup: ${{ env.AZURE_RESOURCE_GROUP }}
           containerAppName: ${{ env.AZURE_CONTAINER_APP }}
           imageToDeploy: ${{ env.DOCKER_IMAGE }}:latest
+      - name: Fix health probe ports to 8000
+        run: |
+          python3 - <<'EOF'
+          import json, subprocess
+          r = subprocess.run(['az','containerapp','show','-n','aip-api','-g','aip-rg','-o','json'], capture_output=True, text=True)
+          app = json.loads(r.stdout)
+          changed = False
+          for c in app['properties']['template']['containers']:
+              for p in c.get('probes', []):
+                  if 'tcpSocket' in p and p['tcpSocket']['port'] != 8000:
+                      p['tcpSocket']['port'] = 8000
+                      changed = True
+          if changed:
+              patch = {'properties': {'template': {'containers': app['properties']['template']['containers']}}}
+              with open('/tmp/probe_patch.json', 'w') as f:
+                  json.dump(patch, f)
+              result = subprocess.run([
+                  'az', 'rest', '--method', 'patch',
+                  '--url', 'https://management.azure.com/subscriptions/e919967a-c8ff-4896-977b-360167fa1a84/resourceGroups/aip-rg/providers/Microsoft.App/containerApps/aip-api?api-version=2024-03-01',
+                  '--body', '@/tmp/probe_patch.json',
+                  '--headers', 'Content-Type=application/json',
+                  '-o', 'none'
+              ], capture_output=True, text=True)
+              print('Probe ports fixed to 8000' if result.returncode == 0 else f'Probe fix failed: {result.stderr}')
+          else:
+              print('Probe ports already correct (8000)')
+          EOF
       - name: Show container startup logs
         if: always()
         run: |
