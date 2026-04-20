@@ -12,8 +12,20 @@ from backend.models import User as UserModel
 from backend.database import get_db
 from backend.schemas import Token, User as UserSchema
 
-# Internal AIP JWT secret (legacy)
-SECRET_KEY = os.environ.get("SECRET_KEY", "aip-secret-key-change-in-production-2024")
+import sys
+import logging as _logging
+
+_auth_logger = _logging.getLogger("aip.auth")
+
+# Internal AIP JWT secret (legacy) — REQUIRED, no insecure default
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    _auth_logger.critical(
+        "SECRET_KEY environment variable is not set. "
+        "Refusing to start — JWT signing is insecure without a secret key."
+    )
+    sys.exit(1)
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 

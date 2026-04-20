@@ -9,10 +9,13 @@ class TestAPIRoot:
     """Tests for root API endpoints."""
 
     def test_health_check(self, client):
-        """Test the health check endpoint returns healthy status."""
+        """Test the health check endpoint returns healthy status with required fields."""
         response = client.get("/health")
         assert response.status_code == 200
-        assert response.json() == {"status": "healthy"}
+        data = response.json()
+        assert data["status"] == "healthy"
+        assert "timestamp" in data
+        assert "environment" in data
 
     def test_invalid_endpoint(self, client):
         """Test that invalid endpoints return 404."""

@@ -8,10 +8,17 @@ on:
     branches:
       - main
 
+# Cancel in-progress runs on the same branch/PR to avoid queueing stale deploys
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DOCKER_IMAGE: sacksons/aip-api
   AZURE_CONTAINER_APP: aip-api
   AZURE_RESOURCE_GROUP: aip-rg
+  BACKEND_URL: https://aip-api.azurecontainerapps.io
+  FRONTEND_URL: https://aip-plum.vercel.app
 
 jobs:
   test:
@@ -123,7 +130,21 @@ jobs:
             --format text 2>&1 | tee /tmp/clogs.txt || echo "Could not fetch logs"
           echo "=== ERROR / EXCEPTION lines ==="
           grep -iE "(error|exception|traceback|critical)" /tmp/clogs.txt | head -30 || true
-   - name: Health check
+      - name: Set Container App environment variables
+        run: |
+          az containerapp update \
+            --name ${{ env.AZURE_CONTAINER_APP }} \
+            --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
+            --set-env-vars \
+              NODE_ENV=production \
+              DATABASE_URL=secretref:database-url \
+              SUPABASE_URL=secretref:supabase-url \
+              SUPABASE_ANON_KEY=secretref:supabase-anon-key \
+              SUPABASE_SERVICE_ROLE_KEY=secretref:supabase-service-role-key \
+              SECRET_KEY=secretref:jwt-secret \
+              ENVIRONMENT=production \
+              ALLOWED_ORIGINS="${{ secrets.VERCEL_FRONTEND_URL }}"
+      - name: Health check
         run: |
           echo "Waiting 90s for Azure to route traffic to the new revision..."
           sleep 90
@@ -132,11 +153,84 @@ jobs:
             --resource-group ${{ env.AZURE_RESOURCE_GROUP }} \
             --query "properties.configuration.ingress.fqdn" -o tsv)
           echo "Checking health at: https://${URL}/health"
-          curl -sf \
-            --max-time 30 \
-            --retry 8 \
-            --retry-delay 15 \
-            --retry-all-errors \
-            "https://${URL}/health" \
-            && echo "Health check passed!" \
-            || (echo "Health check failed" && exit 1)
+          for i in 1 2 3 4 5; do
+            STATUS=$(curl -sf --max-time 30 "https://${URL}/health" -o /dev/null -w "%{http_code}" || echo "000")
+            if [ "$STATUS" = "200" ]; then
+              echo "✅ Health check passed (attempt $i)"
+              break
+            fi
+            echo "⏳ Attempt $i failed (HTTP $STATUS) — retrying in 15s…"
+            sleep 15
+          done
+          [ "$STATUS" = "200" ] || (echo "❌ Health check failed after 5 retries" && exit 1)
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.event_name == 'push'
+    steps:
+      - name: Backend health checks
+        run: |
+          echo "=== GET /health ==="
+          curl -sf --max-time 15 ${{ env.BACKEND_URL }}/health | python3 -m json.tool
+          echo "✅ /health → 200"
+
+          echo "=== GET /health/live ==="
+          LIVE=$(curl -sf --max-time 15 ${{ env.BACKEND_URL }}/health/live)
+          echo "$LIVE" | python3 -m json.tool
+          echo "$LIVE" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('live')==True" || (echo "❌ /health/live did not return live:true" && exit 1)
+          echo "✅ /health/live → live:true"
+
+          echo "=== GET /health/ready ==="
+          READY=$(curl -sf --max-time 15 ${{ env.BACKEND_URL }}/health/ready)
+          echo "$READY" | python3 -m json.tool
+          echo "$READY" | python3 -c "import sys,json; d=json.load(sys.stdin); assert d.get('ready')==True" || (echo "❌ /health/ready did not return ready:true" && exit 1)
+          echo "✅ /health/ready → ready:true"
+
+      - name: Auth protection check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 ${{ env.BACKEND_URL }}/auth/me)
+          [ "$STATUS" = "401" ] || [ "$STATUS" = "403" ] \
+            && echo "✅ /auth/me without token → $STATUS (auth protected)" \
+            || (echo "❌ /auth/me returned $STATUS instead of 401" && exit 1)
+
+      - name: CORS check
+        run: |
+          CORS=$(curl -sI --max-time 15 -X OPTIONS ${{ env.BACKEND_URL }}/health \
+            -H "Origin: ${{ env.FRONTEND_URL }}" | grep -i "access-control-allow-origin" || true)
+          [ -n "$CORS" ] \
+            && echo "✅ CORS header present: $CORS" \
+            || echo "⚠️  CORS header not found on OPTIONS /health"
+
+      - name: Frontend check
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 ${{ env.FRONTEND_URL }})
+          [ "$STATUS" = "200" ] \
+            && echo "✅ Frontend → 200" \
+            || (echo "❌ Frontend returned $STATUS" && exit 1)
+
+  notify-failure:
+    name: Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [test, docker, deploy, smoke-tests]
+    if: failure() && github.event_name == 'push'
+    steps:
+      - name: Create GitHub issue on pipeline failure
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run_url = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `🚨 CI/CD Pipeline Failed — ${context.sha.slice(0,7)}`,
+              body: [
+                `**Branch:** \`${context.ref}\``,
+                `**Commit:** ${context.sha}`,
+                `**Run:** ${run_url}`,
+                '',
+                'One or more jobs in the CI/CD pipeline failed. Please investigate.',
+              ].join('\n'),
+              labels: ['ci-failure', 'bug'],
+            });

@@ -1,36 +1,37 @@
-import axios from 'axios';
+import axios, { AxiosError, AxiosRequestConfig } from 'axios';
 import { supabase } from '@/lib/supabase';
 
-// API URL configuration
-// In development (localhost), use local backend
-// In production, use NEXT_PUBLIC_API_URL env variable
+// API URL — must be set via NEXT_PUBLIC_API_URL; localhost fallback for local dev only
 const getApiUrl = () => {
-  // If env variable is set, use it
   if (process.env.NEXT_PUBLIC_API_URL) {
     return process.env.NEXT_PUBLIC_API_URL;
   }
-  // In browser, check if we're on localhost
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
       return 'http://localhost:8000';
     }
   }
-  // Default for production
-  return 'https://web-production-8e81a.up.railway.app';
+  // No silent fallback to a third-party URL — throw so misconfiguration is visible
+  throw new Error('NEXT_PUBLIC_API_URL is not set. Cannot determine backend URL.');
 };
 
 const API_BASE_URL = getApiUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 30000,  // 30-second hard timeout on every request
   headers: {
     'Content-Type': 'application/json',
   },
 });
 
-// Add auth token to requests (Supabase)
+// Attach fresh Supabase access token to every request
 api.interceptors.request.use(async (config) => {
+  // Detect offline before hitting the network — cleaner error message
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    return Promise.reject(new Error('No internet connection. Please check your network and try again.'));
+  }
   if (typeof window !== 'undefined') {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.access_token) {
@@ -40,14 +41,32 @@ api.interceptors.request.use(async (config) => {
   return config;
 });
 
+// Retry helper — exponential backoff, retries network errors and 5xx responses
+export async function retryRequest<T>(config: AxiosRequestConfig, maxRetries = 3): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await api.request<T>(config);
+      return response.data;
+    } catch (err) {
+      const error = err as AxiosError;
+      const isRetryable =
+        !error.response ||  // Network error
+        (error.response.status >= 500 && error.response.status !== 501);
+      if (attempt < maxRetries && isRetryable) {
+        await new Promise((resolve) => setTimeout(resolve, 2 ** attempt * 500)); // 500ms, 1s, 2s
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Max retries exceeded');
+}
+
 api.interceptors.response.use(
   (response) => response,
-  async (error) => {
+  async (error: AxiosError) => {
     if (error.response?.status === 401) {
       if (typeof window !== 'undefined') {
-        // Only sign out if the user's session is genuinely expired/missing.
-        // Don't sign out on authorization errors (e.g. insufficient permissions)
-        // where the session itself is still valid.
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
           await supabase.auth.signOut();
@@ -55,6 +74,17 @@ api.interceptors.response.use(
         }
       }
     }
+
+    if (error.response?.status === 429) {
+      const retryAfter = error.response.headers['retry-after'];
+      const waitSeconds = retryAfter ? parseInt(retryAfter, 10) : 60;
+      const message = `Rate limit exceeded. Please wait ${waitSeconds} second${waitSeconds !== 1 ? 's' : ''} before trying again.`;
+      const rateError = new Error(message) as Error & { isRateLimit: boolean; retryAfter: number };
+      rateError.isRateLimit = true;
+      rateError.retryAfter = waitSeconds;
+      return Promise.reject(rateError);
+    }
+
     return Promise.reject(error);
   }
 );

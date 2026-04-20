@@ -58,7 +58,10 @@ def _get_cors_origins():
         for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
         if o.strip()
     ]
-    defaults = ["https://aip-plum.vercel.app", "http://localhost:3000"]
+    # Only add localhost default in non-production to avoid leaking dev access
+    defaults = ["https://aip-plum.vercel.app"]
+    if os.getenv("NODE_ENV") != "production" and os.getenv("ENVIRONMENT") != "production":
+        defaults.append("http://localhost:3000")
     return list(dict.fromkeys(env_origins + defaults))
 
 
@@ -77,16 +80,31 @@ app.add_middleware(
     allow_origins=_get_cors_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
+    # Explicit header list — wildcard ("*") allows dangerous CSRF headers
+    allow_headers=[
+        "authorization",
+        "content-type",
+        "x-requested-with",
+        "accept",
+        "origin",
+        "x-supabase-auth",
+        "apikey",
+    ],
 )
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    # Log with full traceback for observability, but never expose it to the client
     logger.exception("Unhandled error on %s %s", request.method, request.url)
     return JSONResponse(
         status_code=500,
-        content={"detail": "An unexpected error occurred."},
+        content={
+            "success": False,
+            "error": "INTERNAL_SERVER_ERROR",
+            "message": "An unexpected error occurred.",
+            "requestId": request.headers.get("x-request-id", ""),
+        },
     )
 
 
@@ -97,7 +115,36 @@ def root():
 
 @app.get("/health", tags=["Health"])
 def health_check():
-    return {"status": "healthy", "service": "aip-api"}
+    import datetime
+    return {
+        "status": "healthy",
+        "service": "aip-api",
+        "version": "2.0.0",
+        "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+        "environment": os.getenv("NODE_ENV", os.getenv("ENVIRONMENT", "development")),
+    }
+
+
+@app.get("/health/live", tags=["Health"])
+def health_live():
+    """Liveness probe — confirms the process is running."""
+    return {"live": True}
+
+
+@app.get("/health/ready", tags=["Health"])
+def health_ready():
+    """Readiness probe — confirms the app is ready to serve traffic."""
+    from backend.database import engine
+    from sqlalchemy import text as _text
+    try:
+        with engine.connect() as conn:
+            conn.execute(_text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+    if not db_ok:
+        return JSONResponse(status_code=503, content={"ready": False, "reason": "database unavailable"})
+    return {"ready": True}
 
 
 @app.get("/ping", tags=["Health"])
