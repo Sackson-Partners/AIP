@@ -1,0 +1,481 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ANALYST
+  GOVERNMENT
+  SPONSOR_DEVELOPER
+  EPC_OPERATOR
+  INSTITUTIONAL_INVESTOR
+}
+
+enum UserStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum AuthProvider {
+  AZURE_AD
+  INTERNAL
+}
+
+enum ProjectStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  ACTIVE
+  FUNDED
+  CLOSED
+  REJECTED
+}
+
+enum ProjectSector {
+  ENERGY
+  TRANSPORT
+  WATER
+  DIGITAL
+  HEALTHCARE
+  EDUCATION
+  AGRICULTURE
+  HOUSING
+  WASTE_MANAGEMENT
+  OTHER
+}
+
+enum ProjectType {
+  PPP
+  IPP
+  CONCESSION
+  BOT
+  BOO
+  DBFOM
+  SERVICE_CONTRACT
+  OTHER
+}
+
+enum DealStage {
+  CONCEPT
+  PREFEASIBILITY
+  FEASIBILITY
+  STRUCTURING
+  PROCUREMENT
+  FINANCIAL_CLOSE
+  CONSTRUCTION
+  OPERATIONS
+}
+
+enum InvestorType {
+  PE_FUND
+  DFI
+  SOVEREIGN_WEALTH
+  FAMILY_OFFICE
+  PENSION_FUND
+  INFRASTRUCTURE_FUND
+  BANK
+  OTHER
+}
+
+enum DocumentType {
+  FEASIBILITY_STUDY
+  ENVIRONMENTAL_IMPACT
+  FINANCIAL_MODEL
+  LEGAL_AGREEMENT
+  TECHNICAL_SPECS
+  EIN_REPORT
+  PETFEL_REPORT
+  COMPLIANCE_REPORT
+  OTHER
+}
+
+enum NotificationType {
+  PROJECT_UPDATE
+  DEAL_ALERT
+  COMPLIANCE_REMINDER
+  SYSTEM_ALERT
+  INVESTOR_MATCH
+  DOCUMENT_REQUEST
+}
+
+// ─── NextAuth required models ─────────────────────────────────────────────────
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  ext_expires_in    Int?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Core models ──────────────────────────────────────────────────────────────
+
+model User {
+  id                 String       @id @default(cuid())
+  azureOid           String?      @unique
+  email              String       @unique
+  emailVerified      DateTime?
+  name               String?
+  firstName          String?
+  lastName           String?
+  image              String?
+  phone              String?
+  jobTitle           String?
+  organization       String?
+  country            String?
+  timezone           String?
+  role               UserRole     @default(INSTITUTIONAL_INVESTOR)
+  status             UserStatus   @default(PENDING)
+  authProvider       AuthProvider @default(AZURE_AD)
+  passwordHash       String?
+  mustChangePass     Boolean      @default(false)
+  twoFactorEnabled   Boolean      @default(false)
+  twoFactorSecret    String?
+  lastLoginAt        DateTime?
+  lastLoginIp        String?
+  loginCount         Int          @default(0)
+  emailNotifications Boolean      @default(true)
+  dashboardLayout    String?
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  createdBy          String?
+
+  accounts          Account[]
+  sessions          Session[]
+  internalProfile   InternalProfile?
+  investorProfile   InvestorProfile?
+  governmentProfile GovernmentProfile?
+  sponsorProfile    SponsorProfile?
+  ePCProfile        EPCProfile?
+  ownedProjects     Project[]        @relation("ProjectOwner")
+  reviewedProjects  Project[]        @relation("ProjectReviewer")
+  documents         Document[]
+  notifications     Notification[]
+  activityLogs      ActivityLog[]
+}
+
+model InternalProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  employeeId     String   @unique
+  department     String?
+  accessLevel    Int      @default(1)
+  canApprove     Boolean  @default(false)
+  canPublish     Boolean  @default(false)
+  canManageUsers Boolean  @default(false)
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model InvestorProfile {
+  id               String        @id @default(cuid())
+  userId           String        @unique
+  investorType     InvestorType?
+  aum              Float?
+  minTicket        Float?
+  maxTicket        Float?
+  preferredSectors String[]
+  preferredRegions String[]
+  preferredStages  String[]
+  riskTolerance    String?
+  targetIRR        Float?
+  requiresESG      Boolean       @default(false)
+  accredited       Boolean       @default(false)
+  kycVerified      Boolean       @default(false)
+  kycDocument      String?
+
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  watchlist ProjectWatchlist[]
+}
+
+model GovernmentProfile {
+  id              String  @id @default(cuid())
+  userId          String  @unique
+  ministry        String?
+  country         String?
+  region          String?
+  pppUnitName     String?
+  regulatoryAuth  String?
+  verified        Boolean @default(false)
+  verificationDoc String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model SponsorProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  companyName     String?
+  registrationNo  String?
+  yearsExperience Int?
+  portfolioSize   Float?
+  sectors         String[]
+  regions         String[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EPCProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  companyName    String?
+  capabilities   String[]
+  sectors        String[]
+  regions        String[]
+  certifications String[]
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id                String         @id @default(cuid())
+  code              String         @unique
+  title             String
+  description       String?        @db.Text
+  country           String?
+  region            String?
+  corridor          String?
+  sector            ProjectSector?
+  projectType       ProjectType?
+  dealStage         DealStage      @default(CONCEPT)
+  status            ProjectStatus  @default(DRAFT)
+  totalCost         Float?
+  equityRequired    Float?
+  debtRequired      Float?
+  grantRequired     Float?
+  currency          String         @default("USD")
+  expectedClose     DateTime?
+  constructionStart DateTime?
+  operationsStart   DateTime?
+  concessionPeriod  Int?
+  petfelScore       Float?
+  einScore          Float?
+  riskRating        String?
+  esgRating         String?
+  ownerId           String
+  reviewerId        String?
+  publishedAt       DateTime?
+  featuredUntil     DateTime?
+  viewCount         Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  owner          User               @relation("ProjectOwner", fields: [ownerId], references: [id])
+  reviewer       User?              @relation("ProjectReviewer", fields: [reviewerId], references: [id])
+  petfelAnalysis PETFELAnalysis?
+  einReport      EINReport?
+  documents      Document[]
+  milestones     Milestone[]
+  watchlist      ProjectWatchlist[]
+  dealRooms      DealRoom[]
+
+  @@index([ownerId])
+  @@index([reviewerId])
+  @@index([status])
+  @@index([sector])
+}
+
+// PETFEL = Political, Economic, Technical, Financial, Environmental, Legal
+model PETFELAnalysis {
+  id                 String   @id @default(cuid())
+  projectId          String   @unique
+  politicalScore     Float?
+  economicScore      Float?
+  technicalScore     Float?
+  financialScore     Float?
+  environmentalScore Float?
+  legalScore         Float?
+  overallScore       Float?
+  rating             String?
+  aiMemo             String?  @db.Text
+  riskFactors        String?  @db.Text
+  mitigants          String?  @db.Text
+  recommendations    String?  @db.Text
+  analyzedAt         DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model EINReport {
+  id               String    @id @default(cuid())
+  projectId        String    @unique
+  einNumber        String    @unique
+  projectSummary   String?   @db.Text
+  financialSummary String?   @db.Text
+  riskSummary      String?   @db.Text
+  investmentThesis String?   @db.Text
+  creditRating     String?
+  riskRating       String?
+  esgScore         Float?
+  comparables      String?   @db.Text
+  marketAnalysis   String?   @db.Text
+  publishedAt      DateTime?
+  expiresAt        DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model Milestone {
+  id          String    @id @default(cuid())
+  projectId   String
+  title       String
+  description String?
+  dueDate     DateTime?
+  completedAt DateTime?
+  status      String    @default("PENDING")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+}
+
+model DealRoom {
+  id          String   @id @default(cuid())
+  projectId   String
+  name        String
+  description String?
+  isPublic    Boolean  @default(false)
+  password    String?
+  createdAt   DateTime @default(now())
+
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([projectId])
+}
+
+model ProjectWatchlist {
+  id            String  @id @default(cuid())
+  investorId    String
+  projectId     String
+  alertsEnabled Boolean @default(true)
+
+  investor InvestorProfile @relation(fields: [investorId], references: [id], onDelete: Cascade)
+  project  Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([investorId, projectId])
+}
+
+model Document {
+  id             String       @id @default(cuid())
+  projectId      String?
+  dealRoomId     String?
+  uploaderId     String
+  name           String
+  type           DocumentType @default(OTHER)
+  mimeType       String?
+  size           Int?
+  blobUrl        String?
+  blobKey        String?
+  isPublic       Boolean      @default(false)
+  isConfidential Boolean      @default(false)
+  version        Int          @default(1)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  dealRoom DealRoom? @relation(fields: [dealRoomId], references: [id], onDelete: SetNull)
+  uploader User      @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+
+  @@index([projectId])
+  @@index([dealRoomId])
+  @@index([uploaderId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  link      String?
+  read      Boolean          @default(false)
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, read])
+}
+
+model ActivityLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  action     String
+  resource   String?
+  resourceId String?
+  details    String?  @db.Text
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([createdAt])
+}
+
+model SystemSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedBy   String?
+  updatedAt   DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  email     String?
+  action    String
+  tableName String?
+  recordId  String?
+  oldValues String?  @db.Text
+  newValues String?  @db.Text
+  ipAddress String?
+  createdAt DateTime @default(now())
+}
