@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { projectsApi, investorsApi, verificationsApi, eventsApi, Project } from '../../lib/api';
 import { useSession } from 'next-auth/react';
-import { useRBAC, USER_ROLES, UserRole } from '../../hooks/useRBAC';
+import { useRBAC, USER_ROLES } from '../../hooks/useRBAC';
+import { UserRole } from '@prisma/client';
 import { StatCardsSkeleton } from '@/components/ui/Skeleton';
 
 function Icon({ d, className = 'w-5 h-5' }: { d: string; className?: string }) {
@@ -141,30 +142,30 @@ export default function Dashboard() {
   // Role-specific stats config
   const statCards = (() => {
     switch (role) {
-      case 'SUPER_ADMIN':
+      case UserRole.SUPER_ADMIN:
         return [
           { label: 'Total Projects',      value: stats.projects,      icon: 'folder',   href: '/dashboard/projects' },
           { label: 'Investors',           value: stats.investors,     icon: 'users',    href: '/dashboard/investors' },
           { label: 'Verifications',       value: stats.verifications, icon: 'shield',   href: '/dashboard/verifications' },
           { label: 'Events',              value: stats.events,        icon: 'calendar', href: '/dashboard/events' },
         ];
-      case 'INSTITUTIONAL_INVESTOR':
-      case 'ANALYST':
+      case UserRole.INSTITUTIONAL_INVESTOR:
+      case UserRole.ANALYST:
         return [
           { label: 'Pipeline Projects',   value: stats.projects,      icon: 'bolt',     href: '/dashboard/pipeline' },
           { label: 'Investors',           value: stats.investors,     icon: 'deal',     href: '/dashboard/investors' },
           { label: 'Verifications',       value: stats.verifications, icon: 'shield',   href: '/dashboard/verifications' },
           { label: 'IC Sessions',         value: '—',                 icon: 'gavel',    href: '/dashboard/ic' },
         ];
-      case 'EPC_OPERATOR':
-      case 'SPONSOR_DEVELOPER':
+      case UserRole.EPC_OPERATOR:
+      case UserRole.SPONSOR_DEVELOPER:
         return [
           { label: 'My Projects',         value: stats.projects,      icon: 'folder',   href: '/dashboard/projects' },
           { label: 'Pipeline Status',     value: '—',                 icon: 'bolt',     href: '/dashboard/pipeline' },
           { label: 'Data Rooms',          value: '—',                 icon: 'database', href: '/dashboard/data-rooms' },
           { label: 'Events',              value: stats.events,        icon: 'calendar', href: '/dashboard/events' },
         ];
-      case 'GOVERNMENT':
+      case UserRole.GOVERNMENT:
         return [
           { label: 'Curated Projects',    value: stats.projects,      icon: 'folder',   href: '/dashboard/projects' },
           { label: 'Active Investors',    value: stats.investors,     icon: 'users',    href: '/dashboard/investors' },
@@ -183,7 +184,7 @@ export default function Dashboard() {
 
   const quickActions = (() => {
     switch (role) {
-      case 'SUPER_ADMIN':
+      case UserRole.SUPER_ADMIN:
         return [
           { label: 'New Project',       desc: 'Add a project to the platform',    icon: 'plus',     href: '/dashboard/projects' },
           { label: 'Manage Users',      desc: 'View and manage platform users',   icon: 'users',    href: '/dashboard/admin/users' },
@@ -192,8 +193,8 @@ export default function Dashboard() {
           { label: 'Run PESTEL',        desc: 'Start a PESTEL risk assessment',   icon: 'clip',     href: '/dashboard/pestel' },
           { label: 'Generate EIN',      desc: 'Create executive investment note', icon: 'doc',      href: '/dashboard/ein' },
         ];
-      case 'INSTITUTIONAL_INVESTOR':
-      case 'ANALYST':
+      case UserRole.INSTITUTIONAL_INVESTOR:
+      case UserRole.ANALYST:
         return [
           { label: 'New Project',       desc: 'Add a project to pipeline',        icon: 'plus',     href: '/dashboard/projects' },
           { label: 'View Pipeline',     desc: 'Manage deal-flow stages',          icon: 'bolt',     href: '/dashboard/pipeline' },
@@ -202,15 +203,15 @@ export default function Dashboard() {
           { label: 'IC Committee',      desc: 'Investment committee sessions',    icon: 'gavel',    href: '/dashboard/ic' },
           { label: 'Browse Investors',  desc: 'Search the investor directory',    icon: 'deal',     href: '/dashboard/investors' },
         ];
-      case 'EPC_OPERATOR':
-      case 'SPONSOR_DEVELOPER':
+      case UserRole.EPC_OPERATOR:
+      case UserRole.SPONSOR_DEVELOPER:
         return [
           { label: 'Submit Project',    desc: 'Submit a new infrastructure project', icon: 'plus',  href: '/dashboard/projects' },
           { label: 'View Pipeline',     desc: 'Track project approval stages',    icon: 'bolt',     href: '/dashboard/pipeline' },
           { label: 'Data Rooms',        desc: 'Upload project documentation',     icon: 'database', href: '/dashboard/data-rooms' },
           { label: 'My PIS',           desc: 'Project information sheets',       icon: 'clip',     href: '/dashboard/pis' },
         ];
-      case 'GOVERNMENT':
+      case UserRole.GOVERNMENT:
         return [
           { label: 'Browse Projects',   desc: 'View curated project pipeline',   icon: 'folder',   href: '/dashboard/projects' },
           { label: 'View Investors',    desc: 'Search the investor directory',    icon: 'users',    href: '/dashboard/investors' },
