@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 interface DealRoom {
   id: number;
@@ -283,6 +284,7 @@ export default function DealRoomDetailPage() {
   }
 
   return (
+    <ErrorBoundary>
     <div className="p-6">
       {/* Header */}
       <div className="mb-6">
@@ -1025,5 +1027,6 @@ export default function DealRoomDetailPage() {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 }

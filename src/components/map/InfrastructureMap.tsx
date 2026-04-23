@@ -200,6 +200,7 @@ export default function InfrastructureMap({ projects, onProjectClick }: Props) {
   return (
     <div
       ref={containerRef}
+      role="region"
       style={{ width: '100%', height: '100%' }}
       aria-label="Africa infrastructure map"
     />

@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { projectsApi, petfelApi, aiApi, Project, PETFELAssessment, PETFELCriterion, ScoreInput } from '../../../lib/api';
 import { WarningIcon, ChevronIcon } from '@/components/ui/icons';
 import { useToast } from '../../../context/ToastContext';
+import * as Sentry from '@sentry/nextjs';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 // PETFEL Pillar configuration with weights
 const PILLARS = [
@@ -64,7 +66,7 @@ export default function PETFELPage() {
         setExpandedPillars({ political: true });
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error('Failed to fetch data:', err);
+        Sentry.captureException(err);
         setError('Failed to load data');
       } finally {
         setIsLoading(false);
@@ -110,7 +112,7 @@ export default function PETFELPage() {
           setScores({});
         } else {
           // eslint-disable-next-line no-console
-          console.error('Failed to load assessment:', err);
+          Sentry.captureException(err);
         }
       } finally {
         setIsLoading(false);
@@ -128,7 +130,7 @@ export default function PETFELPage() {
       setScores({});
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Failed to create assessment:', err);
+      Sentry.captureException(err);
       setError('Failed to create assessment');
     } finally {
       setIsSaving(false);
@@ -181,7 +183,7 @@ export default function PETFELPage() {
       setAssessment(updated);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Failed to save scores:', err);
+      Sentry.captureException(err);
       setError('Failed to save scores');
     } finally {
       setIsSaving(false);
@@ -198,7 +200,7 @@ export default function PETFELPage() {
       setAssessment(updated);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Failed to calculate:', err);
+      Sentry.captureException(err);
       setError('Failed to calculate scores');
     } finally {
       setIsCalculating(false);
@@ -214,7 +216,7 @@ export default function PETFELPage() {
       setAssessment(updated);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Failed to submit:', err);
+      Sentry.captureException(err);
       setError('Failed to submit assessment');
     } finally {
       setIsSaving(false);
@@ -240,7 +242,7 @@ export default function PETFELPage() {
       success('AI augmentation complete! Review the suggested scores.');
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Failed to augment:', err);
+      Sentry.captureException(err);
       setError('Failed to get AI suggestions');
     } finally {
       setIsAugmenting(false);
@@ -266,6 +268,7 @@ export default function PETFELPage() {
   }
 
   return (
+    <ErrorBoundary>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -508,6 +511,7 @@ export default function PETFELPage() {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 }
 

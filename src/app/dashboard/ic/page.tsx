@@ -4,8 +4,12 @@ import { useEffect, useState } from 'react';
 import { icApi, projectsApi, ICCommittee, Project } from '../../../lib/api';
 import { CardListSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/context/ToastContext';
+import * as Sentry from '@sentry/nextjs';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 type VoteOption = 'approve' | 'reject' | 'abstain' | 'defer';
+
+interface ApiError { response?: { data?: { detail?: string } } }
 
 interface CommitteeDetail {
   project_id: number;
@@ -58,7 +62,7 @@ export default function ICPage() {
       setCommittees(data);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Failed to fetch IC sessions:', err);
+      Sentry.captureException(err);
     }
   };
 
@@ -73,7 +77,7 @@ export default function ICPage() {
         setProjects(projectsData);
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error('Failed to load IC page data:', err);
+        Sentry.captureException(err);
       } finally {
         setIsLoading(false);
       }
@@ -88,7 +92,7 @@ export default function ICPage() {
       setSelectedCommittee(committee);
     } catch (err) {
       // eslint-disable-next-line no-console
-      console.error('Failed to fetch committee detail:', err);
+      Sentry.captureException(err);
     }
   };
 
@@ -104,9 +108,8 @@ export default function ICPage() {
       setNewForm({ project_id: '', scheduled_date: '', quorum_required: 3 });
       toastSuccess('IC session scheduled.');
       fetchCommittees();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      toastError(err?.response?.data?.detail || 'Failed to schedule IC session');
+    } catch (err: unknown) {
+      toastError((err as ApiError)?.response?.data?.detail || 'Failed to schedule IC session');
     }
   };
 
@@ -123,9 +126,8 @@ export default function ICPage() {
       setCommitteeDetail(updated as unknown as CommitteeDetail);
       toastSuccess('Vote submitted.');
       setVoteRationale('');
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      toastError(err?.response?.data?.detail || 'Failed to submit vote');
+    } catch (err: unknown) {
+      toastError((err as ApiError)?.response?.data?.detail || 'Failed to submit vote');
     } finally {
       setIsVoting(false);
     }
@@ -139,13 +141,13 @@ export default function ICPage() {
       setCommitteeDetail(updated as unknown as CommitteeDetail);
       toastSuccess('Decision recorded.');
       fetchCommittees();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (err: any) {
-      toastError(err?.response?.data?.detail || 'Failed to record decision');
+    } catch (err: unknown) {
+      toastError((err as ApiError)?.response?.data?.detail || 'Failed to record decision');
     }
   };
 
   return (
+    <ErrorBoundary>
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -364,5 +366,6 @@ export default function ICPage() {
         </div>
       )}
     </div>
+    </ErrorBoundary>
   );
 }

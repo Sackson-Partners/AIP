@@ -173,8 +173,7 @@ export const authOptions: NextAuthOptions = {
         const email = user.email
         if (!email) return false
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const azureOid = (user as any).azureOid as string | null | undefined
+        const azureOid = user.azureOid
         const existing = await prisma.user.findFirst({
           where: {
             OR: [
@@ -206,8 +205,7 @@ export const authOptions: NextAuthOptions = {
             email,
             name: user.name,
             image: user.image,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            azureOid: (user as any).azureOid,
+            azureOid: user.azureOid,
             status: "PENDING",
             role: "INSTITUTIONAL_INVESTOR",
             authProvider: "AZURE_AD",

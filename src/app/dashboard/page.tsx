@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { projectsApi, investorsApi, verificationsApi, eventsApi, Project } from '../../lib/api';
-import { useAuth } from '../../context/AuthContext';
+import { useSession } from 'next-auth/react';
 import { useRBAC, USER_ROLES, UserRole } from '../../hooks/useRBAC';
 import { StatCardsSkeleton } from '@/components/ui/Skeleton';
 
@@ -44,7 +44,7 @@ const STAGE_COLORS: Record<string, string> = {
 
 function StatCard({ label, value, icon, href }: { label: string; value: number | string; icon: string; href: string }) {
   return (
-    <Link href={href}>
+    <Link href={href} aria-label={`${label}: ${value}`}>
       <div className="bg-white rounded-xl border border-gray-200 p-5 hover:border-brand-gold/40 hover:shadow-sm transition-all cursor-pointer">
         <div className="flex items-start justify-between">
           <div>
@@ -62,7 +62,7 @@ function StatCard({ label, value, icon, href }: { label: string; value: number |
 
 function QuickAction({ label, desc, icon, href }: { label: string; desc: string; icon: string; href: string }) {
   return (
-    <Link href={href}>
+    <Link href={href} aria-label={label}>
       <div className="bg-white rounded-xl border border-gray-200 p-4 hover:border-brand-gold/40 hover:shadow-sm transition-all flex items-center gap-4">
         <div className="w-9 h-9 rounded-lg bg-brand-navy flex items-center justify-center shrink-0">
           <Icon d={ICONS[icon as keyof typeof ICONS]} className="w-4 h-4 text-brand-gold" />
@@ -94,7 +94,7 @@ function EmptyState({ icon, title, desc, href, cta }: { icon: string; title: str
 }
 
 export default function Dashboard() {
-  const { profile, user } = useAuth();
+  const { data: session } = useSession();
   const { role } = useRBAC();
 
   const [stats, setStats] = useState({ projects: 0, investors: 0, verifications: 0, events: 0 });
@@ -128,7 +128,7 @@ export default function Dashboard() {
     return () => controller.abort();
   }, []);
 
-  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'there';
+  const displayName = session?.user?.name || session?.user?.email?.split('@')[0] || 'there';
   const roleInfo = USER_ROLES[role as UserRole];
 
   const greeting = () => {
@@ -141,36 +141,37 @@ export default function Dashboard() {
   // Role-specific stats config
   const statCards = (() => {
     switch (role) {
-      case 'super_admin':
+      case 'SUPER_ADMIN':
         return [
           { label: 'Total Projects',      value: stats.projects,      icon: 'folder',   href: '/dashboard/projects' },
           { label: 'Investors',           value: stats.investors,     icon: 'users',    href: '/dashboard/investors' },
           { label: 'Verifications',       value: stats.verifications, icon: 'shield',   href: '/dashboard/verifications' },
           { label: 'Events',              value: stats.events,        icon: 'calendar', href: '/dashboard/events' },
         ];
-      case 'private_fund':
-      case 'dfi':
+      case 'INSTITUTIONAL_INVESTOR':
+      case 'ANALYST':
         return [
           { label: 'Pipeline Projects',   value: stats.projects,      icon: 'bolt',     href: '/dashboard/pipeline' },
           { label: 'Investors',           value: stats.investors,     icon: 'deal',     href: '/dashboard/investors' },
           { label: 'Verifications',       value: stats.verifications, icon: 'shield',   href: '/dashboard/verifications' },
           { label: 'IC Sessions',         value: '—',                 icon: 'gavel',    href: '/dashboard/ic' },
         ];
-      case 'epc_contractor':
+      case 'EPC_OPERATOR':
+      case 'SPONSOR_DEVELOPER':
         return [
           { label: 'My Projects',         value: stats.projects,      icon: 'folder',   href: '/dashboard/projects' },
           { label: 'Pipeline Status',     value: '—',                 icon: 'bolt',     href: '/dashboard/pipeline' },
           { label: 'Data Rooms',          value: '—',                 icon: 'database', href: '/dashboard/data-rooms' },
           { label: 'Events',              value: stats.events,        icon: 'calendar', href: '/dashboard/events' },
         ];
-      case 'government':
+      case 'GOVERNMENT':
         return [
           { label: 'Curated Projects',    value: stats.projects,      icon: 'folder',   href: '/dashboard/projects' },
           { label: 'Active Investors',    value: stats.investors,     icon: 'users',    href: '/dashboard/investors' },
           { label: 'Verifications',       value: stats.verifications, icon: 'shield',   href: '/dashboard/verifications' },
           { label: 'Events',              value: stats.events,        icon: 'calendar', href: '/dashboard/events' },
         ];
-      default: // academic, journalist_analyst, investor
+      default:
         return [
           { label: 'Published Projects',  value: stats.projects,      icon: 'folder',   href: '/dashboard/projects' },
           { label: 'Verifications',       value: stats.verifications, icon: 'shield',   href: '/dashboard/verifications' },
@@ -182,7 +183,7 @@ export default function Dashboard() {
 
   const quickActions = (() => {
     switch (role) {
-      case 'super_admin':
+      case 'SUPER_ADMIN':
         return [
           { label: 'New Project',       desc: 'Add a project to the platform',    icon: 'plus',     href: '/dashboard/projects' },
           { label: 'Manage Users',      desc: 'View and manage platform users',   icon: 'users',    href: '/dashboard/admin/users' },
@@ -191,8 +192,8 @@ export default function Dashboard() {
           { label: 'Run PESTEL',        desc: 'Start a PESTEL risk assessment',   icon: 'clip',     href: '/dashboard/pestel' },
           { label: 'Generate EIN',      desc: 'Create executive investment note', icon: 'doc',      href: '/dashboard/ein' },
         ];
-      case 'private_fund':
-      case 'dfi':
+      case 'INSTITUTIONAL_INVESTOR':
+      case 'ANALYST':
         return [
           { label: 'New Project',       desc: 'Add a project to pipeline',        icon: 'plus',     href: '/dashboard/projects' },
           { label: 'View Pipeline',     desc: 'Manage deal-flow stages',          icon: 'bolt',     href: '/dashboard/pipeline' },
@@ -201,14 +202,15 @@ export default function Dashboard() {
           { label: 'IC Committee',      desc: 'Investment committee sessions',    icon: 'gavel',    href: '/dashboard/ic' },
           { label: 'Browse Investors',  desc: 'Search the investor directory',    icon: 'deal',     href: '/dashboard/investors' },
         ];
-      case 'epc_contractor':
+      case 'EPC_OPERATOR':
+      case 'SPONSOR_DEVELOPER':
         return [
           { label: 'Submit Project',    desc: 'Submit a new infrastructure project', icon: 'plus',  href: '/dashboard/projects' },
           { label: 'View Pipeline',     desc: 'Track project approval stages',    icon: 'bolt',     href: '/dashboard/pipeline' },
           { label: 'Data Rooms',        desc: 'Upload project documentation',     icon: 'database', href: '/dashboard/data-rooms' },
           { label: 'My PIS',           desc: 'Project information sheets',       icon: 'clip',     href: '/dashboard/pis' },
         ];
-      case 'government':
+      case 'GOVERNMENT':
         return [
           { label: 'Browse Projects',   desc: 'View curated project pipeline',   icon: 'folder',   href: '/dashboard/projects' },
           { label: 'View Investors',    desc: 'Search the investor directory',    icon: 'users',    href: '/dashboard/investors' },
@@ -255,7 +257,7 @@ export default function Dashboard() {
             {greeting()}, {displayName.split(' ')[0]}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {profile?.organization && `${profile.organization} · `}
+            {session?.user?.organization && `${session.user.organization} · `}
             {roleInfo?.label ?? 'AIP Platform'}
           </p>
         </div>

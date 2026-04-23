@@ -5,6 +5,7 @@ import { PlusIcon, XIcon } from '@/components/ui/icons';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { investorsApi, Investor, InvestorCreate, Project, projectsApi } from '../../../lib/api';
+import * as Sentry from '@sentry/nextjs';
 
 const SECTORS = ['Energy', 'Mining', 'Water', 'Transport', 'Ports', 'Rail', 'Roads', 'Agriculture', 'Health'];
 const INSTRUMENTS = ['Equity', 'Debt', 'Mezzanine'];
@@ -88,7 +89,7 @@ export default function InvestorsPage() {
       setShowMatchModal(true);
     } catch (error) {
       // eslint-disable-next-line no-console
-      console.error('Failed to find matches:', error);
+      Sentry.captureException(error);
     }
   }, [projectsCache]);
 
