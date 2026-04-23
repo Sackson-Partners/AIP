@@ -83,6 +83,9 @@ export const authOptions: NextAuthOptions = {
         totp: { label: "TOTP Code", type: "text" },
       },
       async authorize(credentials, req) {
+        const MAX_ATTEMPTS = 10
+        const LOCKOUT_MINUTES = 15
+
         if (!credentials?.email || !credentials?.password) {
           throw new Error("EMAIL_PASSWORD_REQUIRED")
         }
@@ -96,13 +99,32 @@ export const authOptions: NextAuthOptions = {
 
         if (user.authProvider === "AZURE_AD") throw new Error("USE_AZURE_LOGIN")
 
+        // Check lockout before doing any expensive work
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+          throw new Error("ACCOUNT_LOCKED")
+        }
+
         if (!user.passwordHash) throw new Error("INVALID_CREDENTIALS")
 
         const passwordValid = await bcrypt.compare(
           credentials.password,
           user.passwordHash
         )
-        if (!passwordValid) throw new Error("INVALID_CREDENTIALS")
+
+        if (!passwordValid) {
+          const attempts = user.failedLoginAttempts + 1
+          const shouldLock = attempts >= MAX_ATTEMPTS
+          await prisma.user.update({
+            where: { id: user.id },
+            data: {
+              failedLoginAttempts: attempts,
+              ...(shouldLock && {
+                lockedUntil: new Date(Date.now() + LOCKOUT_MINUTES * 60 * 1000),
+              }),
+            },
+          })
+          throw new Error(shouldLock ? "ACCOUNT_LOCKED" : "INVALID_CREDENTIALS")
+        }
 
         if (user.status === "SUSPENDED") throw new Error("ACCOUNT_SUSPENDED")
         if (user.status === "DEACTIVATED") throw new Error("ACCOUNT_DEACTIVATED")
@@ -124,6 +146,8 @@ export const authOptions: NextAuthOptions = {
             lastLoginAt: new Date(),
             lastLoginIp: typeof ip === "string" ? ip.split(",")[0].trim() : "unknown",
             loginCount: { increment: 1 },
+            failedLoginAttempts: 0,
+            lockedUntil: null,
           },
         })
 

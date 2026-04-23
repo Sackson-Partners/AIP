@@ -169,9 +169,11 @@ model User {
   mustChangePass     Boolean      @default(false)
   twoFactorEnabled   Boolean      @default(false)
   twoFactorSecret    String?
-  lastLoginAt        DateTime?
-  lastLoginIp        String?
-  loginCount         Int          @default(0)
+  lastLoginAt          DateTime?
+  lastLoginIp          String?
+  loginCount           Int          @default(0)
+  failedLoginAttempts  Int          @default(0)
+  lockedUntil          DateTime?
   emailNotifications Boolean      @default(true)
   dashboardLayout    String?
   createdAt          DateTime     @default(now())
