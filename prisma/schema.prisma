@@ -107,6 +107,14 @@ enum NotificationType {
   DOCUMENT_REQUEST
 }
 
+enum MilestoneStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  DELAYED
+  CANCELLED
+}
+
 // ─── NextAuth required models ─────────────────────────────────────────────────
 
 model Account {
@@ -368,7 +376,7 @@ model Milestone {
   description String?
   dueDate     DateTime?
   completedAt DateTime?
-  status      String    @default("PENDING")
+  status      MilestoneStatus @default(PENDING)
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
@@ -379,7 +387,8 @@ model DealRoom {
   name        String
   description String?
   isPublic    Boolean  @default(false)
-  password    String?
+  /// TODO: always bcrypt-hash before writing; never store plaintext — enforce in API route
+  password    String?  @db.Text
   createdAt   DateTime @default(now())
 
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
