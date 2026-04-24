@@ -1,159 +1,98 @@
-'use client';
+// src/app/auth/reset-password/page.tsx
+// MIGRATED: Supabase code exchange → NextAuth change-password flow
+// Internal users: redirected to /auth/change-password
+// Azure AD users: redirected to Microsoft account management
 
-import { Suspense, useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import Link from 'next/link';
-import Image from 'next/image';
+'use client'
+
+import { useEffect, Suspense } from 'react'
+import { useRouter } from 'next/navigation'
+import { useSession } from 'next-auth/react'
+import { motion } from 'framer-motion'
+import { Building2, Loader2, Shield, Globe } from 'lucide-react'
+import Link from 'next/link'
 
 function ResetPasswordInner() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [sessionReady, setSessionReady] = useState(false);
-  const [sessionError, setSessionError] = useState<string | null>(null);
+  const router = useRouter()
+  const { data: session, status } = useSession()
 
   useEffect(() => {
-    const code = searchParams.get('code');
-    if (!code) {
-      setSessionError('Invalid or expired reset link. Please request a new one.');
-      return;
-    }
-    supabase.auth.exchangeCodeForSession(code).then(({ error }) => {
-      if (error) {
-        setSessionError('Reset link has expired or already been used. Please request a new one.');
-      } else {
-        setSessionReady(true);
-      }
-    });
-  }, [searchParams]);
+    if (status === 'loading') return
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (password !== confirm) {
-      setError('Passwords do not match.');
-      return;
+    if (session) {
+      // Logged in internal user → force change password
+      if (session.user.authProvider === 'INTERNAL') {
+        router.push('/auth/change-password')
+        return
+      }
+      // Logged in Azure AD user → go to dashboard
+      router.push('/dashboard')
+      return
     }
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.');
-      return;
-    }
-    setIsLoading(true);
-    setError(null);
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      setError(error.message);
-      setIsLoading(false);
-    } else {
-      router.push('/dashboard');
-    }
-  };
+
+    // Not logged in → go to sign in
+    router.push('/auth/signin')
+  }, [session, status, router])
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
-
-          <div className="flex justify-center mb-6">
-            <Image
-              src="/logo.png"
-              alt="Africa Infrastructure Partners"
-              width={160}
-              height={42}
-              className="h-10 w-auto"
-              priority
-            />
-          </div>
-
-          {sessionError ? (
-            <div className="text-center">
-              <p className="text-sm text-red-600 mb-4">{sessionError}</p>
-              <Link
-                href="/forgot-password"
-                className="text-sm text-brand-gold hover:text-brand-gold-dark font-medium transition-colors"
-              >
-                Request a new reset link
-              </Link>
-            </div>
-          ) : !sessionReady ? (
-            <div className="flex justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-brand-gold" />
-            </div>
-          ) : (
-            <>
-              <div className="text-center mb-6">
-                <h2 className="text-2xl font-bold text-brand-navy">Set new password</h2>
-                <p className="mt-1.5 text-sm text-gray-500">
-                  Choose a strong password for your account.
-                </p>
-              </div>
-
-              {error && (
-                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                  {error}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    New password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    minLength={8}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold transition-colors"
-                    placeholder="Minimum 8 characters"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirm password
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold transition-colors"
-                    placeholder="Repeat new password"
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="w-full py-2.5 px-4 bg-brand-gold hover:bg-brand-gold-dark disabled:opacity-60 text-brand-navy font-semibold rounded-lg transition-colors"
-                >
-                  {isLoading ? 'Updating...' : 'Update password'}
-                </button>
-              </form>
-            </>
-          )}
+    <div className="min-h-screen bg-slate-900 flex items-center justify-center px-4">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+        className="w-full max-w-sm text-center"
+      >
+        <div className="w-12 h-12 rounded-2xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/30 mx-auto mb-6">
+          <Building2 className="w-6 h-6 text-white" />
         </div>
-      </div>
+
+        <Loader2 className="w-6 h-6 text-slate-400 animate-spin mx-auto mb-3" />
+        <p className="text-white font-semibold mb-1">Redirecting...</p>
+        <p className="text-slate-400 text-sm mb-8">Setting up your password reset</p>
+
+        <div className="bg-slate-800/60 border border-slate-700 rounded-2xl p-5 space-y-3 text-left">
+          <div className="flex items-start gap-3">
+            <Globe className="w-4 h-4 text-blue-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-slate-200 text-xs font-semibold">Microsoft Account</p>
+              <p className="text-slate-400 text-xs">Reset at account.microsoft.com</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <Shield className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-slate-200 text-xs font-semibold">Internal Account</p>
+              <p className="text-slate-400 text-xs">
+                Contact{' '}
+                <a href="mailto:support@aip.com" className="text-blue-400 hover:underline">
+                  support@aip.com
+                </a>
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Link
+          href="/auth/signin"
+          className="mt-6 inline-block text-slate-400 hover:text-white text-sm transition-colors"
+        >
+          ← Back to Sign In
+        </Link>
+      </motion.div>
     </div>
-  );
+  )
 }
 
-export default function ResetPassword() {
+export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-gold" />
+        <div className="min-h-screen bg-slate-900 flex items-center justify-center">
+          <Loader2 className="w-8 h-8 text-slate-400 animate-spin" />
         </div>
       }
     >
       <ResetPasswordInner />
     </Suspense>
-  );
+  )
 }

@@ -4,8 +4,6 @@
  * the API key stays server-side).
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "";
-
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -37,7 +35,7 @@ export interface AirtableFilters {
 // API helpers
 // ---------------------------------------------------------------------------
 async function airtableGet<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}/airtable${path}`, {
+  const res = await fetch(`/api/airtable${path}`, {
     headers: { "Content-Type": "application/json" },
     next: { revalidate: 300 }, // Next.js 14 cache: 5 min
   });

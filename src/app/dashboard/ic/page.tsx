@@ -1,13 +1,24 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { icApi, projectsApi, ICCommittee, Project } from '../../../lib/api';
+import { icApi, projectsApi, Project } from '../../../lib/api';
 import { CardListSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/context/ToastContext';
 import * as Sentry from '@sentry/nextjs';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 
 type VoteOption = 'approve' | 'reject' | 'abstain' | 'defer';
+
+interface ICCommitteeListItem {
+  committee_id: number;
+  project_id: number;
+  project_name?: string;
+  scheduled_date?: string;
+  status: string;
+  outcome?: string;
+  vote_count: number;
+  quorum: number;
+}
 
 interface ApiError { response?: { data?: { detail?: string } } }
 
@@ -41,11 +52,12 @@ const OUTCOME_COLORS: Record<string, string> = {
 
 export default function ICPage() {
   const { error: toastError, success: toastSuccess } = useToast();
-  const [committees, setCommittees] = useState<ICCommittee[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [committees, setCommittees] = useState<ICCommitteeListItem[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
-  const [selectedCommittee, setSelectedCommittee] = useState<ICCommittee | null>(null);
+  const [selectedCommittee, setSelectedCommittee] = useState<ICCommitteeListItem | null>(null);
   const [committeeDetail, setCommitteeDetail] = useState<CommitteeDetail | null>(null);
   const [voteOption, setVoteOption] = useState<VoteOption>('approve');
   const [voteRationale, setVoteRationale] = useState('');
@@ -59,10 +71,10 @@ export default function ICPage() {
   const fetchCommittees = async () => {
     try {
       const data = await icApi.listCommittees();
-      setCommittees(data);
+      setCommittees(data as unknown as ICCommitteeListItem[]);
     } catch (err) {
-      // eslint-disable-next-line no-console
       Sentry.captureException(err);
+      setLoadError('Failed to load sessions. Please refresh the page.');
     }
   };
 
@@ -73,11 +85,11 @@ export default function ICPage() {
           icApi.listCommittees(),
           projectsApi.list(),
         ]);
-        setCommittees(committeesData);
+        setCommittees(committeesData as unknown as ICCommitteeListItem[]);
         setProjects(projectsData);
       } catch (err) {
-        // eslint-disable-next-line no-console
         Sentry.captureException(err);
+        setLoadError('Failed to load data. Please refresh the page.');
       } finally {
         setIsLoading(false);
       }
@@ -85,14 +97,14 @@ export default function ICPage() {
     fetchData();
   }, []);
 
-  const openCommittee = async (committee: ICCommittee) => {
+  const openCommittee = async (committee: ICCommitteeListItem) => {
     try {
-      const detail = await icApi.getCommittee(committee.id);
+      const detail = await icApi.getCommittee(committee.committee_id);
       setCommitteeDetail(detail as unknown as CommitteeDetail);
       setSelectedCommittee(committee);
     } catch (err) {
-      // eslint-disable-next-line no-console
       Sentry.captureException(err);
+      toastError('Failed to load committee details.');
     }
   };
 
@@ -163,6 +175,12 @@ export default function ICPage() {
         </button>
       </div>
 
+      {loadError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+          {loadError}
+        </div>
+      )}
+
       {/* Sessions list */}
       {isLoading ? (
         <CardListSkeleton cards={3} />
@@ -173,8 +191,7 @@ export default function ICPage() {
         </div>
       ) : (
         <div className="grid gap-4">
-          {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-          {(committees as any[]).map((c) => (
+          {committees.map((c) => (
             <div
               key={c.committee_id}
               className="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-200 cursor-pointer transition-colors"

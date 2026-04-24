@@ -1,18 +1,24 @@
+// src/app/layout.tsx
+// MIGRATED: AuthProvider (Supabase) → SessionProvider (NextAuth)
+// All other providers preserved.
+
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { AuthProvider } from '@/context/AuthContext'
 import { ToastProvider } from '@/context/ToastContext'
+import { SessionProvider } from '@/providers/SessionProvider'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'AIP — Africa Infrastructure Partners',
-  description: 'African Infrastructure Intelligence Platform. Deal-flow, analysis, and pipeline management for infrastructure investors, DFIs, and government stakeholders across Africa.',
+  description:
+    'African Infrastructure Intelligence Platform. Deal-flow, analysis, and pipeline management for infrastructure investors, DFIs, and government stakeholders across Africa.',
   openGraph: {
     title: 'AIP — Africa Infrastructure Partners',
-    description: 'African Infrastructure Intelligence Platform for investors, DFIs, and government stakeholders.',
+    description:
+      'African Infrastructure Intelligence Platform for investors, DFIs, and government stakeholders.',
     url: 'https://www.africa-infra.com',
     siteName: 'AIP Platform',
     type: 'website',
@@ -31,11 +37,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className={inter.className}>
         <ErrorBoundary>
-          <AuthProvider>
+          <SessionProvider>
             <ToastProvider>
               {children}
             </ToastProvider>
-          </AuthProvider>
+          </SessionProvider>
         </ErrorBoundary>
       </body>
     </html>

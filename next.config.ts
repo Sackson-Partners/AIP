@@ -77,17 +77,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async rewrites() {
-    return [
-      // NextAuth routes must be handled internally — never proxy to backend
-      {
-        source: "/api/auth/:path*",
-        destination: "/api/auth/:path*",
-      },
-      {
-        source: "/api/:path*",
-        destination: `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/:path*`,
-      },
-    ];
+    return []
   },
 };
 

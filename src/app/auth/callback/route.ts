@@ -1,76 +1,37 @@
-import { createServerClient } from '@supabase/ssr';
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { safeRedirect } from '@/lib/safeRedirect';
+// src/app/auth/callback/route.ts
+// MIGRATED: Supabase PKCE callback → NextAuth handles callbacks
+// automatically at /api/auth/callback/azure-ad
+// This route now redirects legacy bookmark users to new sign-in.
+
+import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
-  const code       = searchParams.get('code');
-  const tokenHash  = searchParams.get('token_hash');
-  const type       = searchParams.get('type');
-  const next       = safeRedirect(searchParams.get('next'));
+  const requestUrl = new URL(request.url)
+  const code = requestUrl.searchParams.get('code')
+  const error = requestUrl.searchParams.get('error')
+  const next = requestUrl.searchParams.get('next') ?? '/dashboard'
 
-  // PKCE flow: email confirmation, OAuth, magic link
+  // If there is an error param, redirect to error page
+  if (error) {
+    return NextResponse.redirect(
+      new URL(
+        `/auth/error?error=${encodeURIComponent(error)}`,
+        requestUrl.origin
+      )
+    )
+  }
+
+  // NextAuth handles its own callbacks at /api/auth/callback/*
+  // Any legacy /auth/callback requests redirect to sign-in
   if (code) {
-    const response = NextResponse.redirect(`${origin}${next}`);
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            // CRITICAL: cookies must be set on the redirect response, not via
-            // next/headers cookieStore — otherwise they won't survive the redirect.
-            cookiesToSet.forEach(({ name, value, options }) =>
-              response.cookies.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
-
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return response;
-    }
+    // Could be a legacy Supabase code — redirect to new signin
+    return NextResponse.redirect(
+      new URL('/auth/signin', requestUrl.origin)
+    )
   }
 
-  // OTP flow: token_hash + type (used by some Supabase email templates)
-  if (tokenHash && type) {
-    const response = NextResponse.redirect(`${origin}${next}`);
-
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) =>
-              response.cookies.set(name, value, options)
-            );
-          },
-        },
-      }
-    );
-
-    const { error } = await supabase.auth.verifyOtp({
-      token_hash: tokenHash,
-      type: type as never,
-    });
-    if (!error) {
-      return response;
-    }
-  }
-
-  // Auth failed
+  // Default: redirect to intended destination or dashboard
   return NextResponse.redirect(
-    `${origin}/login?error=Email+confirmation+failed.+Please+try+again.`
-  );
+    new URL(next, requestUrl.origin)
+  )
 }

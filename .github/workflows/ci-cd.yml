@@ -46,6 +46,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check required secrets
+        run: |
+          missing=""
+          for secret in NEXTAUTH_URL NEXTAUTH_SECRET AZURE_AD_CLIENT_ID AZURE_AD_CLIENT_SECRET AZURE_AD_TENANT_ID; do
+            if [ -z "${!secret}" ]; then
+              missing="$missing $secret"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "❌ Missing required secrets:$missing"
+            echo "See .github/SECRETS_REQUIRED.md for setup instructions."
+            exit 1
+          fi
+          echo "✅ All required secrets present"
+        env:
+          NEXTAUTH_URL: ${{ secrets.NEXTAUTH_URL }}
+          NEXTAUTH_SECRET: ${{ secrets.NEXTAUTH_SECRET }}
+          AZURE_AD_CLIENT_ID: ${{ secrets.AZURE_AD_CLIENT_ID }}
+          AZURE_AD_CLIENT_SECRET: ${{ secrets.AZURE_AD_CLIENT_SECRET }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+
       - uses: pnpm/action-setup@v3
         with:
           version: 10

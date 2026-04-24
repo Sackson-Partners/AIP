@@ -14,6 +14,7 @@ import {
   EyeOff,
   KeyRound,
   AlertCircle,
+  LockKeyhole,
   ArrowRight,
   Loader2,
 } from "lucide-react"
@@ -30,6 +31,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   OAuthSignin:         "Error initiating Microsoft sign-in.",
   OAuthCallback:       "Authentication error. Please try again.",
   AccountBlocked:      "Account blocked. Contact support.",
+  ACCOUNT_LOCKED:      "Your account has been temporarily locked for 15 minutes due to too many failed sign-in attempts. Please try again later or contact your administrator.",
+  CredentialsSignin:   "Invalid email or password. Please check your credentials and try again.",
+  AccessDenied:        "You do not have permission to access this application. Contact your administrator.",
   Default:             "Sign-in error. Please try again.",
 }
 
@@ -48,11 +52,13 @@ function SignInContent() {
   const [showTotp, setShowTotp] = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
+  const [errorCode, setErrorCode] = useState<string | null>(null)
 
   // Read ?error= from URL on mount
   useEffect(() => {
     const err = searchParams.get("error")
     if (err) {
+      setErrorCode(err)
       setError(ERROR_MESSAGES[err] ?? ERROR_MESSAGES.Default)
       if (err === "TOTP_REQUIRED") setShowTotp(true)
     }
@@ -79,8 +85,8 @@ function SignInContent() {
     setLoading(false)
 
     if (result?.error) {
-      const msg = ERROR_MESSAGES[result.error] ?? ERROR_MESSAGES.Default
-      setError(msg)
+      setErrorCode(result.error)
+      setError(ERROR_MESSAGES[result.error] ?? ERROR_MESSAGES.Default)
       if (result.error === "TOTP_REQUIRED") setShowTotp(true)
       return
     }
@@ -119,7 +125,7 @@ function SignInContent() {
               {(["azure", "internal"] as Tab[]).map((t) => (
                 <button
                   key={t}
-                  onClick={() => { setTab(t); setError(null) }}
+                  onClick={() => { setTab(t); setError(null); setErrorCode(null) }}
                   className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
                     tab === t
                       ? "bg-blue-600 text-white shadow"
@@ -138,13 +144,22 @@ function SignInContent() {
             <AnimatePresence>
               {error && (
                 <motion.div
+                  role="alert"
+                  aria-live="assertive"
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
                   exit={{ opacity: 0, height: 0 }}
-                  className="flex items-start gap-3 bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-6"
+                  className={`flex items-start gap-3 rounded-xl p-4 mb-6 border ${
+                    errorCode === 'ACCOUNT_LOCKED'
+                      ? 'bg-red-500/10 border-red-500/20'
+                      : 'bg-amber-500/10 border-amber-500/20'
+                  }`}
                 >
-                  <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
-                  <p className="text-red-300 text-sm">{error}</p>
+                  {errorCode === 'ACCOUNT_LOCKED'
+                    ? <LockKeyhole className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+                    : <AlertCircle className="w-4 h-4 text-amber-400 mt-0.5 shrink-0" />
+                  }
+                  <p className={`text-sm ${errorCode === 'ACCOUNT_LOCKED' ? 'text-red-300' : 'text-amber-300'}`}>{error}</p>
                 </motion.div>
               )}
             </AnimatePresence>

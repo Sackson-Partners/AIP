@@ -4,6 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname } from 'next/navigation';
 import { useMemo } from 'react';
+import { signOut } from 'next-auth/react';
 import { useAuth } from '@/context/AuthContext';
 import { useRBAC, Permission, USER_ROLES } from '@/hooks/useRBAC';
 
@@ -82,7 +83,7 @@ const ROLE_BADGE_COLORS: Record<string, string> = {
 
 export default function Sidebar({ onClose }: { onClose?: () => void }) {
   const pathname = usePathname();
-  const { logout, user, profile } = useAuth();
+  const { user } = useAuth();
   const { role, canAny } = useRBAC();
 
   const visibleNavigation = useMemo(() => {
@@ -92,8 +93,8 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     });
   }, [canAny]);
 
-  const roleInfo = USER_ROLES[role];
-  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email || 'User';
+  const roleInfo = role ? USER_ROLES[role] : undefined;
+  const displayName = user?.name || user?.email || 'User';
 
   return (
     <aside className="w-64 bg-brand-navy border-r border-brand-navy-light flex flex-col h-full shrink-0">
@@ -124,7 +125,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
             <div className="min-w-0">
               <p className="text-sm font-medium text-white truncate">{displayName}</p>
               {roleInfo && (
-                <span className={`inline-block text-xs text-white px-1.5 py-0.5 rounded mt-0.5 ${ROLE_BADGE_COLORS[role] ?? 'bg-gray-500'}`}>
+                <span className={`inline-block text-xs text-white px-1.5 py-0.5 rounded mt-0.5 ${(role ? ROLE_BADGE_COLORS[role] : null) ?? 'bg-gray-500'}`}>
                   {roleInfo.label}
                 </span>
               )}
@@ -161,7 +162,7 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       {/* Sign out */}
       <div className="px-3 py-3 border-t border-brand-navy-light">
         <button
-          onClick={logout}
+          onClick={() => signOut({ callbackUrl: '/auth/signin' })}
           className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-gray-400 hover:bg-brand-navy-light hover:text-white transition-colors"
         >
           <SvgIcon iconKey="logout" className="w-5 h-5 shrink-0" />

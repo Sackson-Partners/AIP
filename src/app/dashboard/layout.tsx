@@ -3,12 +3,14 @@
 import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
+import { useSession } from 'next-auth/react';
 import Sidebar from '@/components/Sidebar';
 import { notificationsApi, type Notification } from '@/lib/api';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading, profile, user } = useAuth();
+  const { data: session, status } = useSession();
+  const isLoading = status === 'loading';
+  const isAuthenticated = status === 'authenticated';
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -16,12 +18,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const notifRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) router.replace('/login');
+    if (!isLoading && !isAuthenticated) router.replace('/auth/signin');
   }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
-    notificationsApi.list().then(setNotifs).catch(() => { /* non-fatal */ });
+    notificationsApi.list().then(data => { if (Array.isArray(data)) setNotifs(data) }).catch(() => { /* non-fatal */ });
   }, [isAuthenticated]);
 
   useEffect(() => {
@@ -35,7 +37,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, []);
 
   const unread = notifs.filter(n => !n.is_read).length;
-  const displayName = profile?.full_name || user?.email?.split('@')[0] || 'User';
+  const displayName = session?.user?.name || session?.user?.email?.split('@')[0] || 'User';
   const initial = displayName.charAt(0).toUpperCase();
 
   if (isLoading) {

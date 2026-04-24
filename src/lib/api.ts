@@ -1,27 +1,9 @@
-import axios, { AxiosInstance } from 'axios';
-import { Session } from '@supabase/supabase-js';
-import { supabase } from './supabase';
+// src/lib/api.ts
+// MIGRATED: Token source changed from Supabase → NextAuth
+// All Axios configuration, API objects, and interfaces preserved.
 
-export const AUTH_PROVIDER = 'supabase';
-
-// Module-level session cache. Updated immediately on auth state changes so
-// subsequent requests read the token synchronously with no async overhead.
-// _sessionReady resolves once after the initial getSession() call so that the
-// very first request on a page load waits for the session before firing.
-let _cachedSession: Session | null = null;
-let _sessionReady: Promise<void> = Promise.resolve();
-
-if (typeof window !== 'undefined') {
-  _sessionReady = supabase.auth.getSession().then(({ data: { session } }) => {
-    _cachedSession = session;
-  });
-  supabase.auth.onAuthStateChange((_event, session) => {
-    _cachedSession = session;
-    // Once auth state has been observed at least once, future requests need
-    // not wait for _sessionReady — the cache is authoritative from here on.
-    _sessionReady = Promise.resolve();
-  });
-}
+import axios, { AxiosInstance } from 'axios'
+import { getSession } from 'next-auth/react'
 
 // Use relative /api path so all requests route through the Next.js rewrite
 // (next.config.ts: /api/* → NEXT_PUBLIC_API_URL/api/*).
@@ -30,432 +12,443 @@ export const api: AxiosInstance = axios.create({
   baseURL: '/api',
   timeout: 30000,
   headers: { 'Content-Type': 'application/json' },
-});
+})
 
-api.interceptors.request.use(async (config) => {
-  // Wait for the initial getSession() to resolve on first page load.
-  // After that _sessionReady is already resolved so this is a no-op.
-  await _sessionReady;
-  const token = _cachedSession?.access_token;
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
-});
+// ─── Request interceptor ─────────────────────────────────────────
+// Injects NextAuth JWT token into every outgoing request
+// Previously used: supabase.auth.getSession()
+// Now uses:        getSession() from next-auth/react
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      const session = await getSession()
+      if (session?.user) {
+        // Send user context headers for backend consumers
+        config.headers['X-User-Id'] = session.user.id
+        config.headers['X-User-Role'] = session.user.role
+        // accessToken is forwarded if present (e.g. Azure AD id_token)
+        const token = (session as any).accessToken ?? (session as any).idToken ?? null
+        if (token) {
+          config.headers.Authorization = `Bearer ${token}`
+        }
+      }
+    } catch (err) {
+      // Session fetch failed — continue without token
+      console.warn('[api.ts] Could not get session for request:', err)
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
 
 // Statuses that are worth retrying (server-side transient errors)
-const RETRYABLE_STATUSES = new Set([500, 502, 503, 504]);
+const RETRYABLE_STATUSES = new Set([500, 502, 503, 504])
 // Statuses that should never be retried
-const NO_RETRY_STATUSES  = new Set([400, 401, 403, 404, 422]);
+const NO_RETRY_STATUSES = new Set([400, 401, 403, 404, 422])
 
-const MAX_RETRIES = 3;
+const MAX_RETRIES = 3
 
+// ─── Response interceptor ────────────────────────────────────────
 api.interceptors.response.use(
   (r) => r,
   async (error) => {
-    const status: number | undefined = error.response?.status;
+    const status: number | undefined = error.response?.status
 
-    // Auth error — try to refresh the session once, then retry the request.
-    // Only sign out if the Supabase session itself cannot be renewed.
-    const config401 = error.config as typeof error.config & { _401Retried?: boolean };
-    if (status === 401 && !config401._401Retried) {
-      config401._401Retried = true;
-      const { data, error: refreshError } = await supabase.auth.refreshSession();
-      if (refreshError || !data.session) {
-        await supabase.auth.signOut();
-        if (typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-        return Promise.reject(error);
+    if (status === 401) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/auth/signin'
       }
-      // Refresh succeeded — update cache and retry original request with new token
-      _cachedSession = data.session;
-      config401.headers = config401.headers ?? {};
-      config401.headers.Authorization = `Bearer ${data.session.access_token}`;
-      return api(config401);
+      return Promise.reject(error)
+    }
+
+    if (status === 403) {
+      if (typeof window !== 'undefined') {
+        window.location.href = '/unauthorized'
+      }
+      return Promise.reject(error)
     }
 
     // Retry logic for transient server errors
-    const config = error.config as typeof error.config & { _retryCount?: number };
+    const config = error.config as typeof error.config & { _retryCount?: number }
     if (
       config &&
       RETRYABLE_STATUSES.has(status ?? 0) &&
       !NO_RETRY_STATUSES.has(status ?? 0)
     ) {
-      config._retryCount = (config._retryCount ?? 0) + 1;
+      config._retryCount = (config._retryCount ?? 0) + 1
       if (config._retryCount <= MAX_RETRIES) {
-        const delay = Math.min(1000 * 2 ** (config._retryCount - 1), 8000); // 1s, 2s, 4s
-        await new Promise(resolve => setTimeout(resolve, delay));
-        return api(config);
+        const delay = Math.min(1000 * 2 ** (config._retryCount - 1), 8000) // 1s, 2s, 4s
+        await new Promise((resolve) => setTimeout(resolve, delay))
+        return api(config)
       }
     }
 
-    return Promise.reject(error);
+    return Promise.reject(error)
   }
-);
+)
 
 // Helper that unwraps AxiosResponse.data
-const get  = <T>(url: string, params?: object) => api.get<T>(url, params ? { params } : {}).then(r => r.data);
-const post = <T>(url: string, data?: unknown) => api.post<T>(url, data).then(r => r.data);
-const patch = <T>(url: string, data?: unknown) => api.patch<T>(url, data).then(r => r.data);
-const del  = <T>(url: string) => api.delete<T>(url).then(r => r.data);
+const get  = <T>(url: string, params?: object) => api.get<T>(url, params ? { params } : {}).then((r) => r.data)
+const post = <T>(url: string, data?: unknown) => api.post<T>(url, data).then((r) => r.data)
+const patch = <T>(url: string, data?: unknown) => api.patch<T>(url, data).then((r) => r.data)
+const del  = <T>(url: string) => api.delete<T>(url).then((r) => r.data)
 
 // ─── Interfaces ──────────────────────────────────────────────────────────────
 
 export interface Project {
-  id: string | number;
-  project_name: string;
-  name?: string;
-  sector: string;
-  country: string;
-  region?: string;
-  stage: string;
-  description?: string;
-  project_type?: string;
-  capex?: number;
-  estimated_capex?: number;
-  estimated_cost?: number;
-  funding_gap?: number;
-  currency?: string;
-  status?: string;
-  technology?: string;
-  gps_location?: string;
-  revenue_model?: string;
-  offtaker?: string;
-  tariff_mechanism?: string;
-  fx_exposure?: string;
-  concession_length?: number;
-  epc_status?: string;
-  permits_status?: string;
-  land_acquisition_status?: string;
-  timeline_fid?: string;
-  timeline_cod?: string;
-  esg_category?: string;
-  political_risk_mitigation?: string;
-  sovereign_support?: string;
-  strategic_notes?: string;
-  source_url?: string;
-  created_at?: string;
-  updated_at?: string;
+  id: string | number
+  project_name: string
+  name?: string
+  sector: string
+  country: string
+  region?: string
+  stage: string
+  description?: string
+  project_type?: string
+  capex?: number
+  estimated_capex?: number
+  estimated_cost?: number
+  funding_gap?: number
+  currency?: string
+  status?: string
+  technology?: string
+  gps_location?: string
+  revenue_model?: string
+  offtaker?: string
+  tariff_mechanism?: string
+  fx_exposure?: string
+  concession_length?: number
+  epc_status?: string
+  permits_status?: string
+  land_acquisition_status?: string
+  timeline_fid?: string
+  timeline_cod?: string
+  esg_category?: string
+  political_risk_mitigation?: string
+  sovereign_support?: string
+  strategic_notes?: string
+  source_url?: string
+  created_at?: string
+  updated_at?: string
 }
 
 export interface ProjectCreate {
-  project_name: string;
-  sector: string;
-  country: string;
-  region?: string;
-  stage?: string;
-  description?: string;
-  project_type?: string;
-  capex?: number;
-  estimated_cost?: number;
-  currency?: string;
-  status?: string;
-  strategic_notes?: string;
-  source_url?: string;
+  project_name: string
+  sector: string
+  country: string
+  region?: string
+  stage?: string
+  description?: string
+  project_type?: string
+  capex?: number
+  estimated_cost?: number
+  currency?: string
+  status?: string
+  strategic_notes?: string
+  source_url?: string
 }
 
 export interface Investor {
-  id: string | number;
-  fund_name: string;
-  ticket_size_min: number;
-  ticket_size_max: number;
-  instruments: string[];
-  sectors?: string[];
-  geographies?: string[];
-  sector_focus?: string[];
-  country_focus?: string[];
-  esg_constraints?: string;
-  aum?: number;
-  target_irr?: number;
-  created_at?: string;
+  id: string | number
+  fund_name: string
+  ticket_size_min: number
+  ticket_size_max: number
+  instruments: string[]
+  sectors?: string[]
+  geographies?: string[]
+  sector_focus?: string[]
+  country_focus?: string[]
+  esg_constraints?: string
+  aum?: number
+  target_irr?: number
+  created_at?: string
 }
 
 export interface InvestorCreate {
-  fund_name: string;
-  ticket_size_min: number;
-  ticket_size_max: number;
-  instruments: string[];
-  sectors?: string[];
-  geographies?: string[];
-  sector_focus?: string[];
-  country_focus?: string[];
-  esg_constraints?: string;
-  aum?: number;
-  target_irr?: number;
+  fund_name: string
+  ticket_size_min: number
+  ticket_size_max: number
+  instruments: string[]
+  sectors?: string[]
+  geographies?: string[]
+  sector_focus?: string[]
+  country_focus?: string[]
+  esg_constraints?: string
+  aum?: number
+  target_irr?: number
 }
 
 export interface Event {
-  id: string | number;
-  name: string;
-  description?: string;
-  event_date: string;
-  location?: string;
-  type?: string;
-  project_id?: string | number;
-  projects_involved?: (string | number)[];
-  created_at?: string;
+  id: string | number
+  name: string
+  description?: string
+  event_date: string
+  location?: string
+  type?: string
+  project_id?: string | number
+  projects_involved?: (string | number)[]
+  created_at?: string
 }
 
 export interface EventCreate {
-  name: string;
-  description?: string;
-  event_date: string;
-  location?: string;
-  type?: string;
-  project_id?: string | number;
-  projects_involved?: (string | number)[];
+  name: string
+  description?: string
+  event_date: string
+  location?: string
+  type?: string
+  project_id?: string | number
+  projects_involved?: (string | number)[]
 }
 
 export interface Verification {
-  id: string | number;
-  project_id: string | number;
-  level: string;
-  status?: string;
+  id: string | number
+  project_id: string | number
+  level: string
+  status?: string
   bankability?: {
-    overall_score: number;
-    technical_readiness: number;
-    financial_robustness: number;
-    legal_clarity: number;
-    esg_compliance: number;
-  };
-  created_at?: string;
+    overall_score: number
+    technical_readiness: number
+    financial_robustness: number
+    legal_clarity: number
+    esg_compliance: number
+  }
+  created_at?: string
 }
 
 export interface VerificationCreate {
-  project_id: string | number;
-  level: string;
-  technical_readiness?: number;
-  financial_robustness?: number;
-  legal_clarity?: number;
-  esg_compliance?: number;
+  project_id: string | number
+  level: string
+  technical_readiness?: number
+  financial_robustness?: number
+  legal_clarity?: number
+  esg_compliance?: number
   bankability?: {
-    overall_score: number;
-    technical_readiness: number;
-    financial_robustness: number;
-    legal_clarity: number;
-    esg_compliance: number;
-    risk_flags?: unknown[];
-    last_verified?: string;
-  };
+    overall_score: number
+    technical_readiness: number
+    financial_robustness: number
+    legal_clarity: number
+    esg_compliance: number
+    risk_flags?: unknown[]
+    last_verified?: string
+  }
 }
 
 export interface PipelineStage {
-  id: string | number;
-  name: string;
-  code?: string;
-  order: number;
-  description?: string;
-  sla_days?: number;
+  id: string | number
+  name: string
+  code?: string
+  order: number
+  description?: string
+  sla_days?: number
 }
 
 export interface ProjectPipelineStatus {
-  id: string | number;
-  project_id: string | number;
-  project_name?: string;
-  stage_id: string | number;
-  stage_name?: string;
-  current_stage?: string;
-  entered_at?: string;
-  days_in_stage?: number;
-  sla_status?: string;
-  sla_remaining?: number;
-  sla_days?: number;
-  notes?: string;
+  id: string | number
+  project_id: string | number
+  project_name?: string
+  stage_id: string | number
+  stage_name?: string
+  current_stage?: string
+  entered_at?: string
+  days_in_stage?: number
+  sla_status?: string
+  sla_remaining?: number
+  sla_days?: number
+  notes?: string
 }
 
 export interface PipelineLog {
-  id: string | number;
-  project_id: string | number;
-  from_stage?: string;
-  to_stage: string;
-  moved_at: string;
-  timestamp?: string;
-  moved_by?: string;
-  notes?: string;
-  days_in_previous_stage?: number;
-  sla_breached?: boolean;
+  id: string | number
+  project_id: string | number
+  from_stage?: string
+  to_stage: string
+  moved_at: string
+  timestamp?: string
+  moved_by?: string
+  notes?: string
+  days_in_previous_stage?: number
+  sla_breached?: boolean
 }
 
 export interface DataRoom {
-  id: string | number;
-  name: string;
-  project_id: string | number;
-  description?: string;
-  require_nda?: boolean;
-  files?: DataRoomFile[];
-  documents?: Record<string, string>;
-  access_users?: string[];
-  created_at?: string;
+  id: string | number
+  name: string
+  project_id: string | number
+  description?: string
+  require_nda?: boolean
+  files?: DataRoomFile[]
+  documents?: Record<string, string>
+  access_users?: string[]
+  created_at?: string
 }
 
 export interface DataRoomFile {
-  id: string | number;
-  name: string;
-  url: string;
-  size?: number;
-  uploaded_at?: string;
+  id: string | number
+  name: string
+  url: string
+  size?: number
+  uploaded_at?: string
 }
 
 export interface DealRoom {
-  id: string | number;
-  name: string;
-  project_id: string | number;
-  description?: string | null;
-  status?: string;
-  deal_value?: number | null;
-  deal_currency?: string;
-  target_close_date?: string | null;
-  is_video_enabled?: boolean;
-  is_chat_enabled?: boolean;
-  require_nda?: boolean;
-  participants?: string[];
-  member_count?: number;
-  document_count?: number;
-  created_at?: string;
+  id: string | number
+  name: string
+  project_id: string | number
+  description?: string | null
+  status?: string
+  deal_value?: number | null
+  deal_currency?: string
+  target_close_date?: string | null
+  is_video_enabled?: boolean
+  is_chat_enabled?: boolean
+  require_nda?: boolean
+  participants?: string[]
+  member_count?: number
+  document_count?: number
+  created_at?: string
 }
 
 export interface EIN {
-  id: string | number;
-  project_id: string | number;
-  title?: string;
-  status?: string;
-  sections?: EINSection[];
-  template?: EINTemplate;
-  executive_summary?: string;
-  recommendation?: string;
-  key_gaps?: string;
-  next_steps?: string;
-  petfel_score?: number;
-  red_flags_count?: number;
-  version?: number;
-  is_valid?: boolean;
-  issues?: string[];
-  created_at?: string;
-  updated_at?: string;
+  id: string | number
+  project_id: string | number
+  title?: string
+  status?: string
+  sections?: EINSection[]
+  template?: EINTemplate
+  executive_summary?: string
+  recommendation?: string
+  key_gaps?: string
+  next_steps?: string
+  petfel_score?: number
+  red_flags_count?: number
+  version?: number
+  is_valid?: boolean
+  issues?: string[]
+  created_at?: string
+  updated_at?: string
 }
 
 export interface EINSection {
-  id: string | number;
-  title: string;
-  section_name?: string;
-  content: string;
-  section_code?: string;
-  is_reviewed?: boolean;
-  generated_by?: string;
-  order?: number;
+  id: string | number
+  title: string
+  section_name?: string
+  content: string
+  section_code?: string
+  is_reviewed?: boolean
+  generated_by?: string
+  order?: number
 }
 
 export interface EINTemplate {
-  id: string | number;
-  name: string;
-  code?: string;
-  sections: string[];
-  objective?: string;
-  key_questions?: string[];
-  output_guidance?: string;
+  id: string | number
+  name: string
+  code?: string
+  sections: string[]
+  objective?: string
+  key_questions?: string[]
+  output_guidance?: string
 }
 
 export interface PETFELAssessment {
-  id: string | number;
-  project_id: string | number;
-  overall_score?: number;
-  status?: string;
-  rating?: string;
-  gating_result?: string;
-  criteria?: PETFELCriterion[];
-  scores?: ScoreInput[];
-  augmented_scores?: ScoreInput[];
-  pillar_scores?: Record<string, number>;
-  flags?: Array<{ id?: string | number; pillar: string; criterion: string; message: string; description?: string; severity?: string; is_resolved?: boolean }>;
-  created_at?: string;
+  id: string | number
+  project_id: string | number
+  overall_score?: number
+  status?: string
+  rating?: string
+  gating_result?: string
+  criteria?: PETFELCriterion[]
+  scores?: ScoreInput[]
+  augmented_scores?: ScoreInput[]
+  pillar_scores?: Record<string, number>
+  flags?: Array<{ id?: string | number; pillar: string; criterion: string; message: string; description?: string; severity?: string; is_resolved?: boolean }>
+  created_at?: string
 }
 
 export interface PETFELCriterion {
-  id: string | number;
-  name: string;
-  category: string;
-  code?: string;
-  score?: number;
-  weight?: number;
-  notes?: string;
+  id: string | number
+  name: string
+  category: string
+  code?: string
+  score?: number
+  weight?: number
+  notes?: string
 }
 
 export interface ScoreInput {
-  criterion_id: string | number;
-  score: number;
-  notes?: string;
-  pillar?: string;
-  sub_criterion?: string;
-  evidence_notes?: string;
-  mitigation?: string;
-  owner?: string;
+  criterion_id: string | number
+  score: number
+  notes?: string
+  pillar?: string
+  sub_criterion?: string
+  evidence_notes?: string
+  mitigation?: string
+  owner?: string
 }
 
 export interface ICCommittee {
-  id: string | number;
-  committee_id?: string | number;
-  name: string;
-  project_id?: string | number;
-  status?: string;
-  meeting_date?: string;
-  members?: string[];
-  votes?: ICVote[];
-  decision?: string;
-  created_at?: string;
+  id: string | number
+  committee_id?: string | number
+  name: string
+  project_id?: string | number
+  status?: string
+  meeting_date?: string
+  members?: string[]
+  votes?: ICVote[]
+  decision?: string
+  created_at?: string
 }
 
 export interface ICVote {
-  id: string | number;
-  committee_id: string | number;
-  member_id: string;
-  vote: 'approve' | 'reject' | 'abstain';
-  comments?: string;
-  voted_at?: string;
+  id: string | number
+  committee_id: string | number
+  member_id: string
+  vote: 'approve' | 'reject' | 'abstain'
+  comments?: string
+  voted_at?: string
 }
 
 export interface AnalyticReport {
-  id: string | number;
-  title: string;
-  type: string;
-  sector?: string;
-  country?: string;
-  content?: string;
-  data?: Record<string, unknown>;
-  created_at?: string;
+  id: string | number
+  title: string
+  type: string
+  sector?: string
+  country?: string
+  content?: string
+  data?: Record<string, unknown>
+  created_at?: string
 }
 
 export interface AnalyticReportCreate {
-  title: string;
-  type: string;
-  sector?: string;
-  country?: string;
-  content?: string;
-  data?: Record<string, unknown>;
+  title: string
+  type: string
+  sector?: string
+  country?: string
+  content?: string
+  data?: Record<string, unknown>
 }
 
 export interface User {
-  id: string;
-  email: string;
-  full_name?: string | null;
-  role?: string | null;
-  user_type_slug?: string | null;
-  organization?: string | null;
-  phone?: string | null;
-  country?: string | null;
-  is_verified?: boolean;
-  is_active?: boolean;
-  avatar_url?: string | null;
-  subscription_tier?: string;
-  created_at?: string;
-  updated_at?: string;
+  id: string
+  email: string
+  full_name?: string | null
+  role?: string | null
+  user_type_slug?: string | null
+  organization?: string | null
+  phone?: string | null
+  country?: string | null
+  is_verified?: boolean
+  is_active?: boolean
+  avatar_url?: string | null
+  subscription_tier?: string
+  created_at?: string
+  updated_at?: string
 }
 
 // ─── API Objects ──────────────────────────────────────────────────────────────
 
 export const authAPI = {
   me: () => get<User>('/auth/me'),
-};
+}
 
 // Single canonical exports — camelCase only
 export const projectsApi = {
@@ -464,14 +457,14 @@ export const projectsApi = {
   create: (d: ProjectCreate) => post<Project>('/projects', d),
   update: (id: string | number, d: Partial<ProjectCreate>) => patch<Project>(`/projects/${id}`, d),
   delete: (id: string | number) => del<void>(`/projects/${id}`),
-};
+}
 
 export const investorsApi = {
   list:   (params?: object) => get<Investor[]>('/investors', params),
   get:    (id: string | number) => get<Investor>(`/investors/${id}`),
   create: (d: InvestorCreate) => post<Investor>('/investors', d),
   update: (id: string | number, d: Partial<InvestorCreate>) => patch<Investor>(`/investors/${id}`, d),
-};
+}
 
 export const verificationsApi = {
   list:         (params?: object) => get<Verification[]>('/verifications', params),
@@ -479,7 +472,7 @@ export const verificationsApi = {
   getByProject: (projectId: string | number) => get<Verification[]>(`/verifications?project_id=${projectId}`),
   create:       (d: VerificationCreate) => post<Verification>('/verifications', d),
   update:       (id: string | number, d: Partial<VerificationCreate>) => patch<Verification>(`/verifications/${id}`, d),
-};
+}
 
 export const eventsApi = {
   list:   (params?: object) => get<Event[]>('/events', params),
@@ -487,7 +480,7 @@ export const eventsApi = {
   create: (d: EventCreate) => post<Event>('/events', d),
   update: (id: string | number, d: Partial<EventCreate>) => patch<Event>(`/events/${id}`, d),
   delete: (id: string | number) => del<void>(`/events/${id}`),
-};
+}
 
 export const pipelineApi = {
   stages:           () => get<PipelineStage[]>('/pipeline/stages'),
@@ -500,7 +493,7 @@ export const pipelineApi = {
   logs:             (projectId?: string | number) => get<PipelineLog[]>('/pipeline/logs', projectId ? { project_id: projectId } : {}),
   getHistory:       (projectId: string | number) => get<PipelineLog[]>(`/pipeline/logs?project_id=${projectId}`),
   move:             (projectId: string | number, d: object) => post<unknown>('/pipeline/move', { project_id: projectId, ...d }),
-};
+}
 
 export const analyticsApi = {
   list:    () => get<AnalyticReport[]>('/analytics/reports'),
@@ -509,14 +502,14 @@ export const analyticsApi = {
   get:     (id: string | number) => get<AnalyticReport>(`/analytics/reports/${id}`),
   create:  (d: AnalyticReportCreate) => post<AnalyticReport>('/analytics/reports', d),
   track:   (d: object) => post<unknown>('/analytics/track', d),
-};
+}
 
 export interface UserStats {
-  total: number;
-  active: number;
-  inactive: number;
-  verified: number;
-  by_role?: Record<string, number>;
+  total: number
+  active: number
+  inactive: number
+  verified: number
+  by_role?: Record<string, number>
 }
 
 export const usersApi = {
@@ -529,21 +522,21 @@ export const usersApi = {
   deactivateUser: (id: string) => post<User>(`/users/${id}/deactivate`),
   activateUser:   (id: string) => post<User>(`/users/${id}/activate`),
   verifyUser:     (id: string) => post<User>(`/users/${id}/verify`),
-};
+}
 
 export const dataRoomsApi = {
   list:   () => get<DataRoom[]>('/data-rooms'),
   get:    (id: string | number) => get<DataRoom>(`/data-rooms/${id}`),
   create: (d: object) => post<DataRoom>('/data-rooms', d),
   delete: (id: string | number) => del<void>(`/data-rooms/${id}`),
-};
+}
 
 export const dealRoomsApi = {
   list:   () => get<DealRoom[]>('/deal-rooms'),
   get:    (id: string | number) => get<DealRoom>(`/deal-rooms/${id}`),
   create: (d: object) => post<DealRoom>('/deal-rooms', d),
   delete: (id: string | number) => del<void>(`/deal-rooms/${id}`),
-};
+}
 
 export const petfelApi = {
   list:             () => get<PETFELAssessment[]>('/petfel'),
@@ -557,7 +550,7 @@ export const petfelApi = {
   updateScores:     (assessmentId: string | number, scores: ScoreInput[]) => post<PETFELAssessment>(`/petfel/${assessmentId}/scores`, { scores }),
   calculate:        (assessmentId: string | number) => post<PETFELAssessment>(`/petfel/${assessmentId}/calculate`),
   submit:           (assessmentId: string | number) => post<PETFELAssessment>(`/petfel/${assessmentId}/submit`),
-};
+}
 
 export const einApi = {
   list:          () => get<EIN[]>('/ein'),
@@ -573,7 +566,7 @@ export const einApi = {
   templates:     () => get<EINTemplate[]>('/ein/templates'),
   getTemplates:  () => get<EINTemplate[]>('/ein/templates'),
   generate:      (projectId: string | number) => post<EIN>(`/ein/generate/${projectId}`, {}),
-};
+}
 
 export const icApi = {
   list:            () => get<ICCommittee[]>('/ic'),
@@ -586,26 +579,26 @@ export const icApi = {
   vote:            (id: string | number, d: object) => post<ICVote>(`/ic/committees/${id}/vote`, d),
   submitVote:      (id: string | number, vote: string, rationale?: string) => post<ICVote>(`/ic/committees/${id}/vote`, { vote, rationale }),
   recordDecision:  (id: string | number, outcome: string | object) => post<ICCommittee>(`/ic/committees/${id}/decision`, typeof outcome === 'string' ? { outcome } : outcome),
-};
+}
 
 export const matchingApi = {
   list: () => get<unknown[]>('/matching'),
   run:  (projectId: string | number) => post<unknown>(`/matching/run/${projectId}`, {}),
   get:  (projectId: string | number) => get<unknown>(`/matching/${projectId}`),
-};
+}
 
 export const radarApi = {
   list:    () => get<unknown[]>('/radar'),
   results: () => get<unknown[]>('/radar/results'),
   scan:    () => post<unknown>('/radar/scan', {}),
-};
+}
 
 export interface EINGenerated {
-  sections?: Record<string, string>;
-  executive_summary?: string;
-  recommendation?: string;
-  key_gaps?: string;
-  next_steps?: string;
+  sections?: Record<string, string>
+  executive_summary?: string
+  recommendation?: string
+  key_gaps?: string
+  next_steps?: string
 }
 
 export const aiApi = {
@@ -613,19 +606,19 @@ export const aiApi = {
   generate:      (d: object) => post<unknown>('/ai/generate', d),
   generateEIN:   (d: object) => post<EINGenerated>('/ai/generate-ein', d),
   augmentPETFEL: (d: object) => post<PETFELAssessment>('/ai/augment-petfel', d),
-};
+}
 
 export interface Notification {
-  id: string;
-  text: string;
-  is_read: boolean;
-  created_at: string;
+  id: string
+  text: string
+  is_read: boolean
+  created_at: string
 }
 
 export const notificationsApi = {
-  list:       () => get<Notification[]>('/notifications'),
-  markRead:   (id: string) => patch<Notification>(`/notifications/${id}/read`),
+  list:        () => get<Notification[]>('/notifications'),
+  markRead:    (id: string) => patch<Notification>(`/notifications/${id}/read`),
   markAllRead: () => patch<void>('/notifications/read-all'),
-};
+}
 
-export default api;
+export default api

@@ -34,7 +34,8 @@ export async function GET(
 
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  const { passwordHash: _, ...safeUser } = user as Record<string, unknown> & {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash: _passwordHash, ...safeUser } = user as Record<string, unknown> & {
     passwordHash?: string
   }
   return NextResponse.json({ user: safeUser })
@@ -127,7 +128,8 @@ export async function PATCH(
       req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? undefined,
   })
 
-  const { passwordHash: _, ...safeUser } = updated as Record<string, unknown> & {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash: _passwordHash2, ...safeUser } = updated as Record<string, unknown> & {
     passwordHash?: string
   }
   return NextResponse.json({ user: safeUser })

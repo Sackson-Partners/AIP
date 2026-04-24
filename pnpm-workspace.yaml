@@ -1,0 +1,3 @@
+overrides:
+  '@tootallnate/once@<3.0.1': '>=3.0.1'
+  uuid@<14.0.0: '>=14.0.0'
