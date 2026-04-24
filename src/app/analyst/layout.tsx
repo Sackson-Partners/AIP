@@ -38,7 +38,7 @@ export default async function AnalystLayout({
 
   return (
     <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
-      <aside className="w-60 flex-shrink-0 flex flex-col bg-slate-950 border-r border-slate-800/50">
+      <aside className="w-60 shrink-0 flex flex-col bg-slate-950 border-r border-slate-800/50">
         <div className="px-5 py-5 border-b border-slate-800/50">
           <div className="flex items-center gap-2">
             <span className="font-bold text-white text-lg tracking-tight">AIP</span>

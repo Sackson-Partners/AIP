@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendAdminNotificationEmail } from '@/lib/email'
 import { logActivity } from '@/lib/audit'
+import { logger } from '@/lib/logger'
 
 export async function POST(request: NextRequest) {
   try {
@@ -93,8 +94,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       message: 'If an account exists, reset instructions have been sent.',
     })
-  } catch (error: any) {
-    console.error('[FORGOT-PASSWORD]', error)
+  } catch (error: unknown) {
+    logger.error('[FORGOT-PASSWORD]', error)
     // Still return 200 to prevent enumeration
     return NextResponse.json({
       message: 'If an account exists, reset instructions have been sent.',

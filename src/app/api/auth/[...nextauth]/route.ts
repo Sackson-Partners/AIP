@@ -14,7 +14,8 @@ async function handler(
     const limited = await authRateLimit(req)
     if (limited) return limited
   }
-  return (NextAuth(authOptions) as any)(req, { params })
+  type AppHandler = (req: NextRequest, ctx: { params: Record<string, string[]> }) => Promise<Response>
+  return (NextAuth(authOptions) as unknown as AppHandler)(req, { params })
 }
 
 export { handler as GET, handler as POST }

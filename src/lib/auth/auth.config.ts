@@ -1,4 +1,5 @@
 import type { NextAuthOptions } from "next-auth"
+import type { Adapter } from "next-auth/adapters"
 import AzureADProvider from "next-auth/providers/azure-ad"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@auth/prisma-adapter"
@@ -14,19 +15,23 @@ const KNOWN_ACCOUNT_FIELDS = new Set([
   'session_state', 'ext_expires_in',
 ])
 
-const baseAdapter = PrismaAdapter(prisma) as any
+// PrismaAdapter returns @auth/core's Adapter; next-auth v4 expects next-auth/adapters Adapter.
+// These are structurally incompatible (different AdapterAccount types across packages).
+// Bridge via unknown — this is intentional, not a lazy cast.
+const baseAdapter = PrismaAdapter(prisma) as unknown as Adapter
 const safeAdapter = {
   ...baseAdapter,
   async linkAccount(account: Record<string, unknown>) {
     const clean = Object.fromEntries(
       Object.entries(account).filter(([k]) => KNOWN_ACCOUNT_FIELDS.has(k))
     )
-    return baseAdapter.linkAccount(clean)
+    const fn = baseAdapter.linkAccount as unknown as (a: Record<string, unknown>) => Promise<unknown>
+    return fn?.(clean)
   },
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: safeAdapter as any,
+  adapter: safeAdapter as unknown as Adapter,
 
   // Explicit cookie config required for Next.js 15+ async cookies() API on localhost
   useSecureCookies: process.env.NODE_ENV === 'production',

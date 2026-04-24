@@ -88,7 +88,6 @@ export default function InvestorsPage() {
       setSelectedInvestor(investor);
       setShowMatchModal(true);
     } catch (error) {
-      // eslint-disable-next-line no-console
       Sentry.captureException(error);
     }
   }, [projectsCache]);

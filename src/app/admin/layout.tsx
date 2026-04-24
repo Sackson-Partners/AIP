@@ -49,7 +49,7 @@ export default async function AdminLayout({
   return (
     <div className="flex h-screen bg-slate-950 text-white overflow-hidden">
       {/* Sidebar */}
-      <aside className="w-60 flex-shrink-0 flex flex-col bg-slate-950 border-r border-slate-800/50">
+      <aside className="w-60 shrink-0 flex flex-col bg-slate-950 border-r border-slate-800/50">
         {/* Logo */}
         <div className="px-5 py-5 border-b border-slate-800/50">
           <div className="flex items-center gap-2">
@@ -72,7 +72,7 @@ export default async function AdminLayout({
               <Icon className="w-4 h-4 shrink-0" />
               <span className="flex-1">{label}</span>
               {badge ? (
-                <span className="bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                <span className="bg-amber-500/20 text-amber-400 border border-amber-500/20 text-xs font-semibold px-1.5 py-0.5 rounded-full min-w-5 text-center">
                   {badge}
                 </span>
               ) : null}

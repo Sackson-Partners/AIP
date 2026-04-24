@@ -6,6 +6,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
+import { logger } from '@/lib/logger'
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -64,8 +65,8 @@ export async function PATCH(request: NextRequest) {
     })
 
     return NextResponse.json({ user: updated })
-  } catch (error: any) {
-    console.error('[PROFILE] Update error:', error)
+  } catch (error: unknown) {
+    logger.error('[PROFILE] Update error', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

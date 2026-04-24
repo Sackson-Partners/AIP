@@ -4,6 +4,7 @@
 
 import axios, { AxiosInstance } from 'axios'
 import { getSession } from 'next-auth/react'
+import { logger } from '@/lib/logger'
 
 // Use relative /api path so all requests route through the Next.js rewrite
 // (next.config.ts: /api/* → NEXT_PUBLIC_API_URL/api/*).
@@ -27,14 +28,15 @@ api.interceptors.request.use(
         config.headers['X-User-Id'] = session.user.id
         config.headers['X-User-Role'] = session.user.role
         // accessToken is forwarded if present (e.g. Azure AD id_token)
-        const token = (session as any).accessToken ?? (session as any).idToken ?? null
+        const s = session as typeof session & { accessToken?: string; idToken?: string }
+        const token = s.accessToken ?? s.idToken ?? null
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
         }
       }
     } catch (err) {
       // Session fetch failed — continue without token
-      console.warn('[api.ts] Could not get session for request:', err)
+      logger.warn('[api.ts] Could not get session for request', { detail: err instanceof Error ? err.message : String(err) })
     }
     return config
   },

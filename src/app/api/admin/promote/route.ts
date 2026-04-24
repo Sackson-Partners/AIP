@@ -9,6 +9,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
+import { logger } from '@/lib/logger'
+import { UserRole } from '@prisma/client'
 
 const VALID_ROLES = [
   'SUPER_ADMIN',
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
     // ── Update role ─────────────────────────────────────────────
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: { role: role as any },
+      data: { role: role as UserRole },
       select: {
         id: true,
         email: true,
@@ -107,8 +109,8 @@ export async function POST(request: NextRequest) {
       message: `User promoted to ${role} successfully`,
       user: updated,
     })
-  } catch (error: any) {
-    console.error('[PROMOTE] Error:', error)
+  } catch (error: unknown) {
+    logger.error('[PROMOTE] Error', error)
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

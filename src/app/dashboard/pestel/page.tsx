@@ -65,7 +65,6 @@ export default function PETFELPage() {
         // Expand first pillar by default
         setExpandedPillars({ political: true });
       } catch (err) {
-        // eslint-disable-next-line no-console
         Sentry.captureException(err);
         setError('Failed to load data');
       } finally {
@@ -111,7 +110,6 @@ export default function PETFELPage() {
           setAssessment(null);
           setScores({});
         } else {
-          // eslint-disable-next-line no-console
           Sentry.captureException(err);
         }
       } finally {
@@ -129,7 +127,6 @@ export default function PETFELPage() {
       setAssessment(data);
       setScores({});
     } catch (err) {
-      // eslint-disable-next-line no-console
       Sentry.captureException(err);
       setError('Failed to create assessment');
     } finally {
@@ -182,7 +179,6 @@ export default function PETFELPage() {
       const updated = await petfelApi.updateScores(assessment.id, scoresList);
       setAssessment(updated);
     } catch (err) {
-      // eslint-disable-next-line no-console
       Sentry.captureException(err);
       setError('Failed to save scores');
     } finally {
@@ -199,7 +195,6 @@ export default function PETFELPage() {
       const updated = await petfelApi.calculate(assessment.id);
       setAssessment(updated);
     } catch (err) {
-      // eslint-disable-next-line no-console
       Sentry.captureException(err);
       setError('Failed to calculate scores');
     } finally {
@@ -215,7 +210,6 @@ export default function PETFELPage() {
       const updated = await petfelApi.submit(assessment.id);
       setAssessment(updated);
     } catch (err) {
-      // eslint-disable-next-line no-console
       Sentry.captureException(err);
       setError('Failed to submit assessment');
     } finally {
@@ -241,7 +235,6 @@ export default function PETFELPage() {
       }
       success('AI augmentation complete! Review the suggested scores.');
     } catch (err) {
-      // eslint-disable-next-line no-console
       Sentry.captureException(err);
       setError('Failed to get AI suggestions');
     } finally {
