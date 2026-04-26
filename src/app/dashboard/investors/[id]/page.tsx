@@ -35,7 +35,7 @@ function stageColor(stage?: string) {
 function matchesInvestor(project: Project, investor: Investor): boolean {
   const sectorFocus  = investor.sector_focus  ?? [];
   const countryFocus = investor.country_focus ?? [];
-  const sectorMatch  = sectorFocus.length === 0 || sectorFocus.includes(project.sector);
+  const sectorMatch  = sectorFocus.length === 0 || sectorFocus.includes(project.sector ?? '');
   const countryMatch =
     countryFocus.length === 0 ||
     countryFocus.some(

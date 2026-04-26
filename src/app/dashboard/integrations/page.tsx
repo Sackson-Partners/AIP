@@ -34,7 +34,7 @@ const integrations: Integration[] = [
       'Enable the Microsoft Graph API with Calls.InitiateGroupCalls.All permission',
       'Copy your Application (client) ID and Directory (tenant) ID',
       'Create a client secret under Certificates & Secrets',
-      'Add MICROSOFT_TEAMS_CLIENT_ID, MICROSOFT_TEAMS_CLIENT_SECRET, and MICROSOFT_TEAMS_TENANT_ID to Railway',
+      'Add MICROSOFT_TEAMS_CLIENT_ID, MICROSOFT_TEAMS_CLIENT_SECRET, and MICROSOFT_TEAMS_TENANT_ID to Vercel environment variables',
     ],
     envVars: ['MICROSOFT_TEAMS_CLIENT_ID', 'MICROSOFT_TEAMS_CLIENT_SECRET', 'MICROSOFT_TEAMS_TENANT_ID'],
   },
@@ -50,7 +50,7 @@ const integrations: Integration[] = [
       'Go to My Apps & Keys and create a new integration',
       'Copy your Integration Key (client ID) and Account ID',
       'Generate an RSA keypair and upload the public key to DocuSign',
-      'Add DOCUSIGN_INTEGRATION_KEY and DOCUSIGN_ACCOUNT_ID to Railway',
+      'Add DOCUSIGN_INTEGRATION_KEY and DOCUSIGN_ACCOUNT_ID to Vercel environment variables',
     ],
     envVars: ['DOCUSIGN_INTEGRATION_KEY', 'DOCUSIGN_ACCOUNT_ID', 'DOCUSIGN_BASE_URL'],
   },
@@ -66,7 +66,7 @@ const integrations: Integration[] = [
       'Go to Developers > API Keys in the Stripe dashboard',
       'Copy your Secret Key (starts with sk_live_) and Publishable Key',
       'Set up a webhook endpoint and copy the Webhook Signing Secret',
-      'Add STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, and STRIPE_WEBHOOK_SECRET to Railway',
+      'Add STRIPE_SECRET_KEY, STRIPE_PUBLISHABLE_KEY, and STRIPE_WEBHOOK_SECRET to Vercel environment variables',
     ],
     envVars: ['STRIPE_SECRET_KEY', 'STRIPE_PUBLISHABLE_KEY', 'STRIPE_WEBHOOK_SECRET'],
   },
@@ -80,7 +80,7 @@ const integrations: Integration[] = [
     setupInstructions: [
       'Log in to Calendly and go to Integrations & Apps > API & Webhooks',
       'Generate a Personal Access Token',
-      'Add CALENDLY_API_KEY to Railway environment variables',
+      'Add CALENDLY_API_KEY to Vercel environment variables',
     ],
     envVars: ['CALENDLY_API_KEY'],
   },
@@ -96,7 +96,7 @@ const integrations: Integration[] = [
       'Choose Server-to-Server OAuth app type',
       'Enable meeting scopes (meeting:write, meeting:read)',
       'Copy your Account ID, Client ID, and Client Secret',
-      'Add ZOOM_API_KEY and ZOOM_API_SECRET to Railway environment variables',
+      'Add ZOOM_API_KEY and ZOOM_API_SECRET to Vercel environment variables',
     ],
     envVars: ['ZOOM_API_KEY', 'ZOOM_API_SECRET'],
   },
@@ -225,7 +225,7 @@ export default function IntegrationsPage() {
                   </ol>
                   {integration.envVars && (
                     <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Required Railway Env Vars</p>
+                      <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">Required Env Vars</p>
                       <div className="flex flex-wrap gap-2">
                         {integration.envVars.map((v) => (
                           <code key={v} className="px-2 py-1 bg-gray-200 text-gray-800 rounded text-xs font-mono">{v}</code>
@@ -257,8 +257,8 @@ export default function IntegrationsPage() {
             <h3 className="font-semibold text-blue-900 mb-1">How to activate integrations</h3>
             <p className="text-blue-800 text-sm">
               Obtain API credentials from each service, then add them as environment variables in your{' '}
-              <a href="https://railway.app" target="_blank" rel="noopener noreferrer" className="underline font-medium">Railway dashboard</a>{' '}
-              under AIP backend service &rsaquo; Variables. The backend will automatically pick up the keys on the next deploy.
+              <a href="https://vercel.com/dashboard" target="_blank" rel="noopener noreferrer" className="underline font-medium">Vercel dashboard</a>{' '}
+              under the AIP project &rsaquo; Settings &rsaquo; Environment Variables. The app will automatically pick up the keys on the next deploy.
             </p>
           </div>
         </div>

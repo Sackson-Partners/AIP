@@ -31,8 +31,8 @@ export default function ProjectsPage() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [filter, setFilter] = useState({ sector: '', country: '', status: '' });
   const debouncedFilter = useDebounce(filter, 300);
-  const [newForm, setNewForm] = useState<ProjectCreate>({ project_name: '', country: '', sector: '', stage: '', status: 'planned' });
-  const [editForm, setEditForm] = useState<ProjectCreate>({ project_name: '', sector: '', country: '', stage: '' });
+  const [newForm, setNewForm] = useState<ProjectCreate>({ project_name: '', country: '', sector: '', stage: '', status: 'planned', region: '', project_type: '', description: '', strategic_notes: '', estimated_cost: undefined, currency: '' });
+  const [editForm, setEditForm] = useState<ProjectCreate>({ project_name: '', sector: '', country: '', stage: '', region: '', project_type: '', description: '', strategic_notes: '', estimated_cost: undefined, currency: '' });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -326,7 +326,7 @@ export default function ProjectsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost</label>
                   <input
-                    value={newForm.estimated_cost}
+                    value={newForm.estimated_cost ?? ''}
                     onChange={(e) => setNewForm({ ...newForm, estimated_cost: e.target.value ? Number(e.target.value) : undefined })}
                     placeholder="e.g., $500M, USD 1.2B"
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
@@ -443,7 +443,7 @@ export default function ProjectsPage() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost</label>
                   <input
-                    value={editForm.estimated_cost}
+                    value={editForm.estimated_cost ?? ''}
                     onChange={(e) => setEditForm({ ...editForm, estimated_cost: e.target.value ? Number(e.target.value) : undefined })}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                   />

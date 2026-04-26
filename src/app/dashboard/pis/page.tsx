@@ -234,10 +234,10 @@ export default function PISPage() {
                     <h3 className="font-semibold text-lg text-gray-900 mb-4">Project Details</h3>
                     <div className="space-y-3">
                       <DetailRow label="Name" value={selectedProject.name ?? '—'} />
-                      <DetailRow label="Country" value={selectedProject.country} />
+                      <DetailRow label="Country" value={selectedProject.country ?? '—'} />
                       <DetailRow label="Region" value={selectedProject.region || '—'} />
-                      <DetailRow label="Sector" value={selectedProject.sector} />
-                      <DetailRow label="Stage" value={selectedProject.stage} />
+                      <DetailRow label="Sector" value={selectedProject.sector ?? '—'} />
+                      <DetailRow label="Stage" value={selectedProject.stage ?? '—'} />
                       <DetailRow label="Technology" value={selectedProject.technology || '—'} />
                       <DetailRow label="GPS Location" value={selectedProject.gps_location || '—'} />
                     </div>

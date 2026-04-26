@@ -1,7 +1,4 @@
 // src/lib/api.ts
-// MIGRATED: Token source changed from Supabase → NextAuth
-// All Axios configuration, API objects, and interfaces preserved.
-
 import axios, { AxiosInstance } from 'axios'
 import { getSession } from 'next-auth/react'
 import { logger } from '@/lib/logger'
@@ -17,8 +14,6 @@ export const api: AxiosInstance = axios.create({
 
 // ─── Request interceptor ─────────────────────────────────────────
 // Injects NextAuth JWT token into every outgoing request
-// Previously used: supabase.auth.getSession()
-// Now uses:        getSession() from next-auth/react
 api.interceptors.request.use(
   async (config) => {
     try {
@@ -99,12 +94,21 @@ const del  = <T>(url: string) => api.delete<T>(url).then((r) => r.data)
 
 export interface Project {
   id: string | number
-  project_name: string
+  // Prisma / Next.js API fields (camelCase)
+  title?: string
+  code?: string
+  totalCost?: number
+  dealStage?: string
+  ownerId?: string
+  createdAt?: string
+  updatedAt?: string
+  // Legacy Python API fields (snake_case) — kept for backward compat with existing components
+  project_name?: string
   name?: string
-  sector: string
-  country: string
+  sector?: string
+  country?: string
   region?: string
-  stage: string
+  stage?: string
   description?: string
   project_type?: string
   capex?: number
@@ -454,7 +458,7 @@ export const authAPI = {
 
 // Single canonical exports — camelCase only
 export const projectsApi = {
-  list:   (params?: object) => get<Project[]>('/projects', params),
+  list:   (params?: object) => get<{ data: Project[] }>('/projects', params).then(r => r.data),
   get:    (id: string | number) => get<Project>(`/projects/${id}`),
   create: (d: ProjectCreate) => post<Project>('/projects', d),
   update: (id: string | number, d: Partial<ProjectCreate>) => patch<Project>(`/projects/${id}`, d),
@@ -462,22 +466,22 @@ export const projectsApi = {
 }
 
 export const investorsApi = {
-  list:   (params?: object) => get<Investor[]>('/investors', params),
+  list:   (params?: object) => get<{ data: Investor[] }>('/investors', params).then(r => r.data),
   get:    (id: string | number) => get<Investor>(`/investors/${id}`),
   create: (d: InvestorCreate) => post<Investor>('/investors', d),
   update: (id: string | number, d: Partial<InvestorCreate>) => patch<Investor>(`/investors/${id}`, d),
 }
 
 export const verificationsApi = {
-  list:         (params?: object) => get<Verification[]>('/verifications', params),
+  list:         (params?: object) => get<{ data: Verification[] }>('/verifications', params).then(r => r.data),
   get:          (id: string | number) => get<Verification>(`/verifications/${id}`),
-  getByProject: (projectId: string | number) => get<Verification[]>(`/verifications?project_id=${projectId}`),
+  getByProject: (projectId: string | number) => get<{ data: Verification[] }>(`/verifications?project_id=${projectId}`).then(r => r.data),
   create:       (d: VerificationCreate) => post<Verification>('/verifications', d),
   update:       (id: string | number, d: Partial<VerificationCreate>) => patch<Verification>(`/verifications/${id}`, d),
 }
 
 export const eventsApi = {
-  list:   (params?: object) => get<Event[]>('/events', params),
+  list:   (params?: object) => get<{ data: Event[] }>('/events', params).then(r => r.data),
   get:    (id: string | number) => get<Event>(`/events/${id}`),
   create: (d: EventCreate) => post<Event>('/events', d),
   update: (id: string | number, d: Partial<EventCreate>) => patch<Event>(`/events/${id}`, d),
@@ -485,22 +489,22 @@ export const eventsApi = {
 }
 
 export const pipelineApi = {
-  stages:           () => get<PipelineStage[]>('/pipeline/stages'),
-  getStages:        () => get<PipelineStage[]>('/pipeline/stages'),
-  overview:         () => get<unknown>('/pipeline/overview'),
+  stages:           () => get<{ data: PipelineStage[] }>('/pipeline/stages').then(r => r.data),
+  getStages:        () => get<{ data: PipelineStage[] }>('/pipeline/stages').then(r => r.data),
+  overview:         () => get<{ data: unknown }>('/pipeline/overview').then(r => r.data),
   seed:             () => post<unknown>('/pipeline/init'),
-  statuses:         () => get<ProjectPipelineStatus[]>('/pipeline/statuses'),
+  statuses:         () => get<{ data: ProjectPipelineStatus[] }>('/pipeline/statuses').then(r => r.data),
   getProjectStatus: (projectId: string | number) => get<ProjectPipelineStatus>(`/pipeline/statuses/${projectId}`),
-  getSLAAlerts:     () => get<ProjectPipelineStatus[]>('/pipeline/sla-alerts'),
-  logs:             (projectId?: string | number) => get<PipelineLog[]>('/pipeline/logs', projectId ? { project_id: projectId } : {}),
-  getHistory:       (projectId: string | number) => get<PipelineLog[]>(`/pipeline/logs?project_id=${projectId}`),
+  getSLAAlerts:     () => get<{ data: ProjectPipelineStatus[] }>('/pipeline/sla-alerts').then(r => r.data),
+  logs:             (projectId?: string | number) => get<{ data: PipelineLog[] }>('/pipeline/logs', projectId ? { project_id: projectId } : {}).then(r => r.data),
+  getHistory:       (projectId: string | number) => get<{ data: PipelineLog[] }>(`/pipeline/logs?project_id=${projectId}`).then(r => r.data),
   move:             (projectId: string | number, d: object) => post<unknown>('/pipeline/move', { project_id: projectId, ...d }),
 }
 
 export const analyticsApi = {
-  list:    () => get<AnalyticReport[]>('/analytics/reports'),
-  summary: () => get<unknown>('/analytics'),
-  reports: () => get<AnalyticReport[]>('/analytics/reports'),
+  list:    () => get<{ data: AnalyticReport[] }>('/analytics/reports').then(r => r.data),
+  summary: () => get<{ data: unknown }>('/analytics').then(r => r.data),
+  reports: () => get<{ data: AnalyticReport[] }>('/analytics/reports').then(r => r.data),
   get:     (id: string | number) => get<AnalyticReport>(`/analytics/reports/${id}`),
   create:  (d: AnalyticReportCreate) => post<AnalyticReport>('/analytics/reports', d),
   track:   (d: object) => post<unknown>('/analytics/track', d),
@@ -515,22 +519,28 @@ export interface UserStats {
 }
 
 export const usersApi = {
-  list:           (params?: object) => get<User[]>('/users', params),
-  get:            (id: string) => get<User>(`/users/${id}`),
-  getStats:       () => get<UserStats>('/users/stats/summary'),
-  create:         (d: object) => post<User>('/users', d),
-  update:         (id: string, d: Partial<User>) => patch<User>(`/users/${id}`, d),
-  delete:         (id: string) => del<void>(`/users/${id}`),
-  deactivateUser: (id: string) => post<User>(`/users/${id}/deactivate`),
-  activateUser:   (id: string) => post<User>(`/users/${id}/activate`),
-  verifyUser:     (id: string) => post<User>(`/users/${id}/verify`),
+  list:           (params?: object) => get<{ users: User[] }>('/admin/users', params).then(r => r.users),
+  get:            (id: string) => get<{ user: User }>(`/admin/users/${id}`).then(r => r.user),
+  getStats:       () => get<{ totalUsers: number; usersByStatus: Record<string, number>; usersByRole: Record<string, number> }>('/admin/stats').then(r => ({
+    total:    r.totalUsers,
+    active:   r.usersByStatus?.ACTIVE    ?? 0,
+    inactive: (r.usersByStatus?.SUSPENDED ?? 0) + (r.usersByStatus?.DEACTIVATED ?? 0),
+    verified: r.totalUsers,
+    by_role:  r.usersByRole,
+  } as UserStats)),
+  create:         (d: object) => post<{ user: User }>('/admin/users', d).then(r => r.user),
+  update:         (id: string, d: Partial<User>) => patch<{ user: User }>(`/admin/users/${id}`, d).then(r => r.user),
+  delete:         (id: string) => del<void>(`/admin/users/${id}`),
+  deactivateUser: (id: string) => patch<{ user: User }>(`/admin/users/${id}`, { status: 'DEACTIVATED' }).then(r => r.user),
+  activateUser:   (id: string) => patch<{ user: User }>(`/admin/users/${id}`, { status: 'ACTIVE' }).then(r => r.user),
+  verifyUser:     (id: string) => patch<{ user: User }>(`/admin/users/${id}`, { emailVerified: true }).then(r => r.user),
 }
 
 export const dataRoomsApi = {
-  list:   () => get<DataRoom[]>('/data-rooms'),
-  get:    (id: string | number) => get<DataRoom>(`/data-rooms/${id}`),
-  create: (d: object) => post<DataRoom>('/data-rooms', d),
-  delete: (id: string | number) => del<void>(`/data-rooms/${id}`),
+  list:   () => get<DataRoom[]>('/deal-rooms'),
+  get:    (id: string | number) => get<DataRoom>(`/deal-rooms/${id}`),
+  create: (d: object) => post<DataRoom>('/deal-rooms', d),
+  delete: (id: string | number) => del<void>(`/deal-rooms/${id}`),
 }
 
 export const dealRoomsApi = {
@@ -541,7 +551,7 @@ export const dealRoomsApi = {
 }
 
 export const petfelApi = {
-  list:             () => get<PETFELAssessment[]>('/petfel'),
+  list:             () => get<{ data: PETFELAssessment[] }>('/petfel').then(r => r.data),
   get:              (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
   getAssessment:    (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
   getByProject:     (projectId: string | number) => get<PETFELAssessment>(`/petfel/project/${projectId}`),
@@ -555,7 +565,7 @@ export const petfelApi = {
 }
 
 export const einApi = {
-  list:          () => get<EIN[]>('/ein'),
+  list:          () => get<{ data: EIN[] }>('/ein').then(r => r.data),
   get:           (projectId: string | number) => get<EIN>(`/ein/${projectId}`),
   getById:       (id: string | number) => get<EIN>(`/ein/${id}`),
   create:        (projectId: string | number) => post<EIN>(`/ein/${projectId}`, {}),
@@ -571,27 +581,27 @@ export const einApi = {
 }
 
 export const icApi = {
-  list:            () => get<ICCommittee[]>('/ic'),
-  committees:      () => get<ICCommittee[]>('/ic/committees'),
-  listCommittees:  () => get<ICCommittee[]>('/ic/committees'),
-  get:             (id: string | number) => get<ICCommittee>(`/ic/committees/${id}`),
-  getCommittee:    (id: string | number) => get<ICCommittee>(`/ic/committees/${id}`),
-  create:          (d: object) => post<ICCommittee>('/ic/committees', d),
-  createCommittee: (d: object) => post<ICCommittee>('/ic/committees', d),
-  vote:            (id: string | number, d: object) => post<ICVote>(`/ic/committees/${id}/vote`, d),
-  submitVote:      (id: string | number, vote: string, rationale?: string) => post<ICVote>(`/ic/committees/${id}/vote`, { vote, rationale }),
-  recordDecision:  (id: string | number, outcome: string | object) => post<ICCommittee>(`/ic/committees/${id}/decision`, typeof outcome === 'string' ? { outcome } : outcome),
+  list:            () => get<{ data: ICCommittee[] }>('/ic-committees').then(r => r.data),
+  committees:      () => get<{ data: ICCommittee[] }>('/ic-committees').then(r => r.data),
+  listCommittees:  () => get<{ data: ICCommittee[] }>('/ic-committees').then(r => r.data),
+  get:             (id: string | number) => get<ICCommittee>(`/ic-committees/${id}`),
+  getCommittee:    (id: string | number) => get<ICCommittee>(`/ic-committees/${id}`),
+  create:          (d: object) => post<ICCommittee>('/ic-committees', d),
+  createCommittee: (d: object) => post<ICCommittee>('/ic-committees', d),
+  vote:            (id: string | number, d: object) => post<ICVote>(`/ic-committees/${id}/vote`, d),
+  submitVote:      (id: string | number, vote: string, rationale?: string) => post<ICVote>(`/ic-committees/${id}/vote`, { vote, rationale }),
+  recordDecision:  (id: string | number, outcome: string | object) => post<ICCommittee>(`/ic-committees/${id}/decision`, typeof outcome === 'string' ? { outcome } : outcome),
 }
 
 export const matchingApi = {
-  list: () => get<unknown[]>('/matching'),
+  list: () => get<{ data: unknown[] }>('/matching').then(r => r.data),
   run:  (projectId: string | number) => post<unknown>(`/matching/run/${projectId}`, {}),
   get:  (projectId: string | number) => get<unknown>(`/matching/${projectId}`),
 }
 
 export const radarApi = {
-  list:    () => get<unknown[]>('/radar'),
-  results: () => get<unknown[]>('/radar/results'),
+  list:    () => get<{ data: unknown[] }>('/radar').then(r => r.data),
+  results: () => get<{ data: unknown[] }>('/radar/results').then(r => r.data),
   scan:    () => post<unknown>('/radar/scan', {}),
 }
 
@@ -612,15 +622,26 @@ export const aiApi = {
 
 export interface Notification {
   id: string
-  text: string
-  is_read: boolean
-  created_at: string
+  userId?: string
+  type?: string
+  title: string
+  message: string
+  text: string        // alias for message — kept for backward compat
+  link?: string | null
+  read: boolean
+  is_read: boolean    // alias for read — kept for backward compat
+  readAt?: string | null
+  createdAt: string
+  created_at: string  // alias for createdAt — kept for backward compat
 }
 
 export const notificationsApi = {
-  list:        () => get<Notification[]>('/notifications'),
-  markRead:    (id: string) => patch<Notification>(`/notifications/${id}/read`),
-  markAllRead: () => patch<void>('/notifications/read-all'),
+  list: () =>
+    api
+      .get<{ notifications: Omit<Notification, 'is_read' | 'created_at' | 'text'>[]; unreadCount: number }>('/notifications')
+      .then((r) => r.data.notifications.map((n) => ({ ...n, is_read: n.read, created_at: n.createdAt, text: n.message }))),
+  markRead:    (id: string) => patch<Notification>(`/notifications/${id}`),
+  markAllRead: () => api.patch('/notifications').then((r) => r.data),
 }
 
 export default api

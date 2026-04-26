@@ -1,14 +1,38 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/auth.config"
+import { prisma } from "@/lib/prisma"
 import { Users, FolderOpen, Clock, DollarSign } from "lucide-react"
 
 async function getStats() {
-  const res = await fetch(
-    `${process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"}/api/admin/stats`,
-    { cache: "no-store" }
-  )
-  if (!res.ok) return null
-  return res.json()
+  try {
+    const [
+      usersByRole, usersByStatus, projectsByStatus,
+      pendingUsers, pendingProjects, recentActivity,
+      totalUsers, totalProjects,
+    ] = await Promise.all([
+      prisma.user.groupBy({ by: ['role'], _count: true }),
+      prisma.user.groupBy({ by: ['status'], _count: true }),
+      prisma.project.groupBy({ by: ['status'], _count: true }),
+      prisma.user.count({ where: { status: 'PENDING' } }),
+      prisma.project.count({ where: { status: 'SUBMITTED' } }),
+      prisma.activityLog.findMany({
+        take: 20,
+        orderBy: { createdAt: 'desc' },
+        include: { user: { select: { email: true, name: true } } },
+      }),
+      prisma.user.count(),
+      prisma.project.count(),
+    ])
+    return {
+      usersByRole:    Object.fromEntries(usersByRole.map(r => [r.role, r._count])),
+      usersByStatus:  Object.fromEntries(usersByStatus.map(r => [r.status, r._count])),
+      projectsByStatus: Object.fromEntries(projectsByStatus.map(r => [r.status, r._count])),
+      pendingUsers, pendingProjects, recentActivity, totalUsers, totalProjects,
+      pendingApprovals: pendingUsers + pendingProjects,
+    }
+  } catch {
+    return null
+  }
 }
 
 function StatCard({
@@ -103,7 +127,7 @@ export default async function AdminDashboardPage() {
             <p className="text-slate-500 text-sm">No recent activity</p>
           ) : (
             <div className="space-y-3">
-              {(stats.recentActivity as Array<{ action: string; user?: { email: string }; createdAt: string }>)
+              {(stats.recentActivity as Array<{ action: string; user?: { email: string } | null; createdAt: Date | string }>)
                 .slice(0, 10)
                 .map((log, i) => (
                   <div key={i} className="flex items-start gap-3 text-sm">

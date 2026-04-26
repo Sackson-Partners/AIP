@@ -79,7 +79,7 @@ export default function InvestorsPage() {
       const sectorFocus  = investor.sector_focus  ?? [];
       const countryFocus = investor.country_focus ?? [];
       const matched = projects.filter((p: Project) =>
-        (sectorFocus.length === 0 || sectorFocus.includes(p.sector)) &&
+        (sectorFocus.length === 0 || sectorFocus.includes(p.sector ?? '')) &&
         (countryFocus.length === 0 || countryFocus.some(
           (c: string) => c === 'Global' || c.toLowerCase() === (p.country ?? '').toLowerCase()
         ))
@@ -362,7 +362,7 @@ export default function InvestorsPage() {
                           <h3 className="font-semibold text-gray-900">{project.project_name || project.name}</h3>
                           <p className="text-sm text-gray-500">{project.sector} - {project.country}</p>
                         </div>
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStageColor(project.stage)}`}>
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStageColor(project.stage ?? '')}`}>
                           {project.stage}
                         </span>
                       </div>
