@@ -11,6 +11,7 @@ datasource db {
 
 enum UserRole {
   SUPER_ADMIN
+  ADMIN
   ANALYST
   GOVERNMENT
   SPONSOR_DEVELOPER
@@ -39,6 +40,8 @@ enum ProjectStatus {
   FUNDED
   CLOSED
   REJECTED
+  PIPELINE
+  ON_HOLD
 }
 
 enum ProjectSector {
@@ -114,6 +117,7 @@ enum MilestoneStatus {
   COMPLETED
   DELAYED
   CANCELLED
+  BLOCKED
 }
 
 // ─── NextAuth required models ─────────────────────────────────────────────────
@@ -490,4 +494,31 @@ model AuditLog {
   newValues String?  @db.Text
   ipAddress String?
   createdAt DateTime @default(now())
+}
+
+// ─── Standalone entity models ──────────────────────────────────────────────────
+
+model Investor {
+  id        String   @id @default(cuid())
+  name      String
+  email     String?  @unique
+  phone     String?
+  type      String?
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model IcCommittee {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  status      String    @default("ACTIVE")
+  meetingDate DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
 }
