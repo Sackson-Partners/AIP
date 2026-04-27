@@ -79,6 +79,6 @@ export const config = {
      * - public image/font files
      * - auth routes (handled by NextAuth)
      */
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$|api/auth|auth/pending|unauthorized).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$|api/auth|api/debug|auth/pending|unauthorized).*)",
   ],
 }
