@@ -261,53 +261,81 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user, trigger }) {
       // On every sign-in, fetch fresh data from DB
       if (user?.id) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: user.id },
-          include: { internalProfile: true },
-        })
-        if (dbUser) {
-          token.userId = dbUser.id
-          token.role = dbUser.role as unknown as never
-          token.status = dbUser.status as unknown as never
-          token.authProvider = dbUser.authProvider as unknown as never
-          token.mustChangePass = dbUser.mustChangePass
-          token.firstName = dbUser.firstName
-          token.lastName = dbUser.lastName
-          token.organization = dbUser.organization
-          token.internalProfile = dbUser.internalProfile
-            ? {
-                employeeId: dbUser.internalProfile.employeeId,
-                accessLevel: dbUser.internalProfile.accessLevel,
-                canApprove: dbUser.internalProfile.canApprove,
-                canPublish: dbUser.internalProfile.canPublish,
-                canManageUsers: dbUser.internalProfile.canManageUsers,
-              }
-            : null
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: {
+              id: true,
+              role: true,
+              status: true,
+              authProvider: true,
+              mustChangePass: true,
+              firstName: true,
+              lastName: true,
+              organization: true,
+              internalProfile: {
+                select: {
+                  employeeId: true,
+                  accessLevel: true,
+                  canApprove: true,
+                  canPublish: true,
+                  canManageUsers: true,
+                },
+              },
+            },
+          })
+          if (dbUser) {
+            token.userId = dbUser.id
+            token.role = dbUser.role as unknown as never
+            token.status = dbUser.status as unknown as never
+            token.authProvider = dbUser.authProvider as unknown as never
+            token.mustChangePass = dbUser.mustChangePass
+            token.firstName = dbUser.firstName
+            token.lastName = dbUser.lastName
+            token.organization = dbUser.organization
+            token.internalProfile = dbUser.internalProfile ?? null
+          }
+        } catch (err) {
+          console.error('[JWT callback] prisma.user.findUnique failed for id=%s: %o', user.id, err)
+          // Still populate token with basic info so the sign-in doesn't fail completely
+          token.userId = user.id
         }
       }
 
       // On manual session update (e.g. after password change) — re-fetch
       if (trigger === "update" && token.userId) {
-        const dbUser = await prisma.user.findUnique({
-          where: { id: token.userId as string },
-          include: { internalProfile: true },
-        })
-        if (dbUser) {
-          token.role = dbUser.role as unknown as never
-          token.status = dbUser.status as unknown as never
-          token.mustChangePass = dbUser.mustChangePass
-          token.firstName = dbUser.firstName
-          token.lastName = dbUser.lastName
-          token.organization = dbUser.organization
-          token.internalProfile = dbUser.internalProfile
-            ? {
-                employeeId: dbUser.internalProfile.employeeId,
-                accessLevel: dbUser.internalProfile.accessLevel,
-                canApprove: dbUser.internalProfile.canApprove,
-                canPublish: dbUser.internalProfile.canPublish,
-                canManageUsers: dbUser.internalProfile.canManageUsers,
-              }
-            : null
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.userId as string },
+            select: {
+              role: true,
+              status: true,
+              mustChangePass: true,
+              firstName: true,
+              lastName: true,
+              organization: true,
+              internalProfile: {
+                select: {
+                  employeeId: true,
+                  accessLevel: true,
+                  canApprove: true,
+                  canPublish: true,
+                  canManageUsers: true,
+                },
+              },
+            },
+          })
+          if (dbUser) {
+            token.role = dbUser.role as unknown as never
+            token.status = dbUser.status as unknown as never
+            token.mustChangePass = dbUser.mustChangePass
+            token.firstName = dbUser.firstName
+            token.lastName = dbUser.lastName
+            token.organization = dbUser.organization
+            token.internalProfile = dbUser.internalProfile ?? null
+          }
+        } catch (err) {
+          console.error('[JWT callback] prisma.user.findUnique (update trigger) failed: %o', err)
         }
       }
 
