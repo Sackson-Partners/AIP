@@ -38,27 +38,27 @@ PETFEL Rating: ${petfel.rating ?? 'Not rated'}
 Risk Factors: ${petfel.riskFactors ?? 'None noted'}
 Mitigants: ${petfel.mitigants ?? 'None noted'}` : ''}
 
-Generate professional EIN sections. Respond ONLY with valid JSON (no markdown):
+Generate concise EIN sections (2-3 sentences each). Respond ONLY with valid JSON (no markdown):
 {
   "sections": {
-    "1": "<Strategy Perspective — 2-3 paragraphs on strategic rationale and fit>",
-    "2": "<Political Perspective — analysis of political risk and government support>",
-    "3": "<Economic Perspective — macroeconomic context and market analysis>",
-    "4": "<Financial Perspective — financing structure, returns, and key financial metrics>",
-    "5": "<Legal & Regulatory Perspective — regulatory framework and key legal considerations>",
-    "6": "<Risk Register — top 5 risks with mitigation strategies>",
-    "7": "<Required Next Steps — 30/60/90 day action plan>",
-    "8": "<Annexes — list of supporting documents needed>"
+    "1": "<Strategy Perspective — 2-3 sentences>",
+    "2": "<Political Perspective — 2-3 sentences>",
+    "3": "<Economic Perspective — 2-3 sentences>",
+    "4": "<Financial Perspective — 2-3 sentences>",
+    "5": "<Legal & Regulatory — 2-3 sentences>",
+    "6": "<Top 3 risks with mitigants>",
+    "7": "<Next steps: 30/60/90 day>",
+    "8": "<Required annexes list>"
   },
-  "executive_summary": "<2-3 sentence investment summary>",
+  "executive_summary": "<2 sentence summary>",
   "recommendation": "go|hold|no_go",
-  "key_gaps": "<bullet list of information gaps that need to be addressed>",
-  "next_steps": "<immediate priority actions>"
+  "key_gaps": "<top 3 gaps>",
+  "next_steps": "<top 3 actions>"
 }`
 
   const message = await client.messages.create({
     model:      'claude-haiku-4-5-20251001',
-    max_tokens: 4096,
+    max_tokens: 1200,
     messages:   [{ role: 'user', content: prompt }],
   })
 
