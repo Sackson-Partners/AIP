@@ -199,30 +199,13 @@ export default function EINPage() {
     setIsGenerating(true);
     try {
       const result = await aiApi.generateEIN({ project_id: selectedProjectId });
-      // Create EIN if doesn't exist
-      let currentEin = ein;
-      if (!currentEin) {
-        currentEin = await einApi.create(selectedProjectId);
+      // Route saves everything and returns a normalized EIN directly
+      if (result.ein) {
+        setEin(result.ein);
+        loadSectionContent(result.ein, activeSection);
+        setExecutiveSummary(result.ein.executive_summary || '');
+        setRecommendation(result.ein.recommendation || '');
       }
-      // Update all sections with AI content
-      if (result.sections) {
-        for (const [code, content] of Object.entries(result.sections)) {
-          await einApi.updateSection(currentEin.id, parseInt(code), { content: content as string, generated_by: 'ai' });
-        }
-      }
-      // Update summary
-      if (result.executive_summary) {
-        await einApi.updateSummary(currentEin.id, {
-          executive_summary: result.executive_summary,
-          recommendation: result.recommendation || 'hold',
-        });
-      }
-      // Reload EIN
-      const updated = await einApi.getById(currentEin.id);
-      setEin(updated);
-      loadSectionContent(updated, activeSection);
-      setExecutiveSummary(updated.executive_summary || '');
-      setRecommendation(updated.recommendation || '');
       success('AI generation complete! Please review and edit the content.');
     } catch (err) {
       // eslint-disable-next-line no-console
