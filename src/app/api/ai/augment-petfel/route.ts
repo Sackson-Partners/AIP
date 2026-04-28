@@ -5,13 +5,16 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
 
+export const maxDuration = 60 // seconds — AI calls need more than the 10s default
+
 const PILLARS = ['political', 'economic', 'technical', 'financial', 'environmental', 'legal']
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const body = await req.json().catch(() => ({}))
+  let body: Record<string, unknown>
+  try { body = await req.json() } catch { body = {} }
   const assessmentId = body.assessment_id as string
   if (!assessmentId) return NextResponse.json({ error: 'assessment_id required' }, { status: 400 })
 
@@ -48,18 +51,27 @@ Respond ONLY with a valid JSON object in this exact format (no markdown, no expl
   "recommendations": "<recommended next steps>"
 }`
 
-  const message = await client.messages.create({
-    model:      'claude-sonnet-4-6',
-    max_tokens: 1024,
-    messages:   [{ role: 'user', content: prompt }],
-  })
+  let message
+  try {
+    message = await client.messages.create({
+      model:      'claude-sonnet-4-6',
+      max_tokens: 1024,
+      messages:   [{ role: 'user', content: prompt }],
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[augment-petfel] Anthropic API error:', msg)
+    return NextResponse.json({ error: 'AI service error', detail: msg }, { status: 502 })
+  }
 
   const text = message.content[0].type === 'text' ? message.content[0].text : ''
   let aiResult: Record<string, { score?: number; rationale?: string } & Record<string, string>>
   try {
-    aiResult = JSON.parse(text)
+    const cleaned = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim()
+    aiResult = JSON.parse(cleaned)
   } catch {
-    return NextResponse.json({ error: 'AI response was not valid JSON', raw: text }, { status: 502 })
+    console.error('[augment-petfel] JSON parse failed, raw:', text.slice(0, 300))
+    return NextResponse.json({ error: 'AI response was not valid JSON', raw: text.slice(0, 300) }, { status: 502 })
   }
 
   // Save AI scores back to the assessment
