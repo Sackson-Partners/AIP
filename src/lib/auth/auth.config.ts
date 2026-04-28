@@ -26,7 +26,13 @@ const safeAdapter = {
       Object.entries(account).filter(([k]) => KNOWN_ACCOUNT_FIELDS.has(k))
     )
     const fn = baseAdapter.linkAccount as unknown as (a: Record<string, unknown>) => Promise<unknown>
-    return fn?.(clean)
+    try {
+      return await fn?.(clean)
+    } catch (err) {
+      console.error('[linkAccount] failed to link Azure AD account: %o', err)
+      // Don't block sign-in if account linking fails — user row already exists
+      return
+    }
   },
 }
 
@@ -176,18 +182,27 @@ export const authOptions: NextAuthOptions = {
       // Azure AD — find or create user
       if (account?.provider === "azure-ad") {
         const email = user.email
-        if (!email) return false
+        console.log('[signIn azure-ad] email=%s oid=%s', email, user.azureOid)
+        if (!email) {
+          console.error('[signIn azure-ad] no email on token')
+          return false
+        }
 
         const azureOid = user.azureOid
-        const existing = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { email },
-              // Only match by azureOid if it's a non-null value — null would match all users without an OID
-              ...(azureOid ? [{ azureOid }] : []),
-            ],
-          },
-        })
+        let existing = null
+        try {
+          existing = await prisma.user.findFirst({
+            where: {
+              OR: [
+                { email },
+                ...(azureOid ? [{ azureOid }] : []),
+              ],
+            },
+          })
+        } catch (err) {
+          console.error('[signIn azure-ad] DB lookup failed: %o', err)
+          return false
+        }
 
         if (existing) {
           if (
