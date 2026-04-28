@@ -35,41 +35,18 @@ export async function POST(req: NextRequest) {
 
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-  const prompt = `You are a senior infrastructure investment analyst at an African infrastructure fund. Generate concise EIN sections (2-3 sentences each) for the following project.
+  const prompt = `You are a senior infrastructure investment analyst at an African infrastructure fund. Draft a brief EIN for this project. One sentence per section. Respond ONLY with valid JSON (no markdown):
 
-Project: ${project.title}
-Country: ${project.country ?? 'Africa'}
-Sector: ${project.sector ?? 'Infrastructure'}
-Deal Stage: ${project.dealStage ?? 'FEASIBILITY'}
-Total Cost: ${project.totalCost ? `USD ${project.totalCost.toLocaleString()}` : 'Not specified'}
-Description: ${project.description ?? 'No description provided'}
-${petfel ? `PETFEL Score: ${petfel.overallScore?.toFixed(1) ?? 'N/A'} / 5.0 (${petfel.rating ?? 'unrated'})
-Risk Factors: ${petfel.riskFactors ?? 'None noted'}
-Mitigants: ${petfel.mitigants ?? 'None noted'}` : ''}
+Project: ${project.title}, ${project.country ?? 'Africa'}, ${project.sector ?? 'Infrastructure'}, ${project.dealStage ?? 'FEASIBILITY'}${project.totalCost ? `, USD ${project.totalCost.toLocaleString()}` : ''}
+${petfel ? `PETFEL: ${petfel.overallScore?.toFixed(1) ?? 'N/A'}/5 ${petfel.rating ?? ''}` : ''}
 
-Respond ONLY with valid JSON (no markdown):
-{
-  "sections": {
-    "1": "<Strategy Perspective — 2-3 sentences>",
-    "2": "<Political Perspective — 2-3 sentences>",
-    "3": "<Economic Perspective — 2-3 sentences>",
-    "4": "<Financial Perspective — 2-3 sentences>",
-    "5": "<Legal & Regulatory — 2-3 sentences>",
-    "6": "<Top 3 risks with mitigants>",
-    "7": "<Next steps: 30/60/90 day>",
-    "8": "<Required annexes list>"
-  },
-  "executive_summary": "<2 sentence summary>",
-  "recommendation": "go|hold|no_go",
-  "key_gaps": "<top 3 gaps>",
-  "next_steps": "<top 3 actions>"
-}`
+{"sections":{"1":"<strategy>","2":"<political>","3":"<economic>","4":"<financial>","5":"<legal>","6":"<top risks>","7":"<next steps>","8":"<annexes needed>"},"executive_summary":"<summary>","recommendation":"go|hold|no_go","key_gaps":"<gaps>","next_steps":"<actions>"}`
 
   let message
   try {
     message = await client.messages.create({
       model:      'claude-haiku-4-5-20251001',
-      max_tokens: 1200,
+      max_tokens: 700,
       messages:   [{ role: 'user', content: prompt }],
     })
   } catch (err) {
