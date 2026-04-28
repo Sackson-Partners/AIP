@@ -555,7 +555,7 @@ export const petfelApi = {
   get:              (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
   getAssessment:    (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
   getByProject:     (projectId: string | number) => get<PETFELAssessment>(`/petfel/project/${projectId}`),
-  getCriteria:      (projectId?: string | number) => get<PETFELCriterion[]>(projectId ? `/petfel/criteria/${projectId}` : '/petfel/criteria'),
+  getCriteria:      (projectId?: string | number) => get<{ data: PETFELCriterion[] }>(projectId ? `/petfel/criteria/${projectId}` : '/petfel/criteria').then(r => r.data ?? []),
   assess:           (projectId: string | number, d: object) => post<PETFELAssessment>(`/petfel/assess/${projectId}`, d),
   createAssessment: (projectId: string | number, d?: object) => post<PETFELAssessment>(`/petfel/assess/${projectId}`, d ?? {}),
   score:            (assessmentId: string | number, scores: ScoreInput[]) => post<PETFELAssessment>(`/petfel/${assessmentId}/scores`, { scores }),

@@ -35,7 +35,7 @@ const RATING_COLORS: Record<string, string> = {
 export default function PETFELPage() {
   const { success } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [assessment, setAssessment] = useState<PETFELAssessment | null>(null);
   const [criteria, setCriteria] = useState<Record<string, PETFELCriterion[]>>({});
   const [scores, setScores] = useState<Record<string, Record<string, ScoreInput>>>({});
@@ -268,7 +268,7 @@ export default function PETFELPage() {
         <h1 className="text-3xl font-bold text-gray-900">PETFEL Assessment</h1>
         <select
           value={selectedProjectId || ''}
-          onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
+          onChange={(e) => setSelectedProjectId(e.target.value || null)}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
         >
           <option value="">Select a Project</option>

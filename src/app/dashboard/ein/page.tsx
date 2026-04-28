@@ -33,7 +33,7 @@ const RECOMMENDATION_OPTIONS = [
 export default function EINPage() {
   const { success, error: toastError } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [ein, setEin] = useState<EIN | null>(null);
   const [templates, setTemplates] = useState<EINTemplate[]>([]);
   const [activeSection, setActiveSection] = useState<number>(0);
@@ -309,7 +309,7 @@ export default function EINPage() {
         <h1 className="text-3xl font-bold text-gray-900">Executive Investment Note</h1>
         <select
           value={selectedProjectId || ''}
-          onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
+          onChange={(e) => setSelectedProjectId(e.target.value || null)}
           className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
         >
           <option value="">Select a Project</option>
