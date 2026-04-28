@@ -613,6 +613,7 @@ export interface EINGenerated {
   recommendation?: string
   key_gaps?: string
   next_steps?: string
+  ein?: EIN
 }
 
 export const aiApi = {
