@@ -85,7 +85,7 @@ export default function PETFELPage() {
     const loadAssessment = async () => {
       setIsLoading(true);
       try {
-        const data = await petfelApi.getAssessment(selectedProjectId);
+        const data = await petfelApi.getByProject(selectedProjectId);
         setAssessment(data);
         // Initialize scores from assessment
         const scoreMap: Record<string, Record<string, ScoreInput>> = {};
@@ -340,7 +340,7 @@ export default function PETFELPage() {
               <div className="flex items-center gap-3">
                 <button
                   onClick={handleAIAugment}
-                  disabled={isAugmenting || assessment.status !== 'draft'}
+                  disabled={isAugmenting || assessment.status === 'submitted'}
                   className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-2"
                 >
                   {isAugmenting ? (
@@ -352,14 +352,14 @@ export default function PETFELPage() {
                 </button>
                 <button
                   onClick={handleCalculate}
-                  disabled={isCalculating || assessment.status !== 'draft'}
+                  disabled={isCalculating || assessment.status === 'submitted'}
                   className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition disabled:opacity-50"
                 >
                   {isCalculating ? 'Calculating...' : 'Calculate'}
                 </button>
                 <button
                   onClick={handleSaveScores}
-                  disabled={isSaving || assessment.status !== 'draft'}
+                  disabled={isSaving || assessment.status === 'submitted'}
                   className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
                 >
                   {isSaving ? 'Saving...' : 'Save'}
@@ -438,7 +438,7 @@ export default function PETFELPage() {
                                   <button
                                     key={score}
                                     onClick={() => handleScoreChange(pillar.code, critCode, score)}
-                                    disabled={assessment.status !== 'draft'}
+                                    disabled={assessment.status === 'submitted'}
                                     className={`w-10 h-10 rounded-lg font-bold transition ${
                                       currentScore === score
                                         ? SCORE_LABELS[score].color + ' text-white'
@@ -458,7 +458,7 @@ export default function PETFELPage() {
                                 <textarea
                                   value={scores[pillar.code]?.[critCode]?.evidence_notes || ''}
                                   onChange={(e) => handleNotesChange(pillar.code, critCode, 'evidence_notes', e.target.value)}
-                                  disabled={assessment.status !== 'draft'}
+                                  disabled={assessment.status === 'submitted'}
                                   placeholder="Supporting evidence..."
                                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none h-20 disabled:bg-gray-50"
                                 />
@@ -468,7 +468,7 @@ export default function PETFELPage() {
                                 <textarea
                                   value={scores[pillar.code]?.[critCode]?.mitigation || ''}
                                   onChange={(e) => handleNotesChange(pillar.code, critCode, 'mitigation', e.target.value)}
-                                  disabled={assessment.status !== 'draft'}
+                                  disabled={assessment.status === 'submitted'}
                                   placeholder="Risk mitigation plan..."
                                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm resize-none h-20 disabled:bg-gray-50"
                                 />
@@ -479,7 +479,7 @@ export default function PETFELPage() {
                                   type="text"
                                   value={scores[pillar.code]?.[critCode]?.owner || ''}
                                   onChange={(e) => handleNotesChange(pillar.code, critCode, 'owner', e.target.value)}
-                                  disabled={assessment.status !== 'draft'}
+                                  disabled={assessment.status === 'submitted'}
                                   placeholder="Responsible party..."
                                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm disabled:bg-gray-50"
                                 />

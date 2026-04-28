@@ -19,6 +19,7 @@
     "cleanup:orphaned-users": "npx tsx scripts/cleanup-orphaned-users.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.91.1",
     "@auth/prisma-adapter": "^2.11.2",
     "@azure/identity": "^4.13.1",
     "@azure/msal-node": "^5.1.3",

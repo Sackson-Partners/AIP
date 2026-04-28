@@ -552,31 +552,33 @@ export const dealRoomsApi = {
 
 export const petfelApi = {
   list:             () => get<{ data: PETFELAssessment[] }>('/petfel').then(r => r.data),
-  get:              (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
-  getAssessment:    (id: string | number) => get<PETFELAssessment>(`/petfel/${id}`),
-  getByProject:     (projectId: string | number) => get<PETFELAssessment>(`/petfel/project/${projectId}`),
+  get:              (id: string | number) => get<{ data: PETFELAssessment }>(`/petfel/${id}`).then(r => r.data),
+  // Use project-based lookup — PETFEL assessment ID ≠ project ID
+  getAssessment:    (projectId: string | number) => get<{ data: PETFELAssessment }>(`/petfel/project/${projectId}`).then(r => r.data),
+  getByProject:     (projectId: string | number) => get<{ data: PETFELAssessment }>(`/petfel/project/${projectId}`).then(r => r.data),
   getCriteria:      (projectId?: string | number) => get<{ data: PETFELCriterion[] }>(projectId ? `/petfel/criteria/${projectId}` : '/petfel/criteria').then(r => r.data ?? []),
-  assess:           (projectId: string | number, d: object) => post<PETFELAssessment>(`/petfel/assess/${projectId}`, d),
-  createAssessment: (projectId: string | number, d?: object) => post<PETFELAssessment>(`/petfel/assess/${projectId}`, d ?? {}),
-  score:            (assessmentId: string | number, scores: ScoreInput[]) => post<PETFELAssessment>(`/petfel/${assessmentId}/scores`, { scores }),
-  updateScores:     (assessmentId: string | number, scores: ScoreInput[]) => post<PETFELAssessment>(`/petfel/${assessmentId}/scores`, { scores }),
-  calculate:        (assessmentId: string | number) => post<PETFELAssessment>(`/petfel/${assessmentId}/calculate`),
-  submit:           (assessmentId: string | number) => post<PETFELAssessment>(`/petfel/${assessmentId}/submit`),
+  assess:           (projectId: string | number, d: object) => post<{ data: PETFELAssessment }>(`/petfel/assess/${projectId}`, d).then(r => r.data),
+  createAssessment: (projectId: string | number, d?: object) => post<{ data: PETFELAssessment }>(`/petfel/assess/${projectId}`, d ?? {}).then(r => r.data),
+  score:            (assessmentId: string | number, scores: ScoreInput[]) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/scores`, { scores }).then(r => r.data),
+  updateScores:     (assessmentId: string | number, scores: ScoreInput[]) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/scores`, { scores }).then(r => r.data),
+  calculate:        (assessmentId: string | number) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/calculate`).then(r => r.data),
+  submit:           (assessmentId: string | number) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/submit`).then(r => r.data),
 }
 
 export const einApi = {
   list:          () => get<{ data: EIN[] }>('/ein').then(r => r.data),
-  get:           (projectId: string | number) => get<EIN>(`/ein/${projectId}`),
-  getById:       (id: string | number) => get<EIN>(`/ein/${id}`),
-  create:        (projectId: string | number) => post<EIN>(`/ein/${projectId}`, {}),
-  update:        (id: string | number, d: Partial<EIN>) => patch<EIN>(`/ein/${id}`, d),
+  // Use project-based routes — EINReport.id ≠ project.id
+  get:           (projectId: string | number) => get<{ data: EIN }>(`/ein/project/${projectId}`).then(r => r.data),
+  getById:       (id: string | number) => get<{ data: EIN }>(`/ein/${id}`).then(r => r.data),
+  create:        (projectId: string | number) => post<{ data: EIN }>(`/ein/project/${projectId}`, {}).then(r => r.data),
+  update:        (id: string | number, d: Partial<EIN>) => patch<{ data: EIN }>(`/ein/${id}`, d).then(r => r.data),
   updateSection: (einId: string | number, sectionId: string | number, d: Partial<EINSection>) => patch<EINSection>(`/ein/${einId}/sections/${sectionId}`, d),
-  updateSummary: (id: string | number, d: Partial<EIN>) => patch<EIN>(`/ein/${id}`, d),
+  updateSummary: (id: string | number, d: Partial<EIN>) => patch<{ data: EIN }>(`/ein/${id}`, d).then(r => r.data),
   validate:      (id: string | number) => post<EIN>(`/ein/${id}/validate`),
-  submit:        (id: string | number) => post<EIN>(`/ein/${id}/submit`),
-  approve:       (id: string | number) => post<EIN>(`/ein/${id}/approve`),
-  templates:     () => get<EINTemplate[]>('/ein/templates'),
-  getTemplates:  () => get<EINTemplate[]>('/ein/templates'),
+  submit:        (id: string | number) => post<{ data: EIN }>(`/ein/${id}/submit`).then(r => r.data),
+  approve:       (id: string | number) => post<{ data: EIN }>(`/ein/${id}/approve`).then(r => r.data),
+  templates:     () => get<{ data: EINTemplate[] }>('/ein/templates').then(r => r.data ?? []),
+  getTemplates:  () => get<{ data: EINTemplate[] }>('/ein/templates').then(r => r.data ?? []),
   generate:      (projectId: string | number) => post<EIN>(`/ein/generate/${projectId}`, {}),
 }
 
