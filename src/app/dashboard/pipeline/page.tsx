@@ -24,7 +24,7 @@ export default function PipelinePage() {
   const { error: toastError, success: toastSuccess } = useToast();
   const [stages, setStages] = useState<PipelineStage[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [projectStatuses, setProjectStatuses] = useState<Record<number, ProjectPipelineStatus>>({});
+  const [projectStatuses, setProjectStatuses] = useState<Record<string, ProjectPipelineStatus>>({});
   const [slaAlerts, setSlaAlerts] = useState<ProjectPipelineStatus[]>([]);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [projectHistory, setProjectHistory] = useState<PipelineLog[]>([]);
@@ -55,8 +55,8 @@ export default function PipelinePage() {
       await Promise.all(
         projectsData.map(async (p: Project) => {
           try {
-            const status = await pipelineApi.getProjectStatus(Number(p.id));
-            statuses[Number(p.id)] = status;
+            const status = await pipelineApi.getProjectStatus(String(p.id));
+            statuses[String(p.id)] = status;
           } catch {
             // Project may not have pipeline status yet
           }
@@ -74,7 +74,7 @@ export default function PipelinePage() {
   const projectsByStage = useMemo(() => {
     const map: Record<string, Project[]> = {};
     for (const p of projects) {
-      const status = projectStatuses[Number(p.id)];
+      const status = projectStatuses[String(p.id)];
       const stage = status?.current_stage ?? 'sourcing';
       if (!map[stage]) map[stage] = [];
       map[stage].push(p);
@@ -87,7 +87,7 @@ export default function PipelinePage() {
   const handleProjectClick = async (project: Project) => {
     setSelectedProject(project);
     try {
-      const history = await pipelineApi.getHistory(Number(project.id));
+      const history = await pipelineApi.getHistory(String(project.id));
       setProjectHistory(history);
     } catch (err) {
       // eslint-disable-next-line no-console
@@ -106,7 +106,7 @@ export default function PipelinePage() {
     if (!moveTarget) return;
     setIsMoving(true);
     try {
-      await pipelineApi.move(Number(moveTarget.project.id), { stage: moveTarget.stage, notes: moveNotes });
+      await pipelineApi.move(String(moveTarget.project.id), { stage: moveTarget.stage, notes: moveNotes });
       setShowMoveModal(false);
       setMoveTarget(null);
       toastSuccess(`Project moved to ${moveTarget.stage}.`);

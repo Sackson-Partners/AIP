@@ -44,7 +44,7 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
   const onSubmit = async (data: DataRoomFormData) => {
     try {
       await dataRoomsApi.create({
-        project_id: Number(data.project_id),
+        project_id: String(data.project_id),
         name: data.name,
         description: data.description,
         require_nda: data.require_nda,
