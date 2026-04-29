@@ -539,9 +539,9 @@ export const usersApi = {
 }
 
 export const dataRoomsApi = {
-  list:   () => get<DataRoom[]>('/deal-rooms'),
-  get:    (id: string | number) => get<DataRoom>(`/deal-rooms/${id}`),
-  create: (d: object) => post<DataRoom>('/deal-rooms', d),
+  list:   () => get<{ data: DataRoom[] }>('/deal-rooms').then(r => r.data ?? []),
+  get:    (id: string | number) => get<{ data: DataRoom }>(`/deal-rooms/${id}`).then(r => r.data),
+  create: (d: object) => post<{ data: DataRoom }>('/deal-rooms', d).then(r => r.data),
   delete: (id: string | number) => del<void>(`/deal-rooms/${id}`),
 }
 
