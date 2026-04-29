@@ -10,12 +10,15 @@ import { z } from 'zod'
 const WRITE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
 const CreateSchema = z.object({
-  name:   z.string().min(1, 'name is required'),
-  email:  z.string().email().optional().or(z.literal('')),
-  phone:  z.string().optional(),
-  type:   z.string().optional(),
-  status: z.string().optional(),
-})
+  // Accept both 'name' and 'fund_name' (frontend uses fund_name)
+  name:      z.string().min(1).optional(),
+  fund_name: z.string().min(1).optional(),
+  email:     z.string().email().optional().or(z.literal('')),
+  phone:     z.string().optional(),
+  type:      z.string().optional(),
+  investor_type: z.string().optional(),
+  status:    z.string().optional(),
+}).refine(d => d.name || d.fund_name, { message: 'name or fund_name is required' })
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -36,10 +39,28 @@ export async function GET(req: NextRequest) {
   } : {}
 
   try {
-    const [data, total] = await Promise.all([
+    const [rows, total] = await Promise.all([
       prisma.investor.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
       prisma.investor.count({ where }),
     ])
+    // Normalise to frontend-expected shape (fund_name alias, empty arrays for missing rich fields)
+    const data = rows.map(inv => ({
+      id:              inv.id,
+      fund_name:       inv.name,
+      name:            inv.name,
+      email:           inv.email,
+      phone:           inv.phone,
+      investor_type:   inv.type,
+      type:            inv.type,
+      status:          inv.status,
+      instruments:     [] as string[],
+      sector_focus:    [] as string[],
+      country_focus:   [] as string[],
+      aum:             null as number | null,
+      ticket_size_min: 0,
+      ticket_size_max: 0,
+      created_at:      inv.createdAt.toISOString(),
+    }))
     return NextResponse.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
   } catch (error: unknown) {
     logger.error('[GET /api/investors]', error)
@@ -65,12 +86,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const resolvedName = parsed.data.name ?? parsed.data.fund_name ?? ''
+    const resolvedType = parsed.data.type ?? parsed.data.investor_type ?? null
     const investor = await prisma.investor.create({
       data: {
-        name:   parsed.data.name,
+        name:   resolvedName,
         email:  parsed.data.email || null,
-        phone:  parsed.data.phone,
-        type:   parsed.data.type,
+        phone:  parsed.data.phone ?? null,
+        type:   resolvedType,
         status: parsed.data.status ?? 'ACTIVE',
       },
     })
@@ -84,7 +107,21 @@ export async function POST(req: NextRequest) {
       newValues: { name: investor.name },
     })
 
-    return NextResponse.json({ data: investor }, { status: 201 })
+    return NextResponse.json({
+      data: {
+        id:            investor.id,
+        fund_name:     investor.name,
+        name:          investor.name,
+        email:         investor.email,
+        investor_type: investor.type,
+        type:          investor.type,
+        status:        investor.status,
+        instruments:   [],
+        sector_focus:  [],
+        country_focus: [],
+        created_at:    investor.createdAt.toISOString(),
+      },
+    }, { status: 201 })
   } catch (error: unknown) {
     logger.error('[POST /api/investors]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

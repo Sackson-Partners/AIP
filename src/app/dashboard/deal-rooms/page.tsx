@@ -22,8 +22,10 @@ interface DealRoom {
 }
 
 interface Project {
-  id: number;
-  name: string;
+  id: string | number;
+  title?: string;
+  name?: string;
+  project_name?: string;
 }
 
 export default function DealRoomsPage() {
@@ -34,7 +36,7 @@ export default function DealRoomsPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [newDealRoom, setNewDealRoom] = useState({
-    project_id: 0,
+    project_id: '',
     name: '',
     description: '',
     deal_value: '',
@@ -74,7 +76,7 @@ export default function DealRoomsPage() {
     setError(null);
 
     // Validate project selection
-    if (!newDealRoom.project_id || newDealRoom.project_id === 0) {
+    if (!newDealRoom.project_id) {
       setError('Please select a project');
       return;
     }
@@ -86,7 +88,7 @@ export default function DealRoomsPage() {
     setIsSubmitting(true);
     try {
       const payload = {
-        project_id: Number(newDealRoom.project_id),
+        project_id: newDealRoom.project_id,
         name: newDealRoom.name,
         description: newDealRoom.description || undefined,
         deal_value: newDealRoom.deal_value ? Number(newDealRoom.deal_value) : undefined,
@@ -99,7 +101,7 @@ export default function DealRoomsPage() {
       await dealRoomsApi.create(payload);
       setShowCreateModal(false);
       setNewDealRoom({
-        project_id: 0,
+        project_id: '',
         name: '',
         description: '',
         deal_value: '',
@@ -279,12 +281,12 @@ export default function DealRoomsPage() {
                 <select
                   required
                   value={newDealRoom.project_id}
-                  onChange={(e) => setNewDealRoom({ ...newDealRoom, project_id: Number(e.target.value) })}
+                  onChange={(e) => setNewDealRoom({ ...newDealRoom, project_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2"
                 >
-                  <option value={0}>Select a project</option>
+                  <option value="">Select a project</option>
                   {projects.map((project) => (
-                    <option key={project.id} value={project.id}>{project.name}</option>
+                    <option key={project.id} value={project.id}>{project.title ?? project.project_name ?? project.name ?? String(project.id)}</option>
                   ))}
                 </select>
               </div>

@@ -13,7 +13,7 @@ const VERIFICATION_LEVELS = [
 ];
 
 interface VerificationFormData {
-  project_id: number;
+  project_id: string;
   level: string;
   technical_readiness?: number;
   financial_robustness?: number;
@@ -53,7 +53,7 @@ export default function VerificationsPage() {
   const onSubmit = async (data: VerificationFormData) => {
     try {
       const formattedData: VerificationCreate = {
-        project_id: Number(data.project_id),
+        project_id: data.project_id,
         level: data.level,
       };
 
