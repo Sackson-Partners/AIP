@@ -1,14 +1,14 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/auth.config"
 import { prisma } from "@/lib/prisma"
-import { Users, FolderOpen, Clock, DollarSign } from "lucide-react"
+import { Users, FolderOpen, Clock, DollarSign, Mail } from "lucide-react"
 
 async function getStats() {
   try {
     const [
       usersByRole, usersByStatus, projectsByStatus,
       pendingUsers, pendingProjects, recentActivity,
-      totalUsers, totalProjects,
+      totalUsers, totalProjects, pendingAccessRequests,
     ] = await Promise.all([
       prisma.user.groupBy({ by: ['role'], _count: true }),
       prisma.user.groupBy({ by: ['status'], _count: true }),
@@ -22,6 +22,11 @@ async function getStats() {
       }),
       prisma.user.count(),
       prisma.project.count(),
+      prisma.accessRequest.findMany({
+        where:   { status: 'PENDING' },
+        orderBy: { createdAt: 'desc' },
+        take:    20,
+      }),
     ])
     return {
       usersByRole:    Object.fromEntries(usersByRole.map(r => [r.role, r._count])),
@@ -29,6 +34,7 @@ async function getStats() {
       projectsByStatus: Object.fromEntries(projectsByStatus.map(r => [r.status, r._count])),
       pendingUsers, pendingProjects, recentActivity, totalUsers, totalProjects,
       pendingApprovals: pendingUsers + pendingProjects,
+      pendingAccessRequests,
     }
   } catch {
     return null
@@ -93,7 +99,7 @@ export default async function AdminDashboardPage() {
         <StatCard icon={Users}      label="Total Users"     value={totalUsers}    subtitle={`+${pendingUsers} pending approval`}   color="blue" />
         <StatCard icon={FolderOpen} label="Total Projects"  value={totalProjects} subtitle={`${stats?.projectsByStatus?.ACTIVE ?? 0} active deals`} color="green" />
         <StatCard icon={Clock}      label="Pending Reviews" value={pendingUsers + pendingProjects} subtitle="Users + projects"    color="amber" />
-        <StatCard icon={DollarSign} label="Deal Volume"     value="—"             subtitle="USD total value"                      color="purple" />
+        <StatCard icon={Mail}       label="Access Requests" value={stats?.pendingAccessRequests?.length ?? 0} subtitle="Awaiting review" color="purple" />
       </div>
 
       {/* Pending approvals + recent activity */}
@@ -145,6 +151,47 @@ export default async function AdminDashboardPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Partner Access Requests */}
+      <div className="mt-6 bg-slate-800/40 border border-slate-700/50 rounded-xl p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-white font-semibold flex items-center gap-2">
+            <Mail className="w-4 h-4 text-amber-400" />
+            Partner Access Requests
+            {(stats?.pendingAccessRequests?.length ?? 0) > 0 && (
+              <span className="bg-amber-500/20 text-amber-400 text-xs px-2 py-0.5 rounded-full border border-amber-500/20">
+                {stats!.pendingAccessRequests!.length} pending
+              </span>
+            )}
+          </h2>
+          <a href="/admin/access-requests" className="text-blue-400 hover:text-blue-300 text-sm">
+            Review all →
+          </a>
+        </div>
+        {(stats?.pendingAccessRequests?.length ?? 0) === 0 ? (
+          <p className="text-slate-500 text-sm">No pending access requests</p>
+        ) : (
+          <div className="space-y-2">
+            {(stats!.pendingAccessRequests! as Array<{
+              id: string; email: string; fullName: string; organization?: string | null; roleRequested: string;
+            }>).slice(0, 5).map((req) => (
+              <div key={req.id} className="flex items-center justify-between gap-3 bg-slate-700/40 rounded-lg px-4 py-3 text-sm">
+                <div className="min-w-0">
+                  <span className="text-white font-medium truncate">{req.fullName}</span>
+                  <span className="text-slate-400 ml-2 truncate">{req.email}</span>
+                </div>
+                <span className="bg-slate-600 text-slate-300 px-2 py-0.5 rounded text-xs shrink-0">{req.roleRequested}</span>
+              </div>
+            ))}
+            {stats!.pendingAccessRequests!.length > 5 && (
+              <p className="text-slate-500 text-xs text-center pt-1">
+                +{stats!.pendingAccessRequests!.length - 5} more —{" "}
+                <a href="/admin/access-requests" className="text-blue-400 hover:text-blue-300">view all</a>
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

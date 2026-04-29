@@ -10,8 +10,8 @@ import { ErrorBoundary } from '@/components/ErrorBoundary';
 type VoteOption = 'approve' | 'reject' | 'abstain' | 'defer';
 
 interface ICCommitteeListItem {
-  committee_id: number;
-  project_id: number;
+  committee_id: string;
+  project_id: string | null;
   project_name?: string;
   scheduled_date?: string;
   status: string;
@@ -23,12 +23,14 @@ interface ICCommitteeListItem {
 interface ApiError { response?: { data?: { detail?: string } } }
 
 interface CommitteeDetail {
-  project_id: number;
+  committee_id: string;
+  project_id: string | null;
+  project_name?: string;
   status: string;
   quorum_required: number;
   quorum_met: boolean;
   vote_summary: Record<string, number>;
-  votes: Array<{ voter_id: number; vote: string; rationale?: string }>;
+  votes: Array<{ voter_id: string; voter_name?: string; vote: string; rationale?: string }>;
 }
 
 const VOTE_COLORS: Record<string, string> = {
@@ -112,7 +114,7 @@ export default function ICPage() {
     e.preventDefault();
     try {
       await icApi.createCommittee({
-        project_id: parseInt(newForm.project_id),
+        project_id: newForm.project_id,
         scheduled_date: newForm.scheduled_date,
         quorum_required: newForm.quorum_required,
       });
@@ -130,11 +132,11 @@ export default function ICPage() {
     setIsVoting(true);
     try {
       await icApi.submitVote(
-        Number(selectedCommittee.committee_id),
+        selectedCommittee.committee_id,
         voteOption,
         voteRationale || undefined,
       );
-      const updated = await icApi.getCommittee(Number(selectedCommittee.committee_id));
+      const updated = await icApi.getCommittee(selectedCommittee.committee_id);
       setCommitteeDetail(updated as unknown as CommitteeDetail);
       toastSuccess('Vote submitted.');
       setVoteRationale('');
@@ -148,8 +150,8 @@ export default function ICPage() {
   const handleDecide = async (outcome: string) => {
     if (!selectedCommittee) return;
     try {
-      await icApi.recordDecision(Number(selectedCommittee.committee_id), outcome);
-      const updated = await icApi.getCommittee(Number(selectedCommittee.committee_id));
+      await icApi.recordDecision(selectedCommittee.committee_id, outcome);
+      const updated = await icApi.getCommittee(selectedCommittee.committee_id);
       setCommitteeDetail(updated as unknown as CommitteeDetail);
       toastSuccess('Decision recorded.');
       fetchCommittees();
@@ -245,7 +247,7 @@ export default function ICPage() {
                 >
                   <option value="">Select a project...</option>
                   {projects.map((p) => (
-                    <option key={p.id} value={p.id}>{p.project_name}</option>
+                    <option key={p.id} value={p.id}>{p.title ?? p.project_name}</option>
                   ))}
                 </select>
               </div>
@@ -283,7 +285,7 @@ export default function ICPage() {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-6 border-b">
               <h2 className="text-xl font-bold">
-                IC Session — {committeeDetail.project_id}
+                IC Session — {committeeDetail.project_name ?? selectedCommittee.project_name ?? committeeDetail.project_id}
               </h2>
               <button onClick={() => { setSelectedCommittee(null); setCommitteeDetail(null); }} className="text-gray-400 text-2xl leading-none">×</button>
             </div>
@@ -314,7 +316,7 @@ export default function ICPage() {
                       <div key={i} className="flex items-start gap-3 bg-gray-50 rounded-lg p-3">
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${VOTE_COLORS[v.vote] || 'bg-gray-100'}`}>{v.vote}</span>
                         <div>
-                          <p className="text-xs text-gray-500">Voter #{v.voter_id}</p>
+                          <p className="text-xs text-gray-500">{v.voter_name ?? `Voter #${v.voter_id.slice(0, 8)}`}</p>
                           {v.rationale && <p className="text-sm text-gray-700 mt-1">{v.rationale}</p>}
                         </div>
                       </div>

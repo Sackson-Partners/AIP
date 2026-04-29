@@ -366,7 +366,7 @@ export default function PISPage() {
                       )}
 
                       <Link
-                        href="/dashboard/pestel"
+                        href="/dashboard/petfel"
                         className="inline-flex items-center gap-2 text-brand-gold hover:text-brand-gold-dark"
                       >
                         View Full Assessment →
@@ -376,7 +376,7 @@ export default function PISPage() {
                     <div className="text-center py-8">
                       <p className="text-gray-500 mb-4">No PETFEL assessment found for this project.</p>
                       <Link
-                        href="/dashboard/pestel"
+                        href="/dashboard/petfel"
                         className="inline-flex items-center gap-2 bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark"
                       >
                         Create Assessment
