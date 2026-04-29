@@ -86,7 +86,7 @@ export default function VerificationsPage() {
 
   const getProjectName = (projectId: string | number) => {
     const project = projects.find(p => String(p.id) === String(projectId));
-    return project?.project_name || `Project #${projectId}`;
+    return project?.title ?? project?.project_name ?? `Project #${projectId}`;
   };
 
   const getLevelStyle = (level: string) => {
@@ -212,7 +212,7 @@ export default function VerificationsPage() {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
                 >
                   <option value="">Select project</option>
-                  {projects.map(p => <option key={p.id} value={p.id}>{p.project_name}</option>)}
+                  {projects.map(p => <option key={p.id} value={p.id}>{p.title ?? p.project_name}</option>)}
                 </select>
                 {errors.project_id && <p className="text-red-500 text-sm mt-1">{errors.project_id.message}</p>}
               </div>

@@ -160,6 +160,7 @@ export interface Investor {
   ticket_size_min: number
   ticket_size_max: number
   instruments: string[]
+  investor_type?: string
   sectors?: string[]
   geographies?: string[]
   sector_focus?: string[]
@@ -175,6 +176,7 @@ export interface InvestorCreate {
   ticket_size_min: number
   ticket_size_max: number
   instruments: string[]
+  investor_type?: string
   sectors?: string[]
   geographies?: string[]
   sector_focus?: string[]

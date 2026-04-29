@@ -120,18 +120,40 @@ export default function PISPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Project Information Sheet</h1>
-        <select
-          value={selectedProjectId || ''}
-          onChange={(e) => setSelectedProjectId(e.target.value || null)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
-        >
-          <option value="">Select a Project</option>
-          {projects.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.project_name} ({p.country})
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-3">
+          <select
+            value={selectedProjectId || ''}
+            onChange={(e) => setSelectedProjectId(e.target.value || null)}
+            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
+          >
+            <option value="">Select a Project</option>
+            {projects.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.title ?? p.project_name} ({p.country})
+              </option>
+            ))}
+          </select>
+          {selectedProjectId && (
+            <button
+              onClick={async () => {
+                if (!selectedProjectId) return;
+                setIsLoading(true);
+                try {
+                  const fresh = await projectsApi.get(String(selectedProjectId));
+                  setSelectedProject(fresh);
+                } catch (err) {
+                  // eslint-disable-next-line no-console
+                  console.error('Failed to reload project:', err);
+                } finally {
+                  setIsLoading(false);
+                }
+              }}
+              className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition font-medium"
+            >
+              Generate PIS
+            </button>
+          )}
+        </div>
       </div>
 
       {!selectedProjectId && (
@@ -148,7 +170,7 @@ export default function PISPage() {
           <div className="bg-white rounded-xl shadow-sm p-6">
             <div className="flex items-start justify-between flex-wrap gap-6">
               <div>
-                <h2 className="text-2xl font-bold text-gray-900">{selectedProject.name}</h2>
+                <h2 className="text-2xl font-bold text-gray-900">{selectedProject.title ?? selectedProject.project_name}</h2>
                 <p className="text-gray-600">{selectedProject.country} • {selectedProject.sector}</p>
               </div>
               <div className="flex items-center gap-6">
@@ -193,7 +215,7 @@ export default function PISPage() {
                 <div className="text-center">
                   <div className="text-xs text-gray-500 mb-1">Est. CAPEX</div>
                   <div className="text-xl font-bold text-gray-900">
-                    {formatCurrency(selectedProject.estimated_capex ?? 0)}
+                    {formatCurrency(selectedProject.totalCost ?? selectedProject.estimated_capex ?? 0)}
                   </div>
                 </div>
               </div>
@@ -233,11 +255,11 @@ export default function PISPage() {
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900 mb-4">Project Details</h3>
                     <div className="space-y-3">
-                      <DetailRow label="Name" value={selectedProject.name ?? '—'} />
+                      <DetailRow label="Name" value={selectedProject.title ?? selectedProject.project_name ?? '—'} />
                       <DetailRow label="Country" value={selectedProject.country ?? '—'} />
                       <DetailRow label="Region" value={selectedProject.region || '—'} />
                       <DetailRow label="Sector" value={selectedProject.sector ?? '—'} />
-                      <DetailRow label="Stage" value={selectedProject.stage ?? '—'} />
+                      <DetailRow label="Stage" value={selectedProject.dealStage ?? selectedProject.stage ?? '—'} />
                       <DetailRow label="Technology" value={selectedProject.technology || '—'} />
                       <DetailRow label="GPS Location" value={selectedProject.gps_location || '—'} />
                     </div>
@@ -247,7 +269,7 @@ export default function PISPage() {
                   <div>
                     <h3 className="font-semibold text-lg text-gray-900 mb-4">Financial Details</h3>
                     <div className="space-y-3">
-                      <DetailRow label="Est. CAPEX" value={formatCurrency(selectedProject.estimated_capex ?? 0)} />
+                      <DetailRow label="Est. CAPEX" value={formatCurrency(selectedProject.totalCost ?? selectedProject.estimated_capex ?? 0)} />
                       <DetailRow label="Funding Gap" value={selectedProject.funding_gap ? formatCurrency(selectedProject.funding_gap) : '—'} />
                       <DetailRow label="Revenue Model" value={selectedProject.revenue_model ?? '—'} />
                       <DetailRow label="Offtaker" value={selectedProject.offtaker || '—'} />
@@ -511,11 +533,11 @@ export default function PISPage() {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                       <div className="bg-gray-50 rounded-lg p-3">
                         <span className="text-xs text-gray-500">Created</span>
-                        <div className="font-medium">{selectedProject.created_at ? new Date(selectedProject.created_at).toLocaleDateString() : '—'}</div>
+                        <div className="font-medium">{(selectedProject.createdAt ?? selectedProject.created_at) ? new Date((selectedProject.createdAt ?? selectedProject.created_at)!).toLocaleDateString() : '—'}</div>
                       </div>
                       <div className="bg-gray-50 rounded-lg p-3">
                         <span className="text-xs text-gray-500">Last Updated</span>
-                        <div className="font-medium">{selectedProject.updated_at ? new Date(selectedProject.updated_at).toLocaleDateString() : '—'}</div>
+                        <div className="font-medium">{(selectedProject.updatedAt ?? selectedProject.updated_at) ? new Date((selectedProject.updatedAt ?? selectedProject.updated_at)!).toLocaleDateString() : '—'}</div>
                       </div>
                       {selectedProject.timeline_fid && (
                         <div className="bg-gray-50 rounded-lg p-3">

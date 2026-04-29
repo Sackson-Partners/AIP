@@ -14,13 +14,16 @@ export async function GET() {
   })
 
   const data = rooms.map(r => ({
-    id:          r.id,
-    project_id:  r.projectId,
+    id:           r.id,
+    project_id:   r.projectId,
     project_name: r.project?.title ?? null,
-    name:        r.name,
-    description: r.description,
-    is_public:   r.isPublic,
-    created_at:  r.createdAt.toISOString(),
+    name:         r.name,
+    description:  r.description,
+    is_public:    r.isPublic,
+    require_nda:  !r.isPublic,
+    documents:    {},
+    access_users: [],
+    created_at:   r.createdAt.toISOString(),
   }))
 
   return NextResponse.json({ data })

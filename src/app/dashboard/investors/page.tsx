@@ -7,8 +7,9 @@ import { useForm } from 'react-hook-form';
 import { investorsApi, Investor, InvestorCreate, Project, projectsApi } from '../../../lib/api';
 import * as Sentry from '@sentry/nextjs';
 
-const SECTORS = ['Energy', 'Mining', 'Water', 'Transport', 'Ports', 'Rail', 'Roads', 'Agriculture', 'Health'];
-const INSTRUMENTS = ['Equity', 'Debt', 'Mezzanine'];
+const SECTORS = ['Energy', 'Mining', 'Water', 'Transport', 'Ports', 'Rail', 'Roads', 'Agriculture', 'Health', 'EPC', 'Construction', 'Engineering'];
+const INSTRUMENTS = ['Equity', 'Senior Debt', 'Mezzanine Debt', 'Subordinated Debt', 'Convertible Note', 'Project Bond', 'Blended Finance', 'Grant Co-financing', 'EPC+F'];
+const INVESTOR_TYPES = ['PE Fund', 'DFI', 'Sovereign Wealth', 'Family Office', 'Pension Fund', 'Infrastructure Fund', 'Bank', 'EPC Company', 'Other'];
 
 export default function InvestorsPage() {
   const [investors, setInvestors] = useState<Investor[]>([]);
@@ -235,6 +236,16 @@ export default function InvestorsPage() {
             <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Investor Type</label>
+                  <select
+                    {...register('investor_type')}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
+                  >
+                    <option value="">Select type</option>
+                    {INVESTOR_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="md:col-span-2">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Fund Name *</label>
                   <input
                     {...register('fund_name', { required: 'Fund name is required' })}
@@ -279,14 +290,20 @@ export default function InvestorsPage() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Instruments *</label>
-                  <select
-                    {...register('instruments', { required: 'Required' })}
-                    multiple
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 h-24"
-                  >
-                    {INSTRUMENTS.map(i => <option key={i} value={i}>{i}</option>)}
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">Hold Ctrl/Cmd to select multiple</p>
+                  <div className="border border-gray-300 rounded-lg p-3 grid grid-cols-1 gap-2 max-h-48 overflow-y-auto">
+                    {INSTRUMENTS.map(i => (
+                      <label key={i} className="flex items-center gap-2 text-sm cursor-pointer hover:text-brand-gold">
+                        <input
+                          type="checkbox"
+                          value={i}
+                          {...register('instruments', { required: 'Select at least one instrument' })}
+                          className="accent-brand-gold"
+                        />
+                        {i}
+                      </label>
+                    ))}
+                  </div>
+                  {errors.instruments && <p className="text-red-500 text-sm mt-1">{errors.instruments.message as string}</p>}
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sector Focus *</label>

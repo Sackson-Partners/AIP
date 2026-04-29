@@ -1,16 +1,41 @@
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
-import { v4 as uuidv4 } from 'uuid'
+import { prisma } from '@/lib/prisma'
 
-// Verifications are stored as ActivityLog records (no separate model)
-// The GET returns an empty list; POST creates a lightweight verification record
-
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  return NextResponse.json({ data: [], pagination: { page: 1, limit: 20, total: 0, pages: 0 } })
+
+  const { searchParams } = new URL(req.url)
+  const projectId = searchParams.get('project_id')
+
+  const verifications = await prisma.verification.findMany({
+    where: projectId ? { projectId } : {},
+    orderBy: { createdAt: 'desc' },
+    include: { project: { select: { id: true, title: true } } },
+  })
+
+  const data = verifications.map(v => ({
+    id: v.id,
+    project_id: v.projectId,
+    project_name: v.project.title,
+    level: v.level,
+    status: v.status,
+    bankability: {
+      overall_score: v.overallScore,
+      technical_readiness: v.technicalReadiness,
+      financial_robustness: v.financialRobustness,
+      legal_clarity: v.legalClarity,
+      esg_compliance: v.esgCompliance,
+    },
+    notes: v.notes,
+    verified_by: v.verifiedBy,
+    verified_at: v.verifiedAt?.toISOString() ?? null,
+    created_at: v.createdAt.toISOString(),
+  }))
+
+  return NextResponse.json({ data, pagination: { page: 1, limit: 100, total: data.length, pages: 1 } })
 }
 
 export async function POST(req: NextRequest) {
@@ -18,28 +43,46 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const body = await req.json().catch(() => ({}))
-  const { project_id, level, technical_readiness, financial_robustness, legal_clarity, esg_compliance } = body
+  const projectId = String(body.project_id ?? '')
+  if (!projectId) return NextResponse.json({ error: 'project_id required' }, { status: 400 })
 
-  if (!project_id) return NextResponse.json({ error: 'project_id required' }, { status: 400 })
+  const tech  = Number(body.technical_readiness  ?? body.bankability?.technical_readiness  ?? 0)
+  const fin   = Number(body.financial_robustness  ?? body.bankability?.financial_robustness ?? 0)
+  const legal = Number(body.legal_clarity         ?? body.bankability?.legal_clarity        ?? 0)
+  const esg   = Number(body.esg_compliance        ?? body.bankability?.esg_compliance       ?? 0)
+  const overall = (tech + fin + legal + esg) / 4
 
-  const overall = [technical_readiness, financial_robustness, legal_clarity, esg_compliance]
-    .filter((v) => typeof v === 'number')
-  const overall_score = overall.length ? overall.reduce((a, b) => a + b, 0) / overall.length : 0
-
-  const verification = {
-    id:         uuidv4(),
-    project_id,
-    level:      level ?? 'L1',
-    status:     'pending',
-    bankability: {
-      overall_score:        Math.round(overall_score * 10) / 10,
-      technical_readiness:  technical_readiness  ?? 0,
-      financial_robustness: financial_robustness ?? 0,
-      legal_clarity:        legal_clarity        ?? 0,
-      esg_compliance:       esg_compliance       ?? 0,
+  const v = await prisma.verification.create({
+    data: {
+      projectId,
+      level:               body.level ?? 'V1',
+      status:              body.status ?? 'PENDING',
+      technicalReadiness:  tech,
+      financialRobustness: fin,
+      legalClarity:        legal,
+      esgCompliance:       esg,
+      overallScore:        overall,
+      notes:               body.notes ?? null,
+      verifiedBy:          session.user.id,
     },
-    created_at: new Date().toISOString(),
-  }
+    include: { project: { select: { id: true, title: true } } },
+  })
 
-  return NextResponse.json({ data: verification }, { status: 201 })
+  return NextResponse.json({
+    data: {
+      id: v.id,
+      project_id: v.projectId,
+      project_name: v.project.title,
+      level: v.level,
+      status: v.status,
+      bankability: {
+        overall_score: v.overallScore,
+        technical_readiness: v.technicalReadiness,
+        financial_robustness: v.financialRobustness,
+        legal_clarity: v.legalClarity,
+        esg_compliance: v.esgCompliance,
+      },
+      created_at: v.createdAt.toISOString(),
+    },
+  }, { status: 201 })
 }
