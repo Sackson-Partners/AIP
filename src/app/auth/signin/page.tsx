@@ -311,8 +311,8 @@ function SignInContent() {
 
                   <p className="mt-6 text-center text-sm text-slate-500">
                     Don&apos;t have access?{" "}
-                    <a href="/auth/register" className="text-blue-400 hover:text-blue-300">
-                      Request access
+                    <a href="/request-access" className="text-blue-400 hover:text-blue-300">
+                      Request an invitation
                     </a>
                   </p>
                 </motion.div>
@@ -347,8 +347,8 @@ function SignInContent() {
 
                   <p className="mt-4 text-center text-xs text-slate-500">
                     Credentials issued by AIP administration.{" "}
-                    <a href="/auth/register" className="text-blue-400 hover:text-blue-300">
-                      Request access
+                    <a href="/request-access" className="text-blue-400 hover:text-blue-300">
+                      Request an invitation
                     </a>
                   </p>
                 </motion.div>
