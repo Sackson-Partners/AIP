@@ -51,7 +51,7 @@ export default function PipelinePage() {
       setSlaAlerts(alertsData);
 
       // Fetch status for each project
-      const statuses: Record<number, ProjectPipelineStatus> = {};
+      const statuses: Record<string, ProjectPipelineStatus> = {};
       await Promise.all(
         projectsData.map(async (p: Project) => {
           try {
