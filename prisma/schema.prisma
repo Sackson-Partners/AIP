@@ -205,6 +205,7 @@ model User {
   documents         Document[]
   notifications     Notification[]
   activityLogs      ActivityLog[]
+  icVotes           IcVote[]
 }
 
 model InternalProfile {
@@ -324,6 +325,7 @@ model Project {
   milestones     Milestone[]
   watchlist      ProjectWatchlist[]
   dealRooms      DealRoom[]
+  icCommittees   IcCommittee[]
 
   @@index([ownerId])
   @@index([reviewerId])
@@ -512,13 +514,52 @@ model Investor {
 }
 
 model IcCommittee {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  status      String    @default("ACTIVE")
-  meetingDate DateTime?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  status          String    @default("SCHEDULED")
+  meetingDate     DateTime?
+  projectId       String?
+  quorumRequired  Int       @default(3)
+  outcome         String?
+  outcomeNotes    String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  project Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  votes   IcVote[]
+
+  @@index([status])
+  @@index([projectId])
+}
+
+model IcVote {
+  id          String      @id @default(cuid())
+  committeeId String
+  userId      String
+  vote        String      // approve | reject | abstain | defer
+  rationale   String?     @db.Text
+  createdAt   DateTime    @default(now())
+
+  committee IcCommittee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([committeeId, userId])
+  @@index([committeeId])
+}
+
+model AccessRequest {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  fullName     String
+  organization String?
+  roleRequested String
+  message      String?   @db.Text
+  status       String    @default("PENDING")  // PENDING | APPROVED | REJECTED
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status])
 }

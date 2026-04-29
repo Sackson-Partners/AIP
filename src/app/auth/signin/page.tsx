@@ -397,6 +397,12 @@ function SignInContent() {
             <p className="text-slate-600 text-xs">
               Protected by Azure Entra ID &amp; Enterprise Security
             </p>
+            <p className="text-slate-500 text-xs mt-2">
+              Don&apos;t have access?{' '}
+              <a href="/request-access" className="text-brand-gold hover:underline font-medium">
+                Request an invitation
+              </a>
+            </p>
             <p className="text-slate-700 text-xs mt-1">
               © {new Date().getFullYear()} AIP Platform
             </p>
