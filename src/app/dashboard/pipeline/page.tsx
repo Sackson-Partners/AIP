@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { projectsApi, pipelineApi, Project, PipelineStage, ProjectPipelineStatus, PipelineLog } from '../../../lib/api';
+import { projectHealthScore, healthScoreColor } from '@/lib/projectHealth';
 import { WarningIcon, XIcon } from '@/components/ui/icons';
 import { KanbanSkeleton } from '@/components/ui/Skeleton';
 import { useToast } from '@/context/ToastContext';
@@ -223,6 +224,20 @@ export default function PipelinePage() {
                           )}
                         </div>
                       )}
+                      {(() => {
+                        const score = projectHealthScore({
+                          ...project,
+                          pipeline_stage: status?.current_stage,
+                          sla_status: status?.sla_status,
+                        });
+                        return (
+                          <div className="mt-1">
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${healthScoreColor(score)}`}>
+                              {score} Health
+                            </span>
+                          </div>
+                        );
+                      })()}
                       {/* Move buttons */}
                       <div className="flex gap-1 mt-2 pt-2 border-t border-gray-100">
                         {stages

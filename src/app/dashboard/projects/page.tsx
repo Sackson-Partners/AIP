@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { PlusIcon, XIcon } from '@/components/ui/icons';
 import { useDebounce } from '@/hooks/useDebounce';
 import { projectsApi, Project, ProjectCreate } from '../../../lib/api';
+import { projectHealthScore, healthScoreColor, healthScoreLabel } from '@/lib/projectHealth';
 import { TableSkeleton } from '@/components/ui/Skeleton';
 import { PermissionGuard } from '@/components/PermissionGuard';
 import { useToast } from '@/context/ToastContext';
@@ -187,6 +188,7 @@ export default function ProjectsPage() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Country</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stage</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Est. Cost</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Health</th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
@@ -216,6 +218,9 @@ export default function ProjectsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-gray-900">
                       {project.estimated_cost || '—'}
                     </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <HealthBadge project={project} />
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap text-right space-x-2">
                       <button
                         onClick={() => setSelectedProject(project)}
@@ -244,7 +249,7 @@ export default function ProjectsPage() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
                     No projects found. Create your first project to get started.
                   </td>
                 </tr>
@@ -532,6 +537,16 @@ export default function ProjectsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function HealthBadge({ project }: { project: Project }) {
+  const score = projectHealthScore(project);
+  return (
+    <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${healthScoreColor(score)}`}>
+      <span className="font-bold">{score}</span>
+      <span className="hidden sm:inline">{healthScoreLabel(score)}</span>
+    </span>
   );
 }
 

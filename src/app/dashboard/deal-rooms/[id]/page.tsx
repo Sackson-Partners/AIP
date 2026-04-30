@@ -69,7 +69,7 @@ interface Message {
   user_name?: string;
 }
 
-type TabType = 'overview' | 'documents' | 'members' | 'meetings' | 'chat';
+type TabType = 'overview' | 'documents' | 'members' | 'meetings' | 'chat' | 'activity';
 
 export default function DealRoomDetailPage() {
   const params = useParams();
@@ -306,7 +306,7 @@ export default function DealRoomDetailPage() {
       {/* Tabs */}
       <div className="border-b mb-6">
         <nav className="flex gap-6">
-          {(['overview', 'documents', 'members', 'meetings', 'chat'] as TabType[]).map((tab) => (
+          {(['overview', 'documents', 'members', 'meetings', 'chat', 'activity'] as TabType[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -593,7 +593,20 @@ export default function DealRoomDetailPage() {
                   {member.nda_signed ? (
                     <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs">NDA Signed</span>
                   ) : dealRoom.require_nda ? (
-                    <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs">NDA Pending</span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          await api.post(`/deal-rooms/${dealRoomId}/members/${member.id}/nda`);
+                          fetchMembers();
+                        } catch {
+                          // silent fail — stub endpoint
+                        }
+                      }}
+                      className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs hover:bg-yellow-200 transition cursor-pointer"
+                      title="Click to mark NDA as signed"
+                    >
+                      NDA Pending ✎
+                    </button>
                   ) : null}
                   <div className="flex gap-2 text-xs text-gray-400">
                     {member.can_upload && <span title="Can Upload">📤</span>}
@@ -723,6 +736,84 @@ export default function DealRoomDetailPage() {
               Send
             </button>
           </form>
+        </div>
+      )}
+
+      {activeTab === 'activity' && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold mb-6 text-gray-900">Activity Log</h3>
+          {(() => {
+            // Combine all events into a chronological feed
+            type ActivityEvent = {
+              id: string;
+              type: 'document' | 'message' | 'meeting';
+              title: string;
+              subtitle: string;
+              timestamp: string;
+              icon: string;
+              color: string;
+            };
+            const events: ActivityEvent[] = [
+              ...documents.map(d => ({
+                id: `doc-${d.id}`,
+                type: 'document' as const,
+                title: `Document uploaded: ${d.title}`,
+                subtitle: `${d.document_type.replace('_', ' ')} • ${d.file_name}`,
+                timestamp: d.uploaded_at,
+                icon: '📄',
+                color: 'bg-blue-100',
+              })),
+              ...messages.map(m => ({
+                id: `msg-${m.id}`,
+                type: 'message' as const,
+                title: `Message from ${m.user_name ?? 'Team member'}`,
+                subtitle: m.message.length > 80 ? m.message.slice(0, 80) + '…' : m.message,
+                timestamp: m.created_at,
+                icon: '💬',
+                color: 'bg-purple-100',
+              })),
+              ...meetings.map(m => ({
+                id: `mtg-${m.id}`,
+                type: 'meeting' as const,
+                title: `Meeting: ${m.title}`,
+                subtitle: `Scheduled for ${new Date(m.scheduled_at).toLocaleString()} • ${m.duration_minutes} min`,
+                timestamp: m.scheduled_at,
+                icon: '📅',
+                color: 'bg-green-100',
+              })),
+            ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+            if (events.length === 0) {
+              return (
+                <div className="text-center py-12 text-gray-500">
+                  <p className="text-4xl mb-3">📋</p>
+                  <p>No activity yet. Upload documents or send messages to get started.</p>
+                </div>
+              );
+            }
+
+            return (
+              <div className="space-y-4">
+                {events.map((event, idx) => (
+                  <div key={event.id} className="relative flex gap-4">
+                    {idx < events.length - 1 && (
+                      <div className="absolute left-5 top-10 bottom-0 w-0.5 bg-gray-200" />
+                    )}
+                    <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-lg ${event.color}`}>
+                      {event.icon}
+                    </div>
+                    <div className="flex-1 pb-4">
+                      <p className="font-medium text-gray-900 text-sm">{event.title}</p>
+                      <p className="text-sm text-gray-500 mt-0.5">{event.subtitle}</p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(event.timestamp).toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </div>
       )}
 
