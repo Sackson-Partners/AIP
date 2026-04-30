@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { projectsApi, petfelApi, aiApi, Project, PETFELAssessment, PETFELCriterion, ScoreInput } from '../../../lib/api';
+import { RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { WarningIcon, ChevronIcon } from '@/components/ui/icons';
 import { useToast } from '../../../context/ToastContext';
 import * as Sentry from '@sentry/nextjs';
@@ -274,7 +275,7 @@ export default function PETFELPage() {
           <option value="">Select a Project</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.project_name} ({p.country})
+              {p.title ?? p.project_name} ({p.country})
             </option>
           ))}
         </select>
@@ -375,6 +376,33 @@ export default function PETFELPage() {
               </div>
             </div>
           </div>
+
+          {/* Radar Chart */}
+          {assessment.pillar_scores && Object.keys(assessment.pillar_scores).length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">Risk Profile — Radar</h3>
+              <ResponsiveContainer width="100%" height={320}>
+                <RadarChart data={PILLARS.map(p => ({
+                  pillar: p.name,
+                  score: Number(((assessment.pillar_scores?.[p.code] ?? 0) * 20).toFixed(1)),
+                  fullMark: 100,
+                }))}>
+                  <PolarGrid />
+                  <PolarAngleAxis dataKey="pillar" tick={{ fontSize: 12 }} />
+                  <PolarRadiusAxis angle={90} domain={[0, 100]} tick={{ fontSize: 10 }} tickCount={6} />
+                  <Radar
+                    name="Score (0–100)"
+                    dataKey="score"
+                    stroke="#D4A017"
+                    fill="#D4A017"
+                    fillOpacity={0.35}
+                  />
+                  <Tooltip formatter={(v: number) => [`${v}/100`, 'Score']} />
+                  <Legend />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          )}
 
           {/* Red Flags */}
           {assessment.flags && assessment.flags.length > 0 && (

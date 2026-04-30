@@ -28,6 +28,7 @@
     "@prisma/adapter-pg": "^6.19.3",
     "@prisma/client": "^6.19.3",
     "@sentry/nextjs": "^10.48.0",
+    "@vercel/blob": "^0.27.0",
     "@upstash/ratelimit": "^2.0.8",
     "@upstash/redis": "^1.37.0",
     "axios": "^1.15.0",

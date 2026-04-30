@@ -93,13 +93,6 @@ export default function DealRoomDetailPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState('member');
   const [newMessage, setNewMessage] = useState('');
-  const [uploadData, setUploadData] = useState({
-    title: '',
-    description: '',
-    document_type: 'other',
-    file_name: '',
-    file_url: ''
-  });
   const [meetingData, setMeetingData] = useState({
     title: '',
     description: '',
@@ -190,10 +183,16 @@ export default function DealRoomDetailPage() {
 
   const handleUploadDocument = async (e: React.FormEvent) => {
     e.preventDefault();
+    const fileInput = document.getElementById('deal-room-file') as HTMLInputElement;
+    const file = fileInput?.files?.[0];
+    if (!file) return;
     try {
-      await api.post(`/deal-rooms/${dealRoomId}/documents`, uploadData);
+      const form = new FormData();
+      form.append('file', file);
+      await api.post(`/deal-rooms/${dealRoomId}/upload`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
       setShowUploadModal(false);
-      setUploadData({ title: '', description: '', document_type: 'other', file_name: '', file_url: '' });
       fetchDocuments();
     } catch (error) {
       // eslint-disable-next-line no-console
@@ -795,82 +794,21 @@ export default function DealRoomDetailPage() {
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleUploadDocument} className="space-y-4">
+            <form onSubmit={handleUploadDocument} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Document Title *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">File *</label>
                 <input
-                  type="text"
+                  id="deal-room-file"
+                  type="file"
                   required
-                  value={uploadData.title}
-                  onChange={(e) => setUploadData({ ...uploadData, title: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="e.g., Term Sheet v2"
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg"
+                  className="w-full text-sm text-gray-700 border border-gray-300 rounded-lg px-3 py-2 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-brand-gold file:text-brand-navy"
                 />
+                <p className="text-xs text-gray-400 mt-1">PDF, Word, Excel, PowerPoint, Images — max 10MB</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Document Type</label>
-                <select
-                  value={uploadData.document_type}
-                  onChange={(e) => setUploadData({ ...uploadData, document_type: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                >
-                  <option value="mou">MoU (Memorandum of Understanding)</option>
-                  <option value="term_sheet">Term Sheet</option>
-                  <option value="contract">Contract</option>
-                  <option value="nda">NDA</option>
-                  <option value="financial">Financial Document</option>
-                  <option value="legal">Legal Document</option>
-                  <option value="technical">Technical Document</option>
-                  <option value="other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={uploadData.description}
-                  onChange={(e) => setUploadData({ ...uploadData, description: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                  rows={2}
-                  placeholder="Brief description of this document"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">File Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={uploadData.file_name}
-                  onChange={(e) => setUploadData({ ...uploadData, file_name: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="document.pdf"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">File URL *</label>
-                <input
-                  type="url"
-                  required
-                  value={uploadData.file_url}
-                  onChange={(e) => setUploadData({ ...uploadData, file_url: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="https://storage.example.com/doc.pdf"
-                />
-                <p className="text-xs text-gray-500 mt-1">Enter the URL where the document is hosted</p>
-              </div>
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-                >
-                  Upload Document
-                </button>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowUploadModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark">Upload</button>
               </div>
             </form>
           </div>

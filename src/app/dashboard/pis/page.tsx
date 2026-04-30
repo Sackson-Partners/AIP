@@ -121,7 +121,13 @@ export default function PISPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-3xl font-bold text-gray-900">Project Information Sheet</h1>
         <div className="flex items-center gap-3">
-          <select
+            <Link
+              href="/dashboard/projects/new"
+              className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition font-medium flex items-center gap-2 text-sm"
+            >
+              + New Project
+            </Link>
+            <select
             value={selectedProjectId || ''}
             onChange={(e) => setSelectedProjectId(e.target.value || null)}
             className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50 min-w-64"
