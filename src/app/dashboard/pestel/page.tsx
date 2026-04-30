@@ -397,7 +397,7 @@ export default function PETFELPage() {
                     fill="#D4A017"
                     fillOpacity={0.35}
                   />
-                  <Tooltip formatter={(v: number) => [`${v}/100`, 'Score']} />
+                  <Tooltip formatter={(v) => [`${v}/100`, 'Score']} />
                   <Legend />
                 </RadarChart>
               </ResponsiveContainer>
