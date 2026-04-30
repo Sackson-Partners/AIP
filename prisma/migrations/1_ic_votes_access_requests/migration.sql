@@ -5,21 +5,22 @@ ALTER TABLE "IcCommittee"
   ADD COLUMN IF NOT EXISTS "outcome"        TEXT,
   ADD COLUMN IF NOT EXISTS "outcomeNotes"   TEXT;
 
--- Update default status to SCHEDULED (matches new UI expectations)
--- (existing ACTIVE rows are kept as-is)
-
 -- CreateIndex on IcCommittee.projectId
-CREATE INDEX IF NOT EXISTS "IcCommittee_projectId_idx" ON "IcCommittee"("projectId");
+CREATE INDEX IF NOT EXISTS "IcCommittee_projectId_idx" 
+  ON "IcCommittee"("projectId");
 
 -- AddForeignKey: IcCommittee.projectId → Project.id
 DO $$
 BEGIN
   IF NOT EXISTS (
-    SELECT 1 FROM pg_constraint WHERE conname = 'IcCommittee_projectId_fkey'
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'IcCommittee_projectId_fkey'
   ) THEN
     ALTER TABLE "IcCommittee"
       ADD CONSTRAINT "IcCommittee_projectId_fkey"
-      FOREIGN KEY ("projectId") REFERENCES "Project"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+      FOREIGN KEY ("projectId") 
+      REFERENCES "Project"("id") 
+      ON DELETE SET NULL ON UPDATE CASCADE;
   END IF;
 END$$;
 
@@ -34,14 +35,40 @@ CREATE TABLE IF NOT EXISTS "IcVote" (
   CONSTRAINT "IcVote_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "IcVote_committeeId_userId_key" ON "IcVote"("committeeId", "userId");
-CREATE INDEX        IF NOT EXISTS "IcVote_committeeId_idx"         ON "IcVote"("committeeId");
+CREATE UNIQUE INDEX IF NOT EXISTS "IcVote_committeeId_userId_key" 
+  ON "IcVote"("committeeId", "userId");
 
-ALTER TABLE "IcVote"
-  ADD CONSTRAINT IF NOT EXISTS "IcVote_committeeId_fkey"
-    FOREIGN KEY ("committeeId") REFERENCES "IcCommittee"("id") ON DELETE CASCADE ON UPDATE CASCADE,
-  ADD CONSTRAINT IF NOT EXISTS "IcVote_userId_fkey"
-    FOREIGN KEY ("userId")      REFERENCES "User"("id")        ON DELETE CASCADE ON UPDATE CASCADE;
+CREATE INDEX IF NOT EXISTS "IcVote_committeeId_idx" 
+  ON "IcVote"("committeeId");
+
+-- AddForeignKey: IcVote constraints (using DO block — safe for reruns)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'IcVote_committeeId_fkey'
+  ) THEN
+    ALTER TABLE "IcVote"
+      ADD CONSTRAINT "IcVote_committeeId_fkey"
+      FOREIGN KEY ("committeeId") 
+      REFERENCES "IcCommittee"("id") 
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'IcVote_userId_fkey'
+  ) THEN
+    ALTER TABLE "IcVote"
+      ADD CONSTRAINT "IcVote_userId_fkey"
+      FOREIGN KEY ("userId") 
+      REFERENCES "User"("id") 
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END$$;
 
 -- CreateTable: AccessRequest
 CREATE TABLE IF NOT EXISTS "AccessRequest" (
@@ -59,5 +86,8 @@ CREATE TABLE IF NOT EXISTS "AccessRequest" (
   CONSTRAINT "AccessRequest_pkey" PRIMARY KEY ("id")
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS "AccessRequest_email_key" ON "AccessRequest"("email");
-CREATE INDEX        IF NOT EXISTS "AccessRequest_status_idx" ON "AccessRequest"("status");
+CREATE UNIQUE INDEX IF NOT EXISTS "AccessRequest_email_key" 
+  ON "AccessRequest"("email");
+
+CREATE INDEX IF NOT EXISTS "AccessRequest_status_idx" 
+  ON "AccessRequest"("status");
