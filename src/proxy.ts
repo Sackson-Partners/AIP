@@ -31,17 +31,17 @@ const ROLE_ROUTE_PERMISSIONS: Record<string, Set<string>> = {
   SUPER_ADMIN: new Set([
     'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
     'view_analytic_reports', 'view_partners', 'view_pipeline', 'vote_ic',
-    'run_petfel', 'view_events', 'manage_users',
+    'run_petfel', 'view_events', 'manage_users', 'message_partners_internal',
   ]),
   ADMIN: new Set([
     'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
     'view_analytic_reports', 'view_partners', 'view_pipeline', 'vote_ic',
-    'run_petfel', 'view_events', 'manage_users',
+    'run_petfel', 'view_events', 'manage_users', 'message_partners_internal',
   ]),
   ANALYST: new Set([
     'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
     'view_analytic_reports', 'view_partners', 'view_pipeline', 'vote_ic',
-    'run_petfel', 'view_events',
+    'run_petfel', 'view_events', 'message_partners_internal',
   ]),
   GOVERNMENT: new Set([
     'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
