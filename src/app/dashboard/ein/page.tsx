@@ -259,6 +259,51 @@ export default function EINPage() {
     }
   };
 
+  const handleExportPDF = (einData: EIN, project?: Project) => {
+    const projectName = project?.title ?? project?.project_name ?? project?.name ?? 'Project'
+    const printWindow = window.open('', '_blank')
+    if (!printWindow) return
+    const sectionHtml = SECTION_NAMES.map((name, idx) => {
+      const sec = einData.sections?.find(s => String(s.section_code) === String(idx))
+      if (!sec?.content) return ''
+      return `<div class="section">
+        <h2>${idx}. ${name}</h2>
+        <div class="content">${sec.content.replace(/\n/g, '<br/>')}</div>
+      </div>`
+    }).join('')
+    printWindow.document.write(`<!DOCTYPE html><html><head>
+      <title>EIN — ${projectName}</title>
+      <style>
+        body { font-family: Georgia, serif; max-width: 800px; margin: 40px auto; color: #111; line-height: 1.6; }
+        h1 { font-size: 24px; border-bottom: 2px solid #c9a227; padding-bottom: 8px; }
+        h2 { font-size: 16px; font-weight: bold; margin-top: 32px; color: #1a2e4a; }
+        .meta { color: #666; font-size: 13px; margin-bottom: 24px; }
+        .recommendation { display: inline-block; padding: 4px 16px; border-radius: 4px; font-weight: bold; font-size: 14px;
+          background: ${einData.recommendation === 'go' ? '#16a34a' : einData.recommendation === 'no_go' ? '#dc2626' : '#d97706'}; color: white; }
+        .section { margin-bottom: 32px; page-break-inside: avoid; }
+        .content { font-size: 14px; white-space: pre-wrap; }
+        .summary-box { background: #f9f9f9; border-left: 4px solid #c9a227; padding: 16px; margin: 16px 0; }
+        @media print { body { margin: 20px; } }
+      </style>
+    </head><body>
+      <h1>Executive Investment Note</h1>
+      <div class="meta">
+        <strong>Project:</strong> ${projectName} &nbsp;|&nbsp;
+        <strong>EIN #:</strong> ${einData.id ?? '—'} &nbsp;|&nbsp;
+        <strong>Version:</strong> v${einData.version} &nbsp;|&nbsp;
+        <strong>Status:</strong> ${(einData.status ?? '').replace('_', ' ')} &nbsp;|&nbsp;
+        <strong>Date:</strong> ${new Date().toLocaleDateString()}
+      </div>
+      ${einData.recommendation ? `<div style="margin-bottom:16px;">Recommendation: <span class="recommendation">${einData.recommendation.replace('_', '-').toUpperCase()}</span></div>` : ''}
+      ${einData.executive_summary ? `<div class="summary-box"><strong>Executive Summary</strong><br/>${einData.executive_summary.replace(/\n/g, '<br/>')}</div>` : ''}
+      ${einData.key_gaps ? `<div class="summary-box"><strong>Key Gaps</strong><br/>${einData.key_gaps.replace(/\n/g, '<br/>')}</div>` : ''}
+      ${sectionHtml}
+    </body></html>`)
+    printWindow.document.close()
+    printWindow.focus()
+    setTimeout(() => { printWindow.print(); printWindow.close() }, 300)
+  }
+
   const getSectionStatus = (section?: EINSection): 'empty' | 'ai' | 'reviewed' | 'draft' => {
     if (!section || !section.content) return 'empty';
     if (section.is_reviewed) return 'reviewed';
@@ -298,7 +343,7 @@ export default function EINPage() {
           <option value="">Select a Project</option>
           {projects.map((p) => (
             <option key={p.id} value={p.id}>
-              {p.project_name} ({p.country})
+              {p.title ?? p.project_name ?? p.name ?? String(p.id)} {p.country ? `(${p.country})` : ''}
             </option>
           ))}
         </select>
@@ -366,6 +411,13 @@ export default function EINPage() {
                 </div>
               </div>
               <div className="flex items-center gap-3">
+                <button
+                  onClick={() => handleExportPDF(ein, projects.find(p => String(p.id) === selectedProjectId))}
+                  className="border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition flex items-center gap-2 text-sm"
+                >
+                  <PrintIcon className="w-4 h-4" />
+                  Export PDF
+                </button>
                 <button
                   onClick={handleGenerateAI}
                   disabled={isGenerating || ein.status !== 'draft'}
@@ -609,6 +661,14 @@ function SparklesIcon({ className }: { className?: string }) {
       <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
     </svg>
   );
+}
+
+function PrintIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" />
+    </svg>
+  )
 }
 
 function InfoIcon({ className }: { className?: string }) {

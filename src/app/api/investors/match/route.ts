@@ -66,6 +66,20 @@ export async function POST(req: NextRequest) {
       }))
       .sort((a, b) => b.score - a.score)
 
+    // Persist top matches (score >= 30) to PartnerMatch table — upsert to avoid duplicates
+    const topMatches = results.filter(r => r.score >= 30)
+    if (topMatches.length > 0) {
+      await Promise.allSettled(
+        topMatches.map(r =>
+          prisma.partnerMatch.upsert({
+            where:  { investorId_projectId: { investorId, projectId: r.projectId } },
+            create: { investorId, projectId: r.projectId, matchScore: r.score, action: 'INTERESTED', createdBy: session.user.id },
+            update: { matchScore: r.score },
+          })
+        )
+      )
+    }
+
     return NextResponse.json({ data: results })
   } catch (error: unknown) {
     logger.error('[POST /api/investors/match]', error)
