@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { verificationsApi, projectsApi, Verification, Project, VerificationCreate } from '../../../lib/api';
 import { PlusIcon, XIcon } from '@/components/ui/icons';
+import { PermissionGuard, ViewOnlyBadge } from '@/components/PermissionGuard';
 
 const VERIFICATION_LEVELS = [
   { value: 'V0: Submitted', label: 'V0: Submitted', color: 'bg-gray-100 text-gray-800' },
@@ -97,14 +98,21 @@ export default function VerificationsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Verifications</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
-        >
-          <PlusIcon className="w-5 h-5" />
-          New Verification
-        </button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-900">Verifications</h1>
+          <PermissionGuard requireAny={['manage_verifications']} fallback={<ViewOnlyBadge />} >
+            <span />
+          </PermissionGuard>
+        </div>
+        <PermissionGuard require="manage_verifications">
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
+          >
+            <PlusIcon className="w-5 h-5" />
+            New Verification
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Verification Level Legend */}

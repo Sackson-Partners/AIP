@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { eventsApi, projectsApi, Event, EventCreate, Project } from '../../../lib/api';
 import { PlusIcon, XIcon } from '@/components/ui/icons';
+import { PermissionGuard, ViewOnlyBadge } from '@/components/PermissionGuard';
+
 
 const EVENT_TYPES = ['Conference', 'Webinar', 'Workshop', 'Networking', 'Investment Forum', 'Site Visit', 'Other'];
 
@@ -92,14 +94,21 @@ export default function EventsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Events</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
-        >
-          <PlusIcon className="w-5 h-5" />
-          New Event
-        </button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-900">Events</h1>
+          <PermissionGuard require="create_event" fallback={<ViewOnlyBadge />}>
+            <span />
+          </PermissionGuard>
+        </div>
+        <PermissionGuard require="create_event">
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
+          >
+            <PlusIcon className="w-5 h-5" />
+            New Event
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Filter Tabs */}

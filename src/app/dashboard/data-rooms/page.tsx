@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { dataRoomsApi, projectsApi, DataRoom, Project } from '../../../lib/api';
 import { PlusIcon, XIcon, DocumentIcon } from '@/components/ui/icons';
+import { PermissionGuard, ViewOnlyBadge } from '@/components/PermissionGuard';
 
 interface DataRoomFormData {
   project_id: number;
@@ -66,14 +67,21 @@ const [roomsResult, projectsResult] = await Promise.allSettled([
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Data Rooms</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
-        >
-          <PlusIcon className="w-5 h-5" />
-          New Data Room
-        </button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-900">Data Rooms</h1>
+          <PermissionGuard require="manage_data_room" fallback={<ViewOnlyBadge />}>
+            <span />
+          </PermissionGuard>
+        </div>
+        <PermissionGuard requireAny={['manage_data_room', 'upload_to_data_room']}>
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
+          >
+            <PlusIcon className="w-5 h-5" />
+            New Data Room
+          </button>
+        </PermissionGuard>
       </div>
 
       {isLoading ? (

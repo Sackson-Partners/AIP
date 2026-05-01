@@ -1,26 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-const VALID_ROLES = ['GOVERNMENT', 'SPONSOR_DEVELOPER', 'EPC_OPERATOR', 'INSTITUTIONAL_INVESTOR']
+const VALID_ROLES = [
+  'GOV_FOCAL',
+  'GOV_TECH',
+  'EPC',
+  'SPONSOR',
+  'PARTNER',
+  // legacy values kept for backwards compat
+  'GOVERNMENT',
+  'SPONSOR_DEVELOPER',
+  'EPC_OPERATOR',
+  'INSTITUTIONAL_INVESTOR',
+]
+
+const GOV_ROLES = ['GOV_FOCAL', 'GOV_TECH', 'GOVERNMENT']
 
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}))
-  const { email, fullName, organization, roleRequested, message } = body
+  const { email, fullName, organization, country, phone, roleRequested, ministry, message } = body
 
   if (!email)         return NextResponse.json({ error: 'email required' },         { status: 400 })
   if (!fullName)      return NextResponse.json({ error: 'fullName required' },      { status: 400 })
   if (!roleRequested) return NextResponse.json({ error: 'roleRequested required' }, { status: 400 })
   if (!VALID_ROLES.includes(roleRequested)) {
-    return NextResponse.json({ error: `roleRequested must be one of: ${VALID_ROLES.join(', ')}` }, { status: 400 })
+    return NextResponse.json({ error: `roleRequested must be one of: ${VALID_ROLES.slice(0, 5).join(', ')}` }, { status: 400 })
+  }
+  if (GOV_ROLES.includes(roleRequested) && !ministry) {
+    return NextResponse.json({ error: 'ministry required for government roles' }, { status: 400 })
   }
 
-  // Check if already registered
   const existingUser = await prisma.user.findUnique({ where: { email } })
   if (existingUser) {
     return NextResponse.json({ error: 'An account with this email already exists. Please sign in.' }, { status: 409 })
   }
 
-  // Upsert request (allow re-application if rejected)
   const existing = await prisma.accessRequest.findUnique({ where: { email } })
   if (existing && existing.status === 'PENDING') {
     return NextResponse.json({ error: 'A request with this email is already pending review.' }, { status: 409 })
@@ -28,8 +42,28 @@ export async function POST(req: NextRequest) {
 
   const request = await prisma.accessRequest.upsert({
     where:  { email },
-    update: { fullName, organization: organization ?? null, roleRequested, message: message ?? null, status: 'PENDING', reviewedBy: null, reviewedAt: null },
-    create: { email, fullName, organization: organization ?? null, roleRequested, message: message ?? null },
+    update: {
+      fullName,
+      organization: organization ?? null,
+      country:      country      ?? null,
+      phone:        phone        ?? null,
+      roleRequested,
+      ministry:     ministry     ?? null,
+      message:      message      ?? null,
+      status:       'PENDING',
+      reviewedBy:   null,
+      reviewedAt:   null,
+    },
+    create: {
+      email,
+      fullName,
+      organization: organization ?? null,
+      country:      country      ?? null,
+      phone:        phone        ?? null,
+      roleRequested,
+      ministry:     ministry     ?? null,
+      message:      message      ?? null,
+    },
   })
 
   return NextResponse.json({

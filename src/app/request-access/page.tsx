@@ -4,23 +4,49 @@ import { useState } from 'react'
 import Link from 'next/link'
 
 const ROLES = [
-  { value: 'GOVERNMENT',           label: 'Government / Regulatory Authority' },
-  { value: 'SPONSOR_DEVELOPER',    label: 'Project Sponsor / Developer' },
-  { value: 'EPC_OPERATOR',         label: 'EPC Contractor / Operator' },
-  { value: 'INSTITUTIONAL_INVESTOR', label: 'Institutional Investor / DFI' },
+  { value: 'GOV_FOCAL',  label: 'Government — Focal Point' },
+  { value: 'GOV_TECH',   label: 'Government — Technical Member' },
+  { value: 'EPC',        label: 'EPC Company' },
+  { value: 'SPONSOR',    label: 'Sponsor / Developer' },
+  { value: 'PARTNER',    label: 'Investor / Partner' },
+]
+
+const GOV_ROLES = ['GOV_FOCAL', 'GOV_TECH']
+
+// Abbreviated ISO country list (Africa-focused + global)
+const COUNTRIES = [
+  'Algeria','Angola','Benin','Botswana','Burkina Faso','Burundi','Cameroon','Cape Verde',
+  'Central African Republic','Chad','Comoros','Congo','DR Congo','Djibouti','Egypt',
+  'Equatorial Guinea','Eritrea','Eswatini','Ethiopia','Gabon','Gambia','Ghana','Guinea',
+  'Guinea-Bissau','Ivory Coast','Kenya','Lesotho','Liberia','Libya','Madagascar','Malawi',
+  'Mali','Mauritania','Mauritius','Morocco','Mozambique','Namibia','Niger','Nigeria','Rwanda',
+  'São Tomé and Príncipe','Senegal','Sierra Leone','Somalia','South Africa','South Sudan',
+  'Sudan','Tanzania','Togo','Tunisia','Uganda','Zambia','Zimbabwe',
+  '---',
+  'Canada','China','France','Germany','India','Japan','Netherlands','Norway','United Kingdom',
+  'United States','Other',
 ]
 
 export default function RequestAccessPage() {
   const [form, setForm] = useState({
-    email: '', fullName: '', organization: '', roleRequested: '', message: '',
+    email: '', fullName: '', organization: '', country: '', phone: '',
+    roleRequested: '', ministry: '', message: '',
   })
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
+  const isGovRole = GOV_ROLES.includes(form.roleRequested)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.email || !form.fullName || !form.roleRequested) return
+    if (isGovRole && !form.ministry.trim()) {
+      setErrorMsg('Ministry / Department is required for government roles.')
+      setStatus('error')
+      return
+    }
     setStatus('loading')
+    setErrorMsg('')
     try {
       const res = await fetch('/api/auth/request-access', {
         method:  'POST',
@@ -47,7 +73,8 @@ export default function RequestAccessPage() {
           </div>
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Request Submitted</h2>
           <p className="text-gray-500 mb-6">
-            Thank you for your interest in the AIP Platform. Our team will review your request and contact you at <strong>{form.email}</strong> within 2–3 business days.
+            Thank you for your interest in the AIP Platform. Our team will review your request and contact you at{' '}
+            <strong>{form.email}</strong> within 2–3 business days.
           </p>
           <Link href="/auth/signin" className="text-brand-navy font-semibold hover:underline">
             Back to Sign In
@@ -71,7 +98,8 @@ export default function RequestAccessPage() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Full Name */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
             <input
@@ -84,6 +112,7 @@ export default function RequestAccessPage() {
             />
           </div>
 
+          {/* Work Email */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Work Email *</label>
             <input
@@ -96,6 +125,7 @@ export default function RequestAccessPage() {
             />
           </div>
 
+          {/* Organisation */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Organisation</label>
             <input
@@ -107,12 +137,42 @@ export default function RequestAccessPage() {
             />
           </div>
 
+          {/* Country + Phone row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+              <select
+                value={form.country}
+                onChange={e => setForm(f => ({ ...f, country: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold bg-white"
+              >
+                <option value="">Select country</option>
+                {COUNTRIES.map(c =>
+                  c === '---'
+                    ? <option key="sep" disabled>──────────</option>
+                    : <option key={c} value={c}>{c}</option>
+                )}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                placeholder="+27 82 000 0000"
+              />
+            </div>
+          </div>
+
+          {/* Role */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">I am a... *</label>
             <select
               required
               value={form.roleRequested}
-              onChange={e => setForm(f => ({ ...f, roleRequested: e.target.value }))}
+              onChange={e => setForm(f => ({ ...f, roleRequested: e.target.value, ministry: '' }))}
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold bg-white"
             >
               <option value="">Select your role</option>
@@ -122,6 +182,22 @@ export default function RequestAccessPage() {
             </select>
           </div>
 
+          {/* Ministry — conditional on government roles */}
+          {isGovRole && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ministry / Department *</label>
+              <input
+                type="text"
+                required
+                value={form.ministry}
+                onChange={e => setForm(f => ({ ...f, ministry: e.target.value }))}
+                className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-gold"
+                placeholder="e.g. Ministry of Energy and Water Resources"
+              />
+            </div>
+          )}
+
+          {/* Message */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Why are you requesting access?</label>
             <textarea

@@ -6,36 +6,13 @@
 // need zero import changes.
 
 import { useRBAC as useRBACNew } from './useRBAC-new'
+import type { Permission } from './useRBAC-new'
 import type { UserRole as NewUserRole } from '@prisma/client'
 
-// ── Old Permission type ────────────────────────────────────────────────────────
-// Preserved as-is for type-annotation compatibility with existing consumers.
-// The underlying can/canAny/canAll checks map these against the new permission
-// set via the LEGACY_ALIASES in useRBAC-new.ts.
-export type Permission =
-  | 'view_all_projects'
-  | 'view_own_projects'
-  | 'view_curated_projects'
-  | 'view_approved_projects'
-  | 'create_project'
-  | 'edit_project'
-  | 'delete_project'
-  | 'run_pestel'
-  | 'view_pestel_full'
-  | 'view_pestel_summary'
-  | 'generate_ein'
-  | 'edit_ein'
-  | 'view_approved_ein'
-  | 'view_ein_approved_only'
-  | 'view_pipeline'
-  | 'move_pipeline'
-  | 'vote_ic'
-  | 'manage_ic'
-  | 'upload_documents'
-  | 'upload_own_documents'
-  | 'manage_users'
-  | 'view_analytics'
-  | 'manage_integrations'
+// ── Permission type ────────────────────────────────────────────────────────────
+// Re-exported from useRBAC-new so all consumers share the full canonical set.
+// Old string literals are handled by LEGACY_ALIASES at runtime.
+export type { Permission } from './useRBAC-new'
 
 // ── Old UserRole type ──────────────────────────────────────────────────────────
 // Aliased to the new UserRole so switch cases in migrated files work with the

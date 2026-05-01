@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { analyticsApi, AnalyticReport, AnalyticReportCreate } from '../../../lib/api';
 import { PlusIcon, XIcon, DocumentIcon, ChartIcon, GlobeIcon } from '@/components/ui/icons';
+import { PermissionGuard, ViewOnlyBadge } from '@/components/PermissionGuard';
 
 const SECTORS = ['Energy', 'Mining', 'Water', 'Transport', 'Ports', 'Rail', 'Roads', 'Agriculture', 'Health'];
 
@@ -49,14 +50,21 @@ export default function AnalyticsPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Analytics & Reports</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
-        >
-          <PlusIcon className="w-5 h-5" />
-          New Report
-        </button>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-gray-900">Analytics & Reports</h1>
+          <PermissionGuard require="create_analytic_report" fallback={<ViewOnlyBadge />}>
+            <span />
+          </PermissionGuard>
+        </div>
+        <PermissionGuard require="create_analytic_report">
+          <button
+            onClick={() => setShowModal(true)}
+            className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition flex items-center gap-2"
+          >
+            <PlusIcon className="w-5 h-5" />
+            New Report
+          </button>
+        </PermissionGuard>
       </div>
 
       {/* Summary Cards */}

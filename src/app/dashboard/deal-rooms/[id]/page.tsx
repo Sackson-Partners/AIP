@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { FileUploader } from '@/components/FileUploader';
 
 interface DealRoom {
   id: number;
@@ -178,25 +179,6 @@ export default function DealRoomDetailPage() {
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to invite member:', error);
-    }
-  };
-
-  const handleUploadDocument = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const fileInput = document.getElementById('deal-room-file') as HTMLInputElement;
-    const file = fileInput?.files?.[0];
-    if (!file) return;
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      await api.post(`/deal-rooms/${dealRoomId}/upload`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
-      setShowUploadModal(false);
-      fetchDocuments();
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to upload document:', error);
     }
   };
 
@@ -875,33 +857,30 @@ export default function DealRoomDetailPage() {
 
       {/* Upload Document Modal */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl p-6 w-full max-w-lg">
             <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Upload Document</h2>
-              <button onClick={() => setShowUploadModal(false)} className="text-gray-500 hover:text-gray-700">
+              <h2 className="text-xl font-bold text-gray-900">Upload Documents</h2>
+              <button onClick={() => setShowUploadModal(false)} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
             </div>
-            <form onSubmit={handleUploadDocument} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">File *</label>
-                <input
-                  id="deal-room-file"
-                  type="file"
-                  required
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.png,.jpg,.jpeg"
-                  className="w-full text-sm text-gray-700 border border-gray-300 rounded-lg px-3 py-2 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-brand-gold file:text-brand-navy"
-                />
-                <p className="text-xs text-gray-400 mt-1">PDF, Word, Excel, PowerPoint, Images — max 10MB</p>
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowUploadModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">Cancel</button>
-                <button type="submit" className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark">Upload</button>
-              </div>
-            </form>
+            <FileUploader
+              uploadUrl={`/api/deal-rooms/${dealRoomId}/upload`}
+              maxFiles={10}
+              maxSizeMb={50}
+              onUploaded={() => {
+                fetchDocuments();
+                setShowUploadModal(false);
+              }}
+            />
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setShowUploadModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600 hover:bg-gray-50">
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

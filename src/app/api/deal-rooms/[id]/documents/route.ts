@@ -13,6 +13,9 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   const documents = await prisma.document.findMany({
     where: { dealRoomId: id },
     orderBy: { createdAt: 'desc' },
+    include: {
+      uploader: { select: { id: true, name: true, email: true } },
+    },
   })
 
   const data = documents.map(d => ({
@@ -22,9 +25,12 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     document_type:     d.type,
     file_name:         d.name,
     file_url:          d.blobUrl ?? '',
+    blobUrl:           d.blobUrl ?? '',
     file_size:         d.size,
     mime_type:         d.mimeType,
     version:           d.version,
+    is_confidential:   d.isConfidential,
+    uploader_name:     d.uploader?.name ?? d.uploader?.email ?? 'Unknown',
     requires_signature: false,
     signature_status:  'none',
     uploaded_at:       d.createdAt.toISOString(),
@@ -47,25 +53,25 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   const doc = await prisma.document.create({
     data: {
       name,
-      dealRoomId:  id,
-      uploaderId:  session.user.id,
-      type:        body.document_type ?? 'OTHER',
-      mimeType:    body.mime_type ?? null,
-      size:        body.file_size ?? null,
-      blobUrl:     body.file_url ?? null,
-      isPublic:    false,
+      dealRoomId:     id,
+      uploaderId:     session.user.id,
+      type:           body.document_type ?? 'OTHER',
+      mimeType:       body.mime_type ?? null,
+      size:           body.file_size ?? null,
+      blobUrl:        body.file_url ?? null,
+      isPublic:       false,
       isConfidential: true,
     },
   })
 
   return NextResponse.json({
     data: {
-      id:                doc.id,
-      title:             doc.name,
-      document_type:     doc.type,
-      file_name:         doc.name,
-      file_url:          doc.blobUrl ?? '',
-      uploaded_at:       doc.createdAt.toISOString(),
+      id:            doc.id,
+      title:         doc.name,
+      document_type: doc.type,
+      file_name:     doc.name,
+      file_url:      doc.blobUrl ?? '',
+      uploaded_at:   doc.createdAt.toISOString(),
     },
   }, { status: 201 })
 }

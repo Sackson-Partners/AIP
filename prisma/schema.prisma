@@ -392,19 +392,85 @@ model Milestone {
 }
 
 model DealRoom {
-  id          String   @id @default(cuid())
-  projectId   String
-  name        String
-  description String?
-  isPublic    Boolean  @default(false)
+  id              String    @id @default(cuid())
+  projectId       String
+  name            String
+  description     String?
+  status          String    @default("ACTIVE")  // ACTIVE | NEGOTIATING | CLOSED | ARCHIVED
+  dealValue       Float?
+  dealCurrency    String    @default("USD")
+  targetCloseDate DateTime?
+  isPublic        Boolean   @default(false)
+  requireNda      Boolean   @default(true)
+  isVideoEnabled  Boolean   @default(true)
+  isChatEnabled   Boolean   @default(true)
   /// TODO: always bcrypt-hash before writing; never store plaintext — enforce in API route
-  password    String?  @db.Text
-  createdAt   DateTime @default(now())
+  password        String?   @db.Text
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
-  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Marketplace fields
+  dealType      String?   // EQUITY | DEBT | GRANT | PPP | MEZZANINE
+  targetRaise   Float?
+  minTicket     Float?
+  eoiDeadline   DateTime?
+  featuredUntil DateTime?
+  viewCount     Int       @default(0)
+  eoiCount      Int       @default(0)
+
+  project   Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   documents Document[]
+  members   DealRoomMember[]
+  folders   DealRoomFolder[]
+  eois      ExpressionOfInterest[]
 
   @@index([projectId])
+}
+
+model DealRoomMember {
+  id          String    @id @default(cuid())
+  dealRoomId  String
+  userId      String?
+  email       String
+  ndaSigned   Boolean   @default(false)
+  ndaSignedAt DateTime?
+  invitedBy   String?
+  invitedAt   DateTime  @default(now())
+  accessLevel String    @default("VIEW")  // VIEW | UPLOAD | MANAGE
+
+  dealRoom DealRoom @relation(fields: [dealRoomId], references: [id], onDelete: Cascade)
+
+  @@unique([dealRoomId, email])
+  @@index([dealRoomId])
+  @@index([userId])
+}
+
+model DealRoomFolder {
+  id         String   @id @default(cuid())
+  dealRoomId String
+  name       String
+  parentId   String?
+  createdAt  DateTime @default(now())
+
+  dealRoom  DealRoom         @relation(fields: [dealRoomId], references: [id], onDelete: Cascade)
+  documents Document[]
+
+  @@index([dealRoomId])
+}
+
+model DocumentAccessLog {
+  id         String   @id @default(cuid())
+  documentId String
+  userId     String?
+  email      String?
+  action     String   // VIEW | DOWNLOAD
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([userId])
 }
 
 model ProjectWatchlist {
@@ -423,6 +489,7 @@ model Document {
   id             String       @id @default(cuid())
   projectId      String?
   dealRoomId     String?
+  folderId       String?
   uploaderId     String
   name           String
   type           DocumentType @default(OTHER)
@@ -436,12 +503,15 @@ model Document {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  project  Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  dealRoom DealRoom? @relation(fields: [dealRoomId], references: [id], onDelete: SetNull)
-  uploader User      @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  project    Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  dealRoom   DealRoom?          @relation(fields: [dealRoomId], references: [id], onDelete: SetNull)
+  folder     DealRoomFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  uploader   User               @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  accessLogs DocumentAccessLog[]
 
   @@index([projectId])
   @@index([dealRoomId])
+  @@index([folderId])
   @@index([uploaderId])
 }
 
@@ -504,16 +574,82 @@ model AuditLog {
 // ─── Standalone entity models ──────────────────────────────────────────────────
 
 model Investor {
-  id        String   @id @default(cuid())
-  name      String
-  email     String?  @unique
-  phone     String?
-  type      String?
-  status    String   @default("ACTIVE")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id               String   @id @default(cuid())
+  name             String
+  email            String?  @unique
+  phone            String?
+  type             String?  // PE_FUND | DFI | SOVEREIGN_WEALTH | FAMILY_OFFICE | PENSION_FUND | INFRASTRUCTURE_FUND | BANK | EPC | SPONSOR | GOVERNMENT | OTHER
+  status           String   @default("ACTIVE")
+  // Rich profile fields
+  organizationType String?  // EPC | SPONSOR | INVESTOR | GOVERNMENT | DFI
+  countryOfOrigin  String?
+  sectorFocus      String?  // JSON array of sectors
+  countryFocus     String?  // JSON array of countries
+  stageFocus       String?  // JSON array of stages
+  minTicket        Float?
+  maxTicket        Float?
+  aum              Float?
+  targetIRR        Float?
+  instruments      String?  // JSON array: Equity | Debt | Grant | Mezzanine
+  languages        String?  // JSON array
+  esgConstraints   String?
+  website          String?
+  description      String?  @db.Text
+  profileComplete  Float    @default(0) // 0-100 completeness score
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  matches PartnerMatch[]
 
   @@index([status])
+  @@index([organizationType])
+}
+
+model PartnerMatch {
+  id         String   @id @default(cuid())
+  investorId String
+  projectId  String
+  action     String   // INTERESTED | PASS | MEETING_REQUESTED
+  matchScore Float    @default(0)
+  note       String?
+  createdBy  String
+  createdAt  DateTime @default(now())
+
+  investor Investor @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@unique([investorId, projectId])
+  @@index([investorId])
+  @@index([projectId])
+}
+
+model ExpressionOfInterest {
+  id           String    @id @default(cuid())
+  dealRoomId   String
+  userId       String?
+  name         String
+  email        String
+  organization String?
+  message      String?   @db.Text
+  status       String    @default("PENDING")  // PENDING | REVIEWED | ACCEPTED | DECLINED
+  reviewedBy   String?
+  reviewedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  dealRoom DealRoom @relation(fields: [dealRoomId], references: [id], onDelete: Cascade)
+
+  @@index([dealRoomId])
+  @@index([status])
+}
+
+model SavedDeal {
+  id         String   @id @default(cuid())
+  userId     String
+  dealRoomId String
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, dealRoomId])
+  @@index([userId])
 }
 
 model IcCommittee {
@@ -552,17 +688,20 @@ model IcVote {
 }
 
 model AccessRequest {
-  id           String    @id @default(cuid())
-  email        String    @unique
-  fullName     String
-  organization String?
+  id            String    @id @default(cuid())
+  email         String    @unique
+  fullName      String
+  organization  String?
+  country       String?
+  phone         String?
   roleRequested String
-  message      String?   @db.Text
-  status       String    @default("PENDING")  // PENDING | APPROVED | REJECTED
-  reviewedBy   String?
-  reviewedAt   DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  ministry      String?
+  message       String?   @db.Text
+  status        String    @default("PENDING")  // PENDING | APPROVED | REJECTED
+  reviewedBy    String?
+  reviewedAt    DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([status])
 }
@@ -588,6 +727,22 @@ model Verification {
   @@index([projectId])
 }
 
+model AnalyticReport {
+  id        String   @id @default(cuid())
+  title     String
+  type      String
+  sector    String?
+  country   String?
+  content   String?  @db.Text
+  data      String?  @db.Text
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([createdBy])
+  @@index([type])
+}
+
 model Event {
   id          String   @id @default(cuid())
   name        String
@@ -605,4 +760,58 @@ model Event {
 
   @@index([projectId])
   @@index([eventDate])
+}
+
+// ─── Messenger models ─────────────────────────────────────────────────────────
+
+model Channel {
+  id          String   @id @default(cuid())
+  type        String   // PROJECT | DIRECT | GROUP | PARTNER_INTERNAL
+  name        String?
+  description String?
+  projectId   String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  members  ChannelMember[]
+  messages Message[]
+
+  @@index([projectId])
+  @@index([type])
+}
+
+model ChannelMember {
+  id          String    @id @default(cuid())
+  channelId   String
+  userId      String
+  role        String    @default("MEMBER")  // MEMBER | ADMIN
+  lastReadAt  DateTime?
+  joinedAt    DateTime  @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, userId])
+  @@index([channelId])
+  @@index([userId])
+}
+
+model Message {
+  id          String    @id @default(cuid())
+  channelId   String
+  senderId    String
+  content     String    @db.Text
+  threadId    String?   // parent message id for threads
+  attachmentUrl String?
+  attachmentName String?
+  editedAt    DateTime?
+  deletedAt   DateTime?
+  createdAt   DateTime  @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@index([senderId])
+  @@index([threadId])
+  @@index([createdAt])
 }

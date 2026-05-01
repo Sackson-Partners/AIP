@@ -157,33 +157,54 @@ export interface ProjectCreate {
 export interface Investor {
   id: string | number
   fund_name: string
+  name?: string
+  email?: string | null
+  phone?: string | null
   ticket_size_min: number
   ticket_size_max: number
   instruments: string[]
   investor_type?: string
+  organization_type?: string
+  status?: string
+  country_of_origin?: string | null
   sectors?: string[]
   geographies?: string[]
   sector_focus?: string[]
   country_focus?: string[]
-  esg_constraints?: string
-  aum?: number
-  target_irr?: number
+  stage_focus?: string[]
+  esg_constraints?: string | null
+  aum?: number | null
+  target_irr?: number | null
+  description?: string | null
+  website?: string | null
+  languages?: string[]
+  profile_complete?: number
   created_at?: string
 }
 
 export interface InvestorCreate {
-  fund_name: string
-  ticket_size_min: number
-  ticket_size_max: number
-  instruments: string[]
+  fund_name?: string
+  name?: string
+  email?: string
+  phone?: string
+  ticket_size_min?: number
+  ticket_size_max?: number
+  min_ticket?: number
+  max_ticket?: number
+  instruments?: string[] | string
   investor_type?: string
+  organization_type?: string
+  country_of_origin?: string
   sectors?: string[]
   geographies?: string[]
-  sector_focus?: string[]
-  country_focus?: string[]
+  sector_focus?: string[] | string
+  country_focus?: string[] | string
+  stage_focus?: string[] | string
   esg_constraints?: string
   aum?: number
   target_irr?: number
+  description?: string
+  website?: string
 }
 
 export interface Event {
@@ -302,6 +323,9 @@ export interface DealRoom {
   id: string | number
   name: string
   project_id: string | number
+  project_name?: string | null
+  project_sector?: string | null
+  project_country?: string | null
   description?: string | null
   status?: string
   deal_value?: number | null
@@ -313,6 +337,12 @@ export interface DealRoom {
   participants?: string[]
   member_count?: number
   document_count?: number
+  deal_type?: string | null
+  target_raise?: number | null
+  min_ticket?: number | null
+  eoi_deadline?: string | null
+  eoi_count?: number
+  is_saved?: boolean
   created_at?: string
 }
 

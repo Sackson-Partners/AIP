@@ -1,12 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { projectsApi, dealRoomsApi } from '../../../lib/api';
+import { PermissionGuard } from '@/components/PermissionGuard';
+import { useRBAC } from '@/hooks/useRBAC';
+import { XIcon } from '@/components/ui/icons';
 
+// ── Types ──────────────────────────────────────────────────────────────────────
 interface DealRoom {
-  id: number;
-  project_id: number;
+  id: string;
+  project_id: string;
+  project_name: string | null;
+  project_sector: string | null;
+  project_country: string | null;
   name: string;
   description: string | null;
   status: string;
@@ -16,369 +23,304 @@ interface DealRoom {
   is_video_enabled: boolean;
   is_chat_enabled: boolean;
   require_nda: boolean;
+  deal_type: string | null;
+  target_raise: number | null;
+  min_ticket: number | null;
+  eoi_deadline: string | null;
+  eoi_count: number;
+  is_saved: boolean;
   created_at: string;
-  member_count?: number;
-  document_count?: number;
 }
 
-interface Project {
-  id: string | number;
-  title?: string;
-  name?: string;
-  project_name?: string;
-}
+interface Project { id: string | number; title?: string; project_name?: string; name?: string }
 
+const DEAL_TYPES = ['EQUITY', 'DEBT', 'GRANT', 'PPP', 'MEZZANINE'];
+const STATUSES   = ['ACTIVE', 'NEGOTIATING', 'CLOSED', 'ARCHIVED'];
+const KANBAN_COLS = ['ACTIVE', 'NEGOTIATING', 'CLOSED', 'ARCHIVED'];
+
+type ViewMode = 'cards' | 'kanban';
+
+// ── Page ───────────────────────────────────────────────────────────────────────
 export default function DealRoomsPage() {
-  const [dealRooms, setDealRooms] = useState<DealRoom[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [newDealRoom, setNewDealRoom] = useState({
-    project_id: '',
-    name: '',
-    description: '',
-    deal_value: '',
-    target_close_date: '',
-    require_nda: true,
-    is_video_enabled: true,
-    is_chat_enabled: true
-  });
-  useEffect(() => {
-    fetchDealRooms();
-    fetchProjects();
-  }, []);
+  const { can } = useRBAC();
+  const canManage = can('manage_deal_rooms') || can('create_deal_room');
 
-  const fetchDealRooms = async () => {
+  const [dealRooms, setDealRooms] = useState<DealRoom[]>([]);
+  const [projects, setProjects]   = useState<Project[]>([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
+  const [viewMode, setViewMode]   = useState<ViewMode>('cards');
+
+  // Filters
+  const [search, setSearch]       = useState('');
+  const [filterStatus, setFilterStatus]   = useState('');
+  const [filterDealType, setFilterDealType] = useState('');
+  const [showSavedOnly, setShowSavedOnly] = useState(false);
+
+  // Create modal
+  const [showCreate, setShowCreate] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [form, setForm] = useState({
+    project_id: '', name: '', description: '', deal_value: '',
+    target_close_date: '', require_nda: true, is_video_enabled: true,
+    is_chat_enabled: true, deal_type: '', target_raise: '', min_ticket: '', eoi_deadline: '',
+  });
+
+  // EOI modal
+  const [eoiRoom, setEoiRoom] = useState<DealRoom | null>(null);
+  const [eoiForm, setEoiForm] = useState({ name: '', email: '', organization: '', message: '' });
+  const [eoiSubmitting, setEoiSubmitting] = useState(false);
+  const [eoiSuccess, setEoiSuccess]       = useState(false);
+
+  const fetchRooms = useCallback(async () => {
     try {
       const data = await dealRoomsApi.list() as DealRoom[];
       setDealRooms(data ?? []);
+      setError(null);
     } catch {
-      setError('Failed to load deal rooms. Please try again.');
+      setError('Failed to load deal rooms.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchProjects = async () => {
-    try {
-      const data = await projectsApi.list() as Project[];
-      setProjects(data ?? []);
-    } catch (error) {
-      // eslint-disable-next-line no-console
-      console.error('Failed to fetch projects:', error);
-    }
-  };
+  useEffect(() => {
+    fetchRooms();
+    projectsApi.list().then(d => setProjects(d as Project[])).catch(() => {});
+  }, [fetchRooms]);
 
-  const handleCreateDealRoom = async (e: React.FormEvent) => {
+  const filtered = useMemo(() => {
+    let list = dealRooms;
+    if (search)        list = list.filter(r => r.name.toLowerCase().includes(search.toLowerCase()) || (r.project_name ?? '').toLowerCase().includes(search.toLowerCase()));
+    if (filterStatus)  list = list.filter(r => r.status === filterStatus);
+    if (filterDealType)list = list.filter(r => r.deal_type === filterDealType);
+    if (showSavedOnly) list = list.filter(r => r.is_saved);
+    return list;
+  }, [dealRooms, search, filterStatus, filterDealType, showSavedOnly]);
+
+  const handleCreate = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
-
-    // Validate project selection
-    if (!newDealRoom.project_id) {
-      setError('Please select a project');
-      return;
-    }
-    if (!newDealRoom.name.trim()) {
-      setError('Please enter a deal room name');
-      return;
-    }
-
+    if (!form.project_id) { setError('Select a project'); return; }
+    if (!form.name.trim()) { setError('Enter a deal room name'); return; }
     setIsSubmitting(true);
+    setError(null);
     try {
-      const payload = {
-        project_id: newDealRoom.project_id,
-        name: newDealRoom.name,
-        description: newDealRoom.description || undefined,
-        deal_value: newDealRoom.deal_value ? Number(newDealRoom.deal_value) : undefined,
-        target_close_date: newDealRoom.target_close_date || undefined,
-        require_nda: newDealRoom.require_nda,
-        is_video_enabled: newDealRoom.is_video_enabled,
-        is_chat_enabled: newDealRoom.is_chat_enabled
-      };
-
-      await dealRoomsApi.create(payload);
-      setShowCreateModal(false);
-      setNewDealRoom({
-        project_id: '',
-        name: '',
-        description: '',
-        deal_value: '',
-        target_close_date: '',
-        require_nda: true,
-        is_video_enabled: true,
-        is_chat_enabled: true
-      });
-      fetchDealRooms();
-    } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { detail?: string } } };
-      setError(axiosError.response?.data?.detail || 'Failed to create deal room');
+      await dealRoomsApi.create({
+        project_id:        form.project_id,
+        name:              form.name,
+        description:       form.description || undefined,
+        deal_value:        form.deal_value ? Number(form.deal_value) : undefined,
+        target_close_date: form.target_close_date || undefined,
+        require_nda:       form.require_nda,
+        is_video_enabled:  form.is_video_enabled,
+        is_chat_enabled:   form.is_chat_enabled,
+        deal_type:         form.deal_type   || undefined,
+        target_raise:      form.target_raise ? Number(form.target_raise) : undefined,
+        min_ticket:        form.min_ticket   ? Number(form.min_ticket)   : undefined,
+        eoi_deadline:      form.eoi_deadline || undefined,
+      } as Parameters<typeof dealRoomsApi.create>[0]);
+      setShowCreate(false);
+      setForm({ project_id: '', name: '', description: '', deal_value: '', target_close_date: '', require_nda: true, is_video_enabled: true, is_chat_enabled: true, deal_type: '', target_raise: '', min_ticket: '', eoi_deadline: '' });
+      fetchRooms();
+    } catch {
+      setError('Failed to create deal room.');
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [form, fetchRooms]);
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      active: 'bg-green-100 text-green-800',
-      negotiating: 'bg-yellow-100 text-yellow-800',
-      closed_won: 'bg-blue-100 text-blue-800',
-      closed_lost: 'bg-red-100 text-red-800',
-      archived: 'bg-gray-100 text-gray-800'
-    };
-    return colors[status] || 'bg-gray-100 text-gray-800';
-  };
+  const toggleSave = useCallback(async (room: DealRoom, e: React.MouseEvent) => {
+    e.preventDefault();
+    const method = room.is_saved ? 'DELETE' : 'POST';
+    await fetch(`/api/deal-rooms/${room.id}/save`, { method });
+    setDealRooms(prev => prev.map(r => r.id === room.id ? { ...r, is_saved: !r.is_saved } : r));
+  }, []);
 
-  const formatCurrency = (value: number | null, currency: string) => {
-    if (!value) return '-';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(value);
+  const submitEoi = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!eoiRoom) return;
+    setEoiSubmitting(true);
+    try {
+      await fetch(`/api/deal-rooms/${eoiRoom.id}/eoi`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(eoiForm),
+      });
+      setEoiSuccess(true);
+      setDealRooms(prev => prev.map(r => r.id === eoiRoom.id ? { ...r, eoi_count: r.eoi_count + 1 } : r));
+    } catch {
+      setError('Failed to submit EOI.');
+    } finally {
+      setEoiSubmitting(false);
+    }
+  }, [eoiRoom, eoiForm]);
+
+  const openEoi = (room: DealRoom) => {
+    setEoiRoom(room);
+    setEoiForm({ name: '', email: '', organization: '', message: '' });
+    setEoiSuccess(false);
   };
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-gold" />
       </div>
     );
   }
 
   return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
+    <div>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Deal Rooms</h1>
-          <p className="text-gray-600 mt-1">Manage negotiations, documents, and video calls with investors</p>
+          <p className="text-sm text-gray-500 mt-0.5">Marketplace for infrastructure investment opportunities</p>
         </div>
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 flex items-center gap-2"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          Create Deal Room
-        </button>
+        <div className="flex items-center gap-2">
+          {/* View toggle */}
+          <div className="flex border border-gray-200 rounded-lg overflow-hidden">
+            <button
+              onClick={() => setViewMode('cards')}
+              className={`px-3 py-1.5 text-xs font-medium transition ${viewMode === 'cards' ? 'bg-brand-navy text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              Cards
+            </button>
+            <button
+              onClick={() => setViewMode('kanban')}
+              className={`px-3 py-1.5 text-xs font-medium transition ${viewMode === 'kanban' ? 'bg-brand-navy text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+            >
+              Kanban
+            </button>
+          </div>
+          <PermissionGuard requireAny={['manage_deal_rooms', 'create_deal_room']}>
+            <button
+              onClick={() => setShowCreate(true)}
+              className="flex items-center gap-1.5 bg-brand-gold text-brand-navy px-4 py-2 rounded-lg text-sm font-medium hover:bg-brand-gold-dark transition"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+              New Deal Room
+            </button>
+          </PermissionGuard>
+        </div>
       </div>
 
-      {error && !showCreateModal && (
-        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-          {error}
-        </div>
+      {error && !showCreate && !eoiRoom && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>
       )}
 
-      {dealRooms.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <svg className="mx-auto h-16 w-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-          </svg>
-          <h3 className="mt-4 text-lg font-medium text-gray-900">No Deal Rooms Yet</h3>
-          <p className="mt-2 text-gray-500">Create your first deal room to start collaborating with investors.</p>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="mt-6 bg-indigo-600 text-white px-6 py-2 rounded-lg hover:bg-indigo-700"
-          >
-            Create Your First Deal Room
-          </button>
-        </div>
+      {/* Filters */}
+      <div className="flex flex-wrap gap-3 mb-6">
+        <input
+          type="search"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search deal rooms…"
+          className="w-56 px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/40"
+        />
+        <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/40">
+          <option value="">All statuses</option>
+          {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select value={filterDealType} onChange={e => setFilterDealType(e.target.value)}
+          className="px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-gold/40">
+          <option value="">All deal types</option>
+          {DEAL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
+        <button
+          onClick={() => setShowSavedOnly(p => !p)}
+          className={`px-3 py-2 text-sm border rounded-lg transition ${showSavedOnly ? 'bg-brand-gold text-brand-navy border-brand-gold' : 'border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+        >
+          Saved only
+        </button>
+        <span className="ml-auto self-center text-sm text-gray-500">{filtered.length} room{filtered.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      {/* Content */}
+      {viewMode === 'cards' ? (
+        <CardsView rooms={filtered} canManage={canManage} onSave={toggleSave} onEoi={openEoi} />
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {dealRooms.map((room) => (
-            <Link
-              key={room.id}
-              href={`/dashboard/deal-rooms/${room.id}`}
-              className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6 block"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <h3 className="text-lg font-semibold text-gray-900 truncate">{room.name}</h3>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(room.status)}`}>
-                  {room.status.replace('_', ' ')}
-                </span>
-              </div>
-
-              {room.description && (
-                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{room.description}</p>
-              )}
-
-              <div className="space-y-2 text-sm text-gray-500">
-                <div className="flex items-center gap-2">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Deal Value: {formatCurrency(room.deal_value, room.deal_currency)}</span>
-                </div>
-
-                {room.target_close_date && (
-                  <div className="flex items-center gap-2">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                    <span>Target: {new Date(room.target_close_date).toLocaleDateString()}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 pt-4 border-t flex items-center justify-between">
-                <div className="flex items-center gap-4 text-xs text-gray-500">
-                  {room.is_video_enabled && (
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      Video
-                    </span>
-                  )}
-                  {room.is_chat_enabled && (
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
-                      </svg>
-                      Chat
-                    </span>
-                  )}
-                  {room.require_nda && (
-                    <span className="flex items-center gap-1">
-                      <svg className="w-4 h-4 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                      NDA
-                    </span>
-                  )}
-                </div>
-                <span className="text-indigo-600 text-sm font-medium">View →</span>
-              </div>
-            </Link>
-          ))}
-        </div>
+        <KanbanView rooms={filtered} canManage={canManage} onSave={toggleSave} onEoi={openEoi} />
       )}
 
-      {/* Create Deal Room Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-xl font-bold">Create New Deal Room</h2>
-              <button onClick={() => { setShowCreateModal(false); setError(null); }} className="text-gray-500 hover:text-gray-700">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+      {/* Create Modal */}
+      {showCreate && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Create Deal Room</h2>
+              <button onClick={() => { setShowCreate(false); setError(null); }} className="text-gray-400 hover:text-gray-600"><XIcon className="w-5 h-5" /></button>
             </div>
-            {error && (
-              <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-                {error}
-              </div>
-            )}
-
-            <form onSubmit={handleCreateDealRoom} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Project *</label>
-                <select
-                  required
-                  value={newDealRoom.project_id}
-                  onChange={(e) => setNewDealRoom({ ...newDealRoom, project_id: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                >
-                  <option value="">Select a project</option>
-                  {projects.map((project) => (
-                    <option key={project.id} value={project.id}>{project.title ?? project.project_name ?? project.name ?? String(project.id)}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Deal Room Name *</label>
-                <input
-                  type="text"
-                  required
-                  value={newDealRoom.name}
-                  onChange={(e) => setNewDealRoom({ ...newDealRoom, name: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="e.g., Series A Negotiation"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
-                <textarea
-                  value={newDealRoom.description}
-                  onChange={(e) => setNewDealRoom({ ...newDealRoom, description: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2"
-                  rows={3}
-                  placeholder="Brief description of this deal room"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
+            {error && <div className="mx-5 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
+            <form onSubmit={handleCreate} className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Project *</label>
+                  <select required value={form.project_id} onChange={e => setForm(f => ({ ...f, project_id: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
+                    <option value="">Select project</option>
+                    {projects.map(p => <option key={p.id} value={String(p.id)}>{p.title ?? p.project_name ?? p.name ?? String(p.id)}</option>)}
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deal Room Name *</label>
+                  <input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50"
+                    placeholder="e.g., Series A Negotiation" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                {/* Marketplace fields */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Deal Value (USD)</label>
-                  <input
-                    type="number"
-                    value={newDealRoom.deal_value}
-                    onChange={(e) => setNewDealRoom({ ...newDealRoom, deal_value: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2"
-                    placeholder="10000000"
-                  />
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deal Type</label>
+                  <select value={form.deal_type} onChange={e => setForm(f => ({ ...f, deal_type: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
+                    <option value="">Select type</option>
+                    {DEAL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Raise ($)</label>
+                  <input type="number" value={form.target_raise} onChange={e => setForm(f => ({ ...f, target_raise: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" placeholder="e.g. 50000000" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Ticket ($)</label>
+                  <input type="number" value={form.min_ticket} onChange={e => setForm(f => ({ ...f, min_ticket: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" placeholder="e.g. 1000000" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">EOI Deadline</label>
+                  <input type="date" value={form.eoi_deadline} onChange={e => setForm(f => ({ ...f, eoi_deadline: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deal Value ($)</label>
+                  <input type="number" value={form.deal_value} onChange={e => setForm(f => ({ ...f, deal_value: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Target Close Date</label>
-                  <input
-                    type="date"
-                    value={newDealRoom.target_close_date}
-                    onChange={(e) => setNewDealRoom({ ...newDealRoom, target_close_date: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2"
-                  />
+                  <input type="date" value={form.target_close_date} onChange={e => setForm(f => ({ ...f, target_close_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div className="md:col-span-2 flex flex-wrap gap-4">
+                  {[['require_nda', 'Require NDA'], ['is_video_enabled', 'Enable Video'], ['is_chat_enabled', 'Enable Chat']].map(([k, label]) => (
+                    <label key={k} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={form[k as keyof typeof form] as boolean}
+                        onChange={e => setForm(f => ({ ...f, [k]: e.target.checked }))} className="accent-brand-gold" />
+                      {label}
+                    </label>
+                  ))}
                 </div>
               </div>
-
-              <div className="space-y-3">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={newDealRoom.require_nda}
-                    onChange={(e) => setNewDealRoom({ ...newDealRoom, require_nda: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-gray-700">Require NDA for access</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={newDealRoom.is_video_enabled}
-                    onChange={(e) => setNewDealRoom({ ...newDealRoom, is_video_enabled: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-gray-700">Enable video conferencing</span>
-                </label>
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={newDealRoom.is_chat_enabled}
-                    onChange={(e) => setNewDealRoom({ ...newDealRoom, is_chat_enabled: e.target.checked })}
-                    className="rounded"
-                  />
-                  <span className="text-sm text-gray-700">Enable chat messaging</span>
-                </label>
-              </div>
-
-              <div className="flex justify-end gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowCreate(false); setError(null); }} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sm bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark disabled:opacity-50">
                   {isSubmitting ? 'Creating…' : 'Create Deal Room'}
                 </button>
               </div>
@@ -386,6 +328,281 @@ export default function DealRoomsPage() {
           </div>
         </div>
       )}
+
+      {/* EOI Modal */}
+      {eoiRoom && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between p-5 border-b">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Express Interest</h2>
+                <p className="text-sm text-gray-500">{eoiRoom.name}</p>
+              </div>
+              <button onClick={() => setEoiRoom(null)} className="text-gray-400 hover:text-gray-600"><XIcon className="w-5 h-5" /></button>
+            </div>
+            {eoiSuccess ? (
+              <div className="p-8 text-center">
+                <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-7 h-7 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <p className="font-semibold text-gray-900 mb-1">EOI Submitted</p>
+                <p className="text-sm text-gray-500">The deal team has been notified and will be in touch.</p>
+                <button onClick={() => setEoiRoom(null)} className="mt-4 px-4 py-2 text-sm bg-brand-gold text-brand-navy rounded-lg">Close</button>
+              </div>
+            ) : (
+              <form onSubmit={submitEoi} className="p-5 space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Your Name *</label>
+                    <input required value={eoiForm.name} onChange={e => setEoiForm(f => ({ ...f, name: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                    <input required type="email" value={eoiForm.email} onChange={e => setEoiForm(f => ({ ...f, email: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Organization</label>
+                    <input value={eoiForm.organization} onChange={e => setEoiForm(f => ({ ...f, organization: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                    <textarea value={eoiForm.message} onChange={e => setEoiForm(f => ({ ...f, message: e.target.value }))} rows={4}
+                      placeholder="Briefly describe your interest and investment capacity…"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-3">
+                  <button type="button" onClick={() => setEoiRoom(null)} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                  <button type="submit" disabled={eoiSubmitting} className="px-4 py-2 text-sm bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark disabled:opacity-50">
+                    {eoiSubmitting ? 'Submitting…' : 'Submit EOI'}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+// ── Cards View ─────────────────────────────────────────────────────────────────
+function CardsView({ rooms, canManage, onSave, onEoi }: {
+  rooms: DealRoom[]
+  canManage: boolean
+  onSave: (r: DealRoom, e: React.MouseEvent) => void
+  onEoi:  (r: DealRoom) => void
+}) {
+  if (rooms.length === 0) {
+    return (
+      <div className="text-center py-16 bg-white rounded-xl shadow-sm">
+        <p className="text-gray-500">No deal rooms match your filters.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+      {rooms.map(r => <DealCard key={r.id} room={r} canManage={canManage} onSave={onSave} onEoi={onEoi} />)}
+    </div>
+  );
+}
+
+// ── Kanban View ────────────────────────────────────────────────────────────────
+function KanbanView({ rooms, canManage, onSave, onEoi }: {
+  rooms: DealRoom[]
+  canManage: boolean
+  onSave: (r: DealRoom, e: React.MouseEvent) => void
+  onEoi:  (r: DealRoom) => void
+}) {
+  return (
+    <div className="flex gap-4 overflow-x-auto pb-4">
+      {KANBAN_COLS.map(col => {
+        const colRooms = rooms.filter(r => r.status === col);
+        return (
+          <div key={col} className="shrink-0 w-72">
+            <div className={`flex items-center justify-between px-3 py-2 rounded-lg mb-3 ${statusBg(col)}`}>
+              <span className="text-sm font-semibold">{colLabel(col)}</span>
+              <span className="text-xs bg-white/60 px-1.5 py-0.5 rounded-full">{colRooms.length}</span>
+            </div>
+            <div className="space-y-3">
+              {colRooms.map(r => <DealCard key={r.id} room={r} compact canManage={canManage} onSave={onSave} onEoi={onEoi} />)}
+              {colRooms.length === 0 && (
+                <p className="text-xs text-gray-400 text-center py-4">No deals</p>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Deal Card ──────────────────────────────────────────────────────────────────
+function DealCard({ room, compact = false, canManage, onSave, onEoi }: {
+  room: DealRoom
+  compact?: boolean
+  canManage: boolean
+  onSave: (r: DealRoom, e: React.MouseEvent) => void
+  onEoi:  (r: DealRoom) => void
+}) {
+  const deadlineClose = room.eoi_deadline
+    ? Math.ceil((new Date(room.eoi_deadline).getTime() - Date.now()) / 86_400_000)
+    : null;
+  const deadlineUrgent = deadlineClose !== null && deadlineClose <= 7;
+
+  return (
+    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition flex flex-col">
+      <div className="p-4">
+        {/* Title row */}
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div className="min-w-0">
+            <Link href={`/dashboard/deal-rooms/${room.id}`} className="font-semibold text-gray-900 hover:text-brand-gold truncate block">
+              {room.name}
+            </Link>
+            {room.project_name && <p className="text-xs text-gray-500 truncate">{room.project_name}</p>}
+          </div>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Save button */}
+            <button
+              onClick={e => onSave(room, e)}
+              className={`p-1 rounded transition ${room.is_saved ? 'text-brand-gold' : 'text-gray-300 hover:text-gray-500'}`}
+              title={room.is_saved ? 'Unsave' : 'Save'}
+            >
+              <svg className="w-4 h-4" fill={room.is_saved ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+              </svg>
+            </button>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${statusBadge(room.status)}`}>
+              {colLabel(room.status)}
+            </span>
+          </div>
+        </div>
+
+        {/* Deal type + raise */}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {room.deal_type && (
+            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${dealTypeBadge(room.deal_type)}`}>
+              {room.deal_type}
+            </span>
+          )}
+          {room.project_sector && (
+            <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full">{room.project_sector}</span>
+          )}
+          {room.project_country && (
+            <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-700 rounded-full">{room.project_country}</span>
+          )}
+        </div>
+
+        {/* Financials */}
+        {!compact && (
+          <div className="grid grid-cols-2 gap-2 mb-3 text-sm">
+            {room.target_raise && (
+              <div>
+                <p className="text-xs text-gray-500">Target Raise</p>
+                <p className="font-semibold text-gray-900">{formatMoney(room.target_raise)}</p>
+              </div>
+            )}
+            {room.min_ticket && (
+              <div>
+                <p className="text-xs text-gray-500">Min Ticket</p>
+                <p className="font-semibold text-gray-900">{formatMoney(room.min_ticket)}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* EOI count + deadline */}
+        <div className="flex items-center justify-between text-xs text-gray-500">
+          <span>{room.eoi_count} EOI{room.eoi_count !== 1 ? 's' : ''}</span>
+          {deadlineClose !== null && (
+            <span className={deadlineUrgent ? 'text-red-600 font-semibold' : ''}>
+              {deadlineClose <= 0 ? 'Deadline passed' : `${deadlineClose}d left`}
+            </span>
+          )}
+        </div>
+
+        {/* NDA / video / chat badges */}
+        <div className="flex gap-2 mt-2">
+          {room.require_nda && <span className="text-xs text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">NDA</span>}
+          {room.is_video_enabled && <span className="text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Video</span>}
+          {room.is_chat_enabled && <span className="text-xs text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Chat</span>}
+        </div>
+      </div>
+
+      {/* Action row */}
+      <div className="px-4 pb-4 mt-auto flex gap-2">
+        <Link
+          href={`/dashboard/deal-rooms/${room.id}`}
+          className="flex-1 px-2 py-1.5 text-xs text-center text-brand-gold border border-brand-gold rounded-lg hover:bg-brand-gold/5 transition font-medium"
+        >
+          Open Room
+        </Link>
+        {!canManage && (
+          <button
+            onClick={() => onEoi(room)}
+            className="flex-1 px-2 py-1.5 text-xs text-white bg-brand-navy rounded-lg hover:bg-brand-navy/90 transition font-medium"
+          >
+            Express Interest
+          </button>
+        )}
+        {canManage && (
+          <button
+            onClick={() => onEoi(room)}
+            className="flex-1 px-2 py-1.5 text-xs text-white bg-brand-navy rounded-lg hover:bg-brand-navy/90 transition font-medium"
+          >
+            View EOIs
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────────
+function formatMoney(n: number) {
+  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
+  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `$${(n / 1e3).toFixed(0)}K`;
+  return `$${n}`;
+}
+
+function colLabel(status: string) {
+  const m: Record<string, string> = { ACTIVE: 'Active', NEGOTIATING: 'Negotiating', CLOSED: 'Closed', ARCHIVED: 'Archived' };
+  return m[status] ?? status;
+}
+
+function statusBg(s: string) {
+  const m: Record<string, string> = {
+    ACTIVE:      'bg-green-100 text-green-900',
+    NEGOTIATING: 'bg-yellow-100 text-yellow-900',
+    CLOSED:      'bg-blue-100 text-blue-900',
+    ARCHIVED:    'bg-gray-100 text-gray-700',
+  };
+  return m[s] ?? 'bg-gray-100 text-gray-700';
+}
+
+function statusBadge(s: string) {
+  const m: Record<string, string> = {
+    ACTIVE:      'bg-green-100 text-green-800',
+    NEGOTIATING: 'bg-yellow-100 text-yellow-800',
+    CLOSED:      'bg-blue-100 text-blue-800',
+    ARCHIVED:    'bg-gray-100 text-gray-600',
+  };
+  return m[s] ?? 'bg-gray-100 text-gray-600';
+}
+
+function dealTypeBadge(t: string) {
+  const m: Record<string, string> = {
+    EQUITY:     'bg-purple-100 text-purple-800',
+    DEBT:       'bg-blue-100 text-blue-800',
+    GRANT:      'bg-teal-100 text-teal-800',
+    PPP:        'bg-orange-100 text-orange-800',
+    MEZZANINE:  'bg-pink-100 text-pink-800',
+  };
+  return m[t] ?? 'bg-gray-100 text-gray-700';
 }
