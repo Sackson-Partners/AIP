@@ -4,8 +4,8 @@ import { Suspense, useState, useEffect } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { signIn } from "next-auth/react"
 import { motion, AnimatePresence } from "framer-motion"
+import Image from "next/image"
 import {
-  Building2,
   Globe,
   Shield,
   Mail,
@@ -209,11 +209,9 @@ function SignInContent() {
         >
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center mb-8">
-            <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-blue-600 mb-3 shadow-lg shadow-blue-600/30">
-              <Building2 className="w-6 h-6 text-white" />
+            <div className="inline-flex items-center justify-center bg-white rounded-xl px-4 py-2 shadow-md mb-3">
+              <Image src="/aip-logo.jpeg" alt="Africa Infrastructure Partners" width={160} height={60} className="object-contain" />
             </div>
-            <h1 className="text-xl font-bold text-white">AIP Platform</h1>
-            <p className="text-slate-400 text-sm">Africa Infrastructure Pipeline</p>
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
@@ -430,20 +428,18 @@ function SignInContent() {
           className="relative z-10 max-w-sm text-center"
         >
           {/* Logo */}
-          <div className="flex items-center justify-center mb-8">
-            <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center shadow-xl shadow-blue-200">
-              <Building2 className="w-10 h-10 text-white" />
-            </div>
+          <div className="flex items-center justify-center mb-10">
+            <Image
+              src="/aip-logo.jpeg"
+              alt="Africa Infrastructure Partners"
+              width={320}
+              height={120}
+              className="object-contain"
+              priority
+            />
           </div>
 
-          <h1 className="text-4xl font-bold text-slate-900 tracking-tight leading-tight">
-            AIP Platform
-          </h1>
-          <p className="text-lg text-blue-600 font-medium mt-1">
-            Africa Infrastructure Pipeline
-          </p>
-
-          <p className="text-slate-500 text-sm mt-5 leading-relaxed">
+          <p className="text-slate-500 text-sm mt-2 leading-relaxed">
             A secure intelligence platform connecting governments, investors, and developers
             to accelerate bankable infrastructure projects across Africa.
           </p>
