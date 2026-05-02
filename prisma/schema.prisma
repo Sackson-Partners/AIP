@@ -322,6 +322,7 @@ model Project {
   reviewer       User?              @relation("ProjectReviewer", fields: [reviewerId], references: [id])
   petfelAnalysis PETFELAnalysis?
   einReport      EINReport?
+  pisReport      PISReport?
   documents      Document[]
   milestones     Milestone[]
   watchlist      ProjectWatchlist[]
@@ -719,12 +720,48 @@ model Verification {
   notes               String?  @db.Text
   verifiedBy          String?
   verifiedAt          DateTime?
+  // Focal Point (government reference)
+  focalPointName      String?
+  focalPointEmail     String?
+  focalPointOrg       String?
+  focalPointTitle     String?
+  // Local Partner
+  localPartnerName    String?
+  localPartnerOrg     String?
+  localPartnerRole    String?
+  localPartnerEmail   String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
+}
+
+model PISReport {
+  id                    String    @id @default(cuid())
+  projectId             String    @unique
+  status                String    @default("DRAFT")  // DRAFT | COMPLETE | PUBLISHED
+  executiveSummary      String?   @db.Text
+  projectBackground     String?   @db.Text
+  financialStructure    String?   @db.Text
+  marketAnalysis        String?   @db.Text
+  riskFactors           String?   @db.Text
+  investmentHighlights  String?   @db.Text
+  useOfProceeds         String?   @db.Text
+  exitStrategy          String?   @db.Text
+  teamBackground        String?   @db.Text
+  legalStructure        String?   @db.Text
+  aiGenerated           Boolean   @default(false)
+  generatedAt           DateTime?
+  createdBy             String
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([status])
 }
 
 model AnalyticReport {

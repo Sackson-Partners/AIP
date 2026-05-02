@@ -20,10 +20,22 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Strip password from response
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { password: _password, ...safeRoom } = room
-  return NextResponse.json(safeRoom)
+  return NextResponse.json({
+    id:                room.id,
+    project_id:        room.projectId,
+    name:              room.name,
+    description:       room.description,
+    status:            room.status,
+    deal_value:        room.dealValue,
+    deal_currency:     room.dealCurrency,
+    target_close_date: room.targetCloseDate?.toISOString() ?? null,
+    is_video_enabled:  room.isVideoEnabled,
+    is_chat_enabled:   room.isChatEnabled,
+    require_nda:       room.requireNda,
+    is_public:         room.isPublic,
+    created_at:        room.createdAt.toISOString(),
+    updated_at:        room.updatedAt.toISOString(),
+  })
 }
 
 export async function POST(

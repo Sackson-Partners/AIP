@@ -131,7 +131,7 @@ export default function DealRoomDetailPage() {
   const fetchMembers = async () => {
     try {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}/members`);
-      setMembers(data);
+      setMembers(Array.isArray(data) ? data : (data?.data ?? []));
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to fetch members:', error);
@@ -141,7 +141,7 @@ export default function DealRoomDetailPage() {
   const fetchDocuments = async () => {
     try {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}/documents`);
-      setDocuments(data);
+      setDocuments(Array.isArray(data) ? data : (data?.data ?? []));
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to fetch documents:', error);
@@ -151,7 +151,7 @@ export default function DealRoomDetailPage() {
   const fetchMeetings = async () => {
     try {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}/meetings`);
-      setMeetings(data);
+      setMeetings(Array.isArray(data) ? data : (data?.data ?? []));
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to fetch meetings:', error);
@@ -161,7 +161,7 @@ export default function DealRoomDetailPage() {
   const fetchMessages = async () => {
     try {
       const { data } = await api.get(`/deal-rooms/${dealRoomId}/messages`);
-      setMessages(data);
+      setMessages(Array.isArray(data) ? data : (data?.data ?? []));
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to fetch messages:', error);

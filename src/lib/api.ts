@@ -499,7 +499,7 @@ export const projectsApi = {
 
 export const investorsApi = {
   list:   (params?: object) => get<{ data: Investor[] }>('/investors', params).then(r => r.data),
-  get:    (id: string | number) => get<Investor>(`/investors/${id}`),
+  get:    (id: string | number) => get<{ data: Investor }>(`/investors/${id}`).then(r => r.data),
   create: (d: InvestorCreate) => post<Investor>('/investors', d),
   update: (id: string | number, d: Partial<InvestorCreate>) => patch<Investor>(`/investors/${id}`, d),
 }
@@ -569,10 +569,10 @@ export const usersApi = {
 }
 
 export const dataRoomsApi = {
-  list:   () => get<{ data: DataRoom[] }>('/deal-rooms').then(r => r.data ?? []),
-  get:    (id: string | number) => get<{ data: DataRoom }>(`/deal-rooms/${id}`).then(r => r.data),
-  create: (d: object) => post<{ data: DataRoom }>('/deal-rooms', d).then(r => r.data),
-  delete: (id: string | number) => del<void>(`/deal-rooms/${id}`),
+  list:   () => get<{ data: DataRoom[] }>('/data-rooms').then(r => r.data ?? []),
+  get:    (projectId: string | number) => get<{ data: { folders: unknown[], project: unknown } }>(`/data-rooms/${projectId}`).then(r => r.data),
+  upload: (projectId: string | number, d: object) => post<{ data: unknown }>(`/data-rooms/${projectId}/upload`, d).then(r => r.data),
+  delete: (projectId: string | number, documentId: string) => del<void>(`/data-rooms/${projectId}/${documentId}`),
 }
 
 export const dealRoomsApi = {
@@ -677,6 +677,37 @@ export const notificationsApi = {
       .then((r) => r.data.notifications.map((n) => ({ ...n, is_read: n.read, created_at: n.createdAt, text: n.message }))),
   markRead:    (id: string) => patch<Notification>(`/notifications/${id}`),
   markAllRead: () => api.patch('/notifications').then((r) => r.data),
+}
+
+export interface PISReport {
+  id: string
+  project_id: string
+  project_title?: string
+  project_country?: string
+  project_sector?: string
+  status: string
+  executive_summary?: string
+  project_background?: string
+  financial_structure?: string
+  market_analysis?: string
+  risk_factors?: string
+  investment_highlights?: string
+  use_of_proceeds?: string
+  exit_strategy?: string
+  team_background?: string
+  legal_structure?: string
+  ai_generated?: boolean
+  generated_at?: string
+  created_at?: string
+}
+
+export const pisApi = {
+  list:     () => get<{ data: PISReport[] }>('/pis').then(r => r.data ?? []),
+  get:      (id: string) => get<{ data: PISReport }>(`/pis/${id}`).then(r => r.data),
+  create:   (d: { projectId: string }) => post<{ data: PISReport }>('/pis', d).then(r => r.data),
+  update:   (id: string, d: Partial<PISReport>) => patch<{ data: PISReport }>(`/pis/${id}`, d).then(r => r.data),
+  delete:   (id: string) => del<void>(`/pis/${id}`),
+  generate: (id: string) => api.post<{ data: PISReport }>(`/pis/${id}/generate`, {}, { timeout: 120000 }).then(r => r.data.data),
 }
 
 export default api

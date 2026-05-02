@@ -221,6 +221,22 @@ export default function AnalyticsPage() {
                 {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title.message}</p>}
               </div>
 
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Report Type *</label>
+                <select
+                  {...register('type', { required: 'Report type is required' })}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-gold/50"
+                >
+                  <option value="">Select type</option>
+                  <option value="MARKET_ANALYSIS">Market Analysis</option>
+                  <option value="SECTOR_REPORT">Sector Report</option>
+                  <option value="COUNTRY_BRIEF">Country Brief</option>
+                  <option value="INVESTMENT_THESIS">Investment Thesis</option>
+                  <option value="RISK_ASSESSMENT">Risk Assessment</option>
+                </select>
+                {errors.type && <p className="text-red-500 text-sm mt-1">{errors.type.message}</p>}
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Sector</label>

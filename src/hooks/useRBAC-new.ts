@@ -83,6 +83,9 @@ export type Permission =
   | "manage_watchlist"
   // PETFEL
   | "run_petfel"
+  // PIS
+  | "create_pis_report"
+  | "view_pis_reports"
 
 // ── Per-role permission sets ──────────────────────────────────────────────────
 const ROLE_PERMISSIONS: Record<string, Permission[]> = {
@@ -114,6 +117,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_watchlist", "manage_watchlist",
     // PETFEL
     "run_petfel",
+    // PIS
+    "create_pis_report", "view_pis_reports",
   ],
 
   ADMIN: [
@@ -132,6 +137,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_pipeline", "move_pipeline", "vote_ic", "manage_ic",
     "view_watchlist", "manage_watchlist",
     "run_petfel",
+    // PIS
+    "create_pis_report", "view_pis_reports",
   ],
 
   ANALYST: [
@@ -162,22 +169,24 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "run_petfel",
     // Audit
     "view_audit_log",
+    // PIS
+    "create_pis_report", "view_pis_reports",
   ],
 
   GOVERNMENT: [
     // Projects
     "view_projects", "create_project", "edit_project", "submit_project",
-    // Verifications
-    "view_verifications",
+    // Verifications — focal point can co-verify
+    "view_verifications", "manage_verifications",
     // Events
     "view_events",
     // Analytics
     "view_analytic_reports",
     // Partners
     "view_partners", "apply_partner_match",
-    // Data Room
+    // Data Room — can view and upload but NOT manage/delete
     "view_data_room", "upload_to_data_room",
-    // EIN
+    // EIN — view only (no create/edit)
     "view_ein_reports",
     // Deal Room
     "view_deal_room",
@@ -187,6 +196,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_pipeline",
     // Watchlist
     "view_watchlist", "manage_watchlist",
+    // PIS — can create for their projects
+    "create_pis_report", "view_pis_reports",
   ],
 
   SPONSOR_DEVELOPER: [
@@ -212,6 +223,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_pipeline",
     // Watchlist
     "view_watchlist", "manage_watchlist",
+    // PIS — view only
+    "view_pis_reports",
   ],
 
   EPC_OPERATOR: [
@@ -237,6 +250,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_pipeline",
     // Watchlist
     "view_watchlist",
+    // PIS — view only
+    "view_pis_reports",
   ],
 
   INSTITUTIONAL_INVESTOR: [
@@ -262,6 +277,8 @@ const ROLE_PERMISSIONS: Record<string, Permission[]> = {
     "view_pipeline",
     // Watchlist
     "view_watchlist", "manage_watchlist",
+    // PIS — view only
+    "view_pis_reports",
   ],
 }
 
@@ -359,7 +376,7 @@ export function useRBAC() {
     isExternalUser:           role !== null && !isInternalAdmin && role !== "ANALYST",
 
     // View-only: user can see but not write to a feature
-    isViewOnly: (feature: "verifications" | "events" | "analytics" | "partners" | "data_room" | "ein" | "deal_room" | "analytic_reports") => {
+    isViewOnly: (feature: "verifications" | "events" | "analytics" | "partners" | "data_room" | "ein" | "deal_room" | "analytic_reports" | "pis") => {
       if (!role) return true
       const writePerms: Record<string, Permission> = {
         verifications:    "manage_verifications",
@@ -370,6 +387,7 @@ export function useRBAC() {
         ein:              "create_ein_report",
         deal_room:        "manage_deal_rooms",
         analytic_reports: "create_analytic_report",
+        pis:              "create_pis_report",
       }
       return !permissions.includes(writePerms[feature])
     },
