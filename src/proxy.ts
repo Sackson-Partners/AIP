@@ -154,6 +154,6 @@ export default withAuth(
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$|api/auth|api/debug|auth/pending|unauthorized).*)",
+    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$|api/auth|api/debug|auth/pending|auth/signin|auth/error|request-access|unauthorized).*)",
   ],
 }
