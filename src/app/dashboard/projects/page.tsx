@@ -15,6 +15,17 @@ const STAGES  = ['planned', 'pre-feasibility', 'feasibility', 'procurement', 'co
 
 const DEAL_STAGES = ['CONCEPT', 'PREFEASIBILITY', 'FEASIBILITY', 'STRUCTURING', 'PROCUREMENT', 'FINANCIAL_CLOSE', 'CONSTRUCTION', 'OPERATIONS'];
 
+const PROJECT_STATUSES = [
+  { value: 'DRAFT', label: 'Draft', description: 'Internal only - not visible to partners' },
+  { value: 'SUBMITTED', label: 'Submitted', description: 'Internal only - submitted for review' },
+  { value: 'UNDER_REVIEW', label: 'Under Review', description: 'Internal only - being reviewed' },
+  { value: 'APPROVED', label: 'Approved', description: 'Internal only - approved but not published' },
+  { value: 'ACTIVE', label: 'Active (Published)', description: 'Visible to all partners' },
+  { value: 'FUNDED', label: 'Funded (Published)', description: 'Visible to all partners' },
+  { value: 'CLOSED', label: 'Closed (Published)', description: 'Visible to all partners' },
+  { value: 'REJECTED', label: 'Rejected', description: 'Internal only - rejected' },
+];
+
 const PROJECT_TYPES = [
   { value: 'EPC', label: 'EPC', risk: 'Medium' },
   { value: 'EPC_F', label: 'EPC+F', risk: 'High' },
@@ -402,7 +413,7 @@ export default function ProjectsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['Project', 'Sector', 'Category', 'Country', 'Stage', 'Risk', 'Est. Cost', 'Health', 'Actions'].map(h => (
+                {['Project', 'Visibility', 'Sector', 'Category', 'Country', 'Stage', 'Risk', 'Est. Cost', 'Health', 'Actions'].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                 ))}
               </tr>
@@ -414,11 +425,23 @@ export default function ProjectsPage() {
                 const projectType = p.projectType || p.project_type;
                 const typeConfig = PROJECT_TYPES.find(pt => pt.value === projectType);
                 const riskRating = p.riskRating || typeConfig?.risk;
+                const isPublished = ['ACTIVE', 'FUNDED', 'CLOSED'].includes(p.status || '');
                 return (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-5 py-3">
                       <div className="font-medium text-gray-900 text-sm">{projectTitle(p)}</div>
                       {p.description && <div className="text-xs text-gray-500 truncate max-w-xs mt-0.5">{p.description}</div>}
+                    </td>
+                    <td className="px-5 py-3">
+                      {isPublished ? (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full border border-green-200">
+                          👁️ Published
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-700 rounded-full border border-gray-300">
+                          🔒 Draft
+                        </span>
+                      )}
                     </td>
                     <td className="px-5 py-3">
                       {p.sector && <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">{p.sector}</span>}
@@ -457,7 +480,7 @@ export default function ProjectsPage() {
                   </tr>
                 );
               }) : (
-                <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-500 text-sm">No projects found.</td></tr>
+                <tr><td colSpan={10} className="px-5 py-12 text-center text-gray-500 text-sm">No projects found.</td></tr>
               )}
             </tbody>
           </table>
@@ -511,10 +534,21 @@ function ProjectCard({ project, compact = false, verificationLevel, onView, onEd
   const projectType = project.projectType || project.project_type;
   const typeConfig = PROJECT_TYPES.find(pt => pt.value === projectType);
   const riskRating = project.riskRating || typeConfig?.risk;
+  const isPublished = ['ACTIVE', 'FUNDED', 'CLOSED'].includes(project.status || '');
 
   return (
-    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition flex flex-col">
-      <div className="p-4 flex-1">
+    <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition flex flex-col relative">
+      {/* Published/Draft Badge */}
+      {isPublished ? (
+        <div className="absolute top-2 right-2 px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full border border-green-200">
+          👁️ Published
+        </div>
+      ) : (
+        <div className="absolute top-2 right-2 px-2 py-1 text-xs font-medium bg-gray-100 text-gray-700 rounded-full border border-gray-300">
+          🔒 Internal Only
+        </div>
+      )}
+      <div className="p-4 flex-1 pt-8">
         {/* Flag + Title */}
         <div className="flex items-start gap-2 mb-2">
           <span className="text-xl shrink-0 mt-0.5">{countryFlag(project.country)}</span>
@@ -665,6 +699,23 @@ function ProjectFormModal({ title, form, setForm, onClose, onSubmit, isSubmittin
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
                 {DEAL_STAGES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
               </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Visibility Status *
+                <span className="ml-1 text-xs text-gray-500">(Controls partner access)</span>
+              </label>
+              <select value={form.status || 'DRAFT'} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
+                {PROJECT_STATUSES.map(s => (
+                  <option key={s.value} value={s.value}>
+                    {s.label} — {s.description}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                💡 Set to <strong>ACTIVE</strong>, <strong>FUNDED</strong>, or <strong>CLOSED</strong> to publish to external partners
+              </p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Estimated Cost (USD)</label>
