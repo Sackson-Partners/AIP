@@ -119,7 +119,7 @@ export async function POST(req: NextRequest) {
         })
         logger.info(`[request-access] Confirmation email sent to ${request.email}`)
       } catch (emailError) {
-        logger.warn('[request-access] Failed to send confirmation email (non-critical)', emailError instanceof Error ? emailError.message : String(emailError))
+        logger.warn('[request-access] Failed to send confirmation email (non-critical)', { error: emailError instanceof Error ? emailError.message : String(emailError) })
       }
 
       // Notify admins
@@ -143,10 +143,10 @@ export async function POST(req: NextRequest) {
           logger.info(`[request-access] Admin notification sent to ${adminEmails.length} admins`)
         }
       } catch (emailError) {
-        logger.warn('[request-access] Failed to notify admins (non-critical)', emailError instanceof Error ? emailError.message : String(emailError))
+        logger.warn('[request-access] Failed to notify admins (non-critical)', { error: emailError instanceof Error ? emailError.message : String(emailError) })
       }
     } catch (importError) {
-      logger.warn('[request-access] Email module not available (non-critical)', importError instanceof Error ? importError.message : String(importError))
+      logger.warn('[request-access] Email module not available (non-critical)', { error: importError instanceof Error ? importError.message : String(importError) })
     }
 
     return NextResponse.json({
