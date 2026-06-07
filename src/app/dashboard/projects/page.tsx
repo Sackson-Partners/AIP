@@ -210,12 +210,17 @@ export default function ProjectsPage() {
     if (!editingProject) return;
     setIsSubmitting(true);
     try {
+      console.log('[handleEdit] Updating project:', editingProject.id, 'with data:', editForm);
       await projectsApi.update(editingProject.id, editForm);
       setShowEditModal(false); setEditingProject(null);
       toastSuccess('Project updated.');
       fetchProjects();
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Failed to update project.';
+      console.error('[handleEdit] Update failed:', err);
+      const response = (err as { response?: { data?: { error?: string; detail?: string; details?: unknown } } })?.response;
+      const msg = response?.data?.error || response?.data?.detail || 'Failed to update project.';
+      const details = response?.data?.details;
+      if (details) console.error('[handleEdit] Validation details:', details);
       toastError(msg);
     } finally { setIsSubmitting(false); }
   }, [editingProject, editForm, fetchProjects, toastSuccess, toastError]);

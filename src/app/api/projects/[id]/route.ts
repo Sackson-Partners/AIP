@@ -63,8 +63,12 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   let body: unknown
   try { body = await req.json() } catch { body = {} }
 
+  console.log('[PATCH /api/projects/[id]] Received body:', JSON.stringify(body, null, 2));
+  console.log('[PATCH /api/projects/[id]] User:', session.user.email, 'Role:', session.user.role);
+
   const parsed = PatchSchema.safeParse(body)
   if (!parsed.success) {
+    console.error('[PATCH /api/projects/[id]] Validation failed:', parsed.error.flatten());
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 })
   }
 
