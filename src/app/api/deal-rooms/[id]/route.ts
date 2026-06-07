@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth/auth.config'
+import { canAccessDealRoom } from '@/lib/nda-check'
 
 export async function GET(
   _req: NextRequest,
@@ -18,6 +19,21 @@ export async function GET(
 
   if (!room) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  }
+
+  // Check NDA requirement
+  if (room.requireNda) {
+    const access = await canAccessDealRoom(session.user.id, session.user.role as string, id)
+
+    if (!access.allowed) {
+      console.log(`[Deal Room Access Denied] User: ${session.user.email}, Room: ${room.name}, Reason: ${access.reason}`)
+      return NextResponse.json({
+        error: 'NDA_REQUIRED',
+        message: access.reason || 'You must sign an NDA to access this deal room',
+        requiresNDA: true,
+        memberId: access.memberId,
+      }, { status: 403 })
+    }
   }
 
   return NextResponse.json({
