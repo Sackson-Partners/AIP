@@ -99,6 +99,8 @@ export interface Project {
   code?: string
   totalCost?: number
   dealStage?: string
+  projectType?: string
+  riskRating?: string
   ownerId?: string
   createdAt?: string
   updatedAt?: string
@@ -141,6 +143,7 @@ export interface Project {
 export interface ProjectCreate {
   project_name: string
   sector: string
+  dealStage?: string
   country: string
   region?: string
   stage?: string
@@ -493,7 +496,8 @@ export const projectsApi = {
   list:   (params?: object) => get<{ data: Project[] }>('/projects', params).then(r => r.data),
   get:    (id: string | number) => get<Project>(`/projects/${id}`),
   create: (d: ProjectCreate) => post<Project>('/projects', d),
-  update: (id: string | number, d: Partial<ProjectCreate>) => patch<Project>(`/projects/${id}`, d),
+  update: (id: string | number, d: Partial<ProjectCreate> & { dealStage?: string; projectType?: string; riskRating?: string }) => patch<Project>(`/projects/${id}`, d),
+  updateStage: (id: string | number, dealStage: string) => patch<Project>(`/projects/${id}/stage`, { dealStage }),
   delete: (id: string | number) => del<void>(`/projects/${id}`),
 }
 

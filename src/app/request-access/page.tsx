@@ -1,19 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, FormEvent } from 'react'
 import Link from 'next/link'
 
 const ROLES = [
-  { value: 'GOV_FOCAL',  label: 'Government — Focal Point' },
-  { value: 'GOV_TECH',   label: 'Government — Technical Member' },
-  { value: 'EPC',        label: 'EPC Company' },
-  { value: 'SPONSOR',    label: 'Sponsor / Developer' },
-  { value: 'PARTNER',    label: 'Investor / Partner' },
+  { value: 'PARTNER',           label: 'Investor / Partner' },
+  { value: 'SPONSOR',           label: 'Sponsor / Developer' },
+  { value: 'EPC',               label: 'EPC Company' },
+  { value: 'GOV_FOCAL',         label: 'Government — Focal Point' },
+  { value: 'GOV_TECH',          label: 'Government — Technical Member' },
 ]
 
-const GOV_ROLES = ['GOV_FOCAL', 'GOV_TECH']
+const GOV_ROLES = ['GOV_FOCAL', 'GOV_TECH', 'GOVERNMENT']
 
-// Abbreviated ISO country list (Africa-focused + global)
 const COUNTRIES = [
   'Algeria','Angola','Benin','Botswana','Burkina Faso','Burundi','Cameroon','Cape Verde',
   'Central African Republic','Chad','Comoros','Congo','DR Congo','Djibouti','Egypt',
@@ -27,37 +26,76 @@ const COUNTRIES = [
   'United States','Other',
 ]
 
+interface FormData {
+  email: string
+  fullName: string
+  organization: string
+  country: string
+  phone: string
+  roleRequested: string
+  ministry: string
+  message: string
+}
+
 export default function RequestAccessPage() {
-  const [form, setForm] = useState({
-    email: '', fullName: '', organization: '', country: '', phone: '',
-    roleRequested: '', ministry: '', message: '',
+  const [form, setForm] = useState<FormData>({
+    email: '',
+    fullName: '',
+    organization: '',
+    country: '',
+    phone: '',
+    roleRequested: '',
+    ministry: '',
+    message: '',
   })
   const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
   const [errorMsg, setErrorMsg] = useState('')
 
   const isGovRole = GOV_ROLES.includes(form.roleRequested)
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!form.email || !form.fullName || !form.roleRequested) return
+
+    // Client-side validation
+    if (!form.email || !form.fullName || !form.roleRequested) {
+      setErrorMsg('Please fill in all required fields.')
+      setStatus('error')
+      return
+    }
+
     if (isGovRole && !form.ministry.trim()) {
       setErrorMsg('Ministry / Department is required for government roles.')
       setStatus('error')
       return
     }
+
     setStatus('loading')
     setErrorMsg('')
+
     try {
-      const res = await fetch('/api/auth/request-access', {
+      const response = await fetch('/api/auth/request-access', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify(form),
       })
-      const data = await res.json()
-      if (!res.ok) { setErrorMsg(data.error ?? 'Submission failed'); setStatus('error'); return }
+
+      let data
+      try {
+        data = await response.json()
+      } catch {
+        throw new Error('Invalid response from server')
+      }
+
+      if (!response.ok) {
+        setErrorMsg(data.error || `Request failed with status ${response.status}`)
+        setStatus('error')
+        return
+      }
+
       setStatus('success')
-    } catch {
-      setErrorMsg('Network error. Please try again.')
+    } catch (error) {
+      console.error('Request access error:', error)
+      setErrorMsg(error instanceof Error ? error.message : 'Network error. Please check your connection and try again.')
       setStatus('error')
     }
   }
@@ -101,7 +139,9 @@ export default function RequestAccessPage() {
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Full Name */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Full Name <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               required
@@ -114,7 +154,9 @@ export default function RequestAccessPage() {
 
           {/* Work Email */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Work Email *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Work Email <span className="text-red-500">*</span>
+            </label>
             <input
               type="email"
               required
@@ -168,7 +210,9 @@ export default function RequestAccessPage() {
 
           {/* Role */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">I am a... *</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              I am a... <span className="text-red-500">*</span>
+            </label>
             <select
               required
               value={form.roleRequested}
@@ -185,7 +229,9 @@ export default function RequestAccessPage() {
           {/* Ministry — conditional on government roles */}
           {isGovRole && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ministry / Department *</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ministry / Department <span className="text-red-500">*</span>
+              </label>
               <input
                 type="text"
                 required
@@ -210,15 +256,27 @@ export default function RequestAccessPage() {
           </div>
 
           {status === 'error' && (
-            <p className="text-sm text-red-600 bg-red-50 px-4 py-2 rounded-lg">{errorMsg}</p>
+            <div className="text-sm text-red-600 bg-red-50 px-4 py-3 rounded-lg border border-red-200">
+              {errorMsg}
+            </div>
           )}
 
           <button
             type="submit"
             disabled={status === 'loading'}
-            className="w-full bg-brand-gold text-brand-navy font-semibold py-3 rounded-lg hover:bg-amber-400 transition disabled:opacity-60"
+            className="w-full bg-brand-gold text-brand-navy font-semibold py-3 rounded-lg hover:bg-amber-400 transition disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {status === 'loading' ? 'Submitting…' : 'Submit Access Request'}
+            {status === 'loading' ? (
+              <span className="flex items-center justify-center">
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-brand-navy" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Submitting...
+              </span>
+            ) : (
+              'Submit Access Request'
+            )}
           </button>
         </form>
 

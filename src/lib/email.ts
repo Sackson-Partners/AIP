@@ -1,16 +1,33 @@
 import nodemailer from "nodemailer"
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT ?? 587),
-  secure: process.env.SMTP_SECURE === "true",
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-})
+// Check if SMTP is configured
+const isEmailConfigured = Boolean(
+  process.env.SMTP_HOST &&
+  process.env.SMTP_USER &&
+  process.env.SMTP_PASS
+)
+
+const transporter = isEmailConfigured
+  ? nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT ?? 587),
+      secure: process.env.SMTP_SECURE === "true",
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    })
+  : null
 
 const FROM = process.env.SMTP_FROM ?? "AIP Platform <noreply@aip.com>"
+
+// Helper to check if email is configured
+function checkEmailConfig(): void {
+  if (!isEmailConfigured || !transporter) {
+    console.warn('[Email] SMTP not configured. Emails will not be sent. Set SMTP_HOST, SMTP_USER, SMTP_PASS in .env.local')
+    throw new Error('SMTP not configured')
+  }
+}
 
 const base = (content: string) => `
 <!DOCTYPE html>
@@ -68,6 +85,7 @@ export async function sendWelcomeEmail(params: {
   temporaryPassword: string
   employeeId: string
 }): Promise<void> {
+  checkEmailConfig()
   const { email, name, role, temporaryPassword, employeeId } = params
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
 
@@ -99,7 +117,7 @@ export async function sendWelcomeEmail(params: {
     ${p("If you did not request this account, contact your administrator immediately.")}
   `)
 
-  await transporter.sendMail({
+  await transporter!.sendMail({
     from: FROM,
     to: email,
     subject: `Welcome to AIP Platform — Your Account is Ready`,
@@ -111,13 +129,14 @@ export async function sendActivationEmail(params: {
   email: string
   name: string
 }): Promise<void> {
+  checkEmailConfig()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
   const html = base(`
     ${h2(`Your account has been approved, ${params.name}`)}
     ${p("An administrator has approved your AIP Platform account. You can now sign in and access all features available to your account type.")}
     ${btn(`${appUrl}/auth/signin`, "Sign In Now")}
   `)
-  await transporter.sendMail({
+  await transporter!.sendMail({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Account Approved",
@@ -130,6 +149,7 @@ export async function sendSuspensionEmail(params: {
   name: string
   reason?: string
 }): Promise<void> {
+  checkEmailConfig()
   const html = base(`
     ${h2(`Account Suspended`)}
     ${p(`Hello ${params.name},`)}
@@ -137,7 +157,7 @@ export async function sendSuspensionEmail(params: {
     ${params.reason ? `<div style="background:#1e1010;border:1px solid #7f1d1d;border-radius:8px;padding:16px;margin:12px 0"><p style="margin:0;color:#fca5a5;font-size:13px">Reason: ${params.reason}</p></div>` : ""}
     ${p("To appeal this decision, contact your administrator.")}
   `)
-  await transporter.sendMail({
+  await transporter!.sendMail({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Account Suspended",
@@ -150,6 +170,7 @@ export async function sendPasswordResetEmail(params: {
   name: string
   temporaryPassword: string
 }): Promise<void> {
+  checkEmailConfig()
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
   const html = base(`
     ${h2(`Password Reset`)}
@@ -166,7 +187,7 @@ export async function sendPasswordResetEmail(params: {
     </div>
     ${btn(`${appUrl}/auth/signin`, "Sign In Now")}
   `)
-  await transporter.sendMail({
+  await transporter!.sendMail({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Password Reset",
@@ -179,14 +200,149 @@ export async function sendAdminNotificationEmail(params: {
   subject: string
   message: string
 }): Promise<void> {
+  checkEmailConfig()
   const html = base(`
     ${h2(params.subject)}
     ${p(params.message)}
   `)
-  await transporter.sendMail({
+  await transporter!.sendMail({
     from: FROM,
     to: params.adminEmail,
     subject: `[AIP Admin] ${params.subject}`,
+    html,
+  })
+}
+
+export async function sendAccessRequestConfirmation(params: {
+  email: string
+  name: string
+  role: string
+}): Promise<void> {
+  checkEmailConfig()
+  const html = base(`
+    ${h2(`Access Request Received`)}
+    ${p(`Hello ${params.name},`)}
+    ${p("Thank you for requesting access to the AIP Platform. We have received your application and our team will review it shortly.")}
+
+    <div style="background:#0f172a;border-radius:8px;border:1px solid #334155;overflow:hidden;margin:20px 0">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        ${field("Email", params.email)}
+        ${field("Role Requested", params.role)}
+        ${field("Status", '<span style="color:#fbbf24">Pending Review</span>')}
+      </table>
+    </div>
+
+    ${p("You will receive an email notification within 2-3 business days once your request has been reviewed.")}
+    ${p("If you have any questions, please contact our support team.")}
+  `)
+
+  await transporter!.sendMail({
+    from: FROM,
+    to: params.email,
+    subject: "AIP Platform — Access Request Received",
+    html,
+  })
+}
+
+export async function sendAccessRequestApproval(params: {
+  email: string
+  name: string
+  role: string
+  temporaryPassword: string
+}): Promise<void> {
+  checkEmailConfig()
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
+  const html = base(`
+    ${h2(`Welcome to AIP Platform, ${params.name}! 🎉`)}
+    ${p("Great news! Your access request has been approved. Your account is now active and ready to use.")}
+
+    <div style="background:#0f172a;border-radius:8px;border:1px solid #334155;overflow:hidden;margin:20px 0">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        ${field("Email", params.email)}
+        ${field("Temp Password", `<code style="background:#1e293b;padding:2px 8px;border-radius:4px;font-family:monospace;color:#f59e0b">${params.temporaryPassword}</code>`)}
+        ${field("Role", params.role)}
+      </table>
+    </div>
+
+    <div style="background:#451a03;border:1px solid #92400e;border-radius:8px;padding:16px;margin:16px 0">
+      <p style="margin:0;color:#fbbf24;font-size:13px;font-weight:600">
+        ⚠ You must change your password on first login for security.
+      </p>
+    </div>
+
+    ${btn(`${appUrl}/auth/signin`, "Sign In to AIP Platform")}
+
+    ${p("If you have any questions or need assistance getting started, our support team is here to help.")}
+  `)
+
+  await transporter!.sendMail({
+    from: FROM,
+    to: params.email,
+    subject: "AIP Platform — Access Request Approved! 🎉",
+    html,
+  })
+}
+
+export async function sendAccessRequestRejection(params: {
+  email: string
+  name: string
+  reason?: string
+}): Promise<void> {
+  checkEmailConfig()
+  const html = base(`
+    ${h2(`Access Request Update`)}
+    ${p(`Hello ${params.name},`)}
+    ${p("Thank you for your interest in the AIP Platform. After reviewing your application, we are unable to approve your access request at this time.")}
+
+    ${params.reason ? `<div style="background:#1e1010;border:1px solid #7f1d1d;border-radius:8px;padding:16px;margin:12px 0"><p style="margin:0;color:#fca5a5;font-size:13px"><strong>Reason:</strong> ${params.reason}</p></div>` : ""}
+
+    ${p("If you believe this decision was made in error or if your circumstances have changed, please reply to this email with additional information about your use case.")}
+    ${p("We appreciate your understanding.")}
+  `)
+
+  await transporter!.sendMail({
+    from: FROM,
+    to: params.email,
+    subject: "AIP Platform — Access Request Update",
+    html,
+  })
+}
+
+export async function notifyAdminsOfAccessRequest(params: {
+  adminEmails: string[]
+  requestId: string
+  applicantName: string
+  applicantEmail: string
+  role: string
+  organization?: string
+  message?: string
+}): Promise<void> {
+  checkEmailConfig()
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
+  const html = base(`
+    ${h2("New Access Request")}
+    ${p("A new user has requested access to the AIP Platform. Please review and approve or reject their request.")}
+
+    <div style="background:#0f172a;border-radius:8px;border:1px solid #334155;overflow:hidden;margin:20px 0">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        ${field("Name", params.applicantName)}
+        ${field("Email", params.applicantEmail)}
+        ${field("Role Requested", params.role)}
+        ${params.organization ? field("Organization", params.organization) : ""}
+      </table>
+    </div>
+
+    ${params.message ? `<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:16px;margin:16px 0"><p style="margin:0 0 4px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.5px">Message</p><p style="margin:0;color:#94a3b8;font-size:14px;line-height:1.6">${params.message}</p></div>` : ""}
+
+    ${btn(`${appUrl}/admin/access-requests`, "Review Request")}
+
+    ${p("Please action this request within 2-3 business days to maintain a good user experience.")}
+  `)
+
+  await transporter!.sendMail({
+    from: FROM,
+    to: params.adminEmails,
+    subject: `[AIP Admin] New Access Request — ${params.applicantName}`,
     html,
   })
 }

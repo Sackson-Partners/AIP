@@ -10,11 +10,23 @@ import { z } from 'zod'
 const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
 
 const PatchSchema = z.object({
-  name:         z.string().min(1).optional(),
-  description:  z.string().optional(),
-  status:       z.string().optional(),
-  targetAmount: z.number().optional(),
-  sector:       z.string().optional(),
+  name:            z.string().min(1).optional(),
+  project_name:    z.string().min(1).optional(),
+  description:     z.string().optional(),
+  status:          z.string().optional(),
+  dealStage:       z.string().optional(),
+  targetAmount:    z.number().optional(),
+  estimated_cost:  z.number().optional(),
+  sector:          z.string().optional(),
+  country:         z.string().optional(),
+  region:          z.string().optional(),
+  stage:           z.string().optional(),
+  project_type:    z.string().optional(),
+  projectType:     z.string().optional(),
+  riskRating:      z.string().optional(),
+  strategic_notes: z.string().optional(),
+  source_url:      z.string().optional(),
+  currency:        z.string().optional(),
 })
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -56,16 +68,61 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { name, description, status, targetAmount } = parsed.data
+  const d = parsed.data
+  const resolvedName = d.name || d.project_name
+  const resolvedAmount = d.targetAmount ?? d.estimated_cost
+  const resolvedProjectType = d.projectType || d.project_type
+
+  // Map project_type values to ProjectType enum
+  const typeMap: Record<string, string> = {
+    EPC: 'EPC', EPC_F: 'BOT', 'EPC+F': 'BOT',
+    PPP: 'PPP', PRIVATE: 'CONCESSION', OTHER: 'OTHER',
+  }
+  const mappedProjectType = resolvedProjectType
+    ? (typeMap[resolvedProjectType.toUpperCase().replace(/\+/g, '_')] || resolvedProjectType)
+    : undefined
+
+  // Auto-calculate risk rating from projectType if riskRating not explicitly provided
+  const riskMap: Record<string, string> = {
+    EPC: 'Medium', BOT: 'High', PPP: 'Medium-High',
+    CONCESSION: 'Variable', OTHER: 'Variable',
+  }
+  const calculatedRisk = mappedProjectType && !d.riskRating ? riskMap[mappedProjectType] : d.riskRating
+
+  // Map sector
+  const sectorMap: Record<string, string> = {
+    energy: 'ENERGY', transport: 'TRANSPORT', water: 'WATER',
+    digital: 'DIGITAL', healthcare: 'HEALTHCARE', health: 'HEALTHCARE',
+    education: 'EDUCATION', agriculture: 'AGRICULTURE', housing: 'HOUSING',
+    waste_management: 'WASTE_MANAGEMENT', mining: 'OTHER', ports: 'OTHER',
+    rail: 'OTHER', roads: 'OTHER', ict: 'DIGITAL', social: 'OTHER',
+  }
+  const mappedSector = d.sector ? (sectorMap[d.sector.toLowerCase()] || d.sector.toUpperCase()) : undefined
+
+  // Map dealStage from legacy stage field
+  const stageMap: Record<string, string> = {
+    planned: 'CONCEPT', concept: 'CONCEPT',
+    'pre-feasibility': 'PREFEASIBILITY', prefeasibility: 'PREFEASIBILITY',
+    feasibility: 'FEASIBILITY', structuring: 'STRUCTURING',
+    procurement: 'PROCUREMENT', financial_close: 'FINANCIAL_CLOSE',
+    construction: 'CONSTRUCTION', operational: 'OPERATIONS', operations: 'OPERATIONS',
+  }
+  const resolvedDealStage = d.dealStage || (d.stage ? stageMap[d.stage.toLowerCase()] : undefined)
 
   try {
     const project = await prisma.project.update({
       where: { id },
       data: {
-        ...(name         !== undefined ? { title:     name }         : {}),
-        ...(description  !== undefined ? { description }             : {}),
-        ...(status       !== undefined ? { status:    status as Prisma.ProjectUpdateInput['status'] } : {}),
-        ...(targetAmount !== undefined ? { totalCost: targetAmount } : {}),
+        ...(resolvedName       !== undefined ? { title:       resolvedName }       : {}),
+        ...(d.description      !== undefined ? { description: d.description }      : {}),
+        ...(d.status           !== undefined ? { status:      d.status as Prisma.ProjectUpdateInput['status'] } : {}),
+        ...(resolvedDealStage  !== undefined ? { dealStage:   resolvedDealStage as Prisma.ProjectUpdateInput['dealStage'] } : {}),
+        ...(resolvedAmount     !== undefined ? { totalCost:   resolvedAmount }     : {}),
+        ...(mappedSector       !== undefined ? { sector:      mappedSector as Prisma.ProjectUpdateInput['sector'] } : {}),
+        ...(d.country          !== undefined ? { country:     d.country }          : {}),
+        ...(d.region           !== undefined ? { region:      d.region }           : {}),
+        ...(mappedProjectType  !== undefined ? { projectType: mappedProjectType as Prisma.ProjectUpdateInput['projectType'] } : {}),
+        ...(calculatedRisk     !== undefined ? { riskRating:  calculatedRisk }     : {}),
       },
     })
 

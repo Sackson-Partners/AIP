@@ -15,6 +15,7 @@ const CreateSchema = z.object({
   description:     z.string().optional(),
   strategic_notes: z.string().optional(),
   status:          z.string().optional(),
+  dealStage:       z.string().optional(),
   targetAmount:    z.number().optional(),
   estimated_cost:  z.number().optional(),
   sector:          z.string().optional(),
@@ -108,6 +109,30 @@ export async function POST(req: NextRequest) {
     ? d.status.toUpperCase() as ProjectStatus
     : ProjectStatus.DRAFT
 
+  // Map project_type to ProjectType enum
+  const typeMap: Record<string, string> = {
+    EPC: 'EPC', EPC_F: 'BOT', 'EPC+F': 'BOT',
+    PPP: 'PPP', PRIVATE: 'CONCESSION', OTHER: 'OTHER',
+  }
+  const resolvedProjectType = d.project_type
+    ? (typeMap[d.project_type.toUpperCase().replace(/\+/g, '_')] || 'OTHER')
+    : undefined
+
+  // Calculate risk rating based on project type
+  const riskMap: Record<string, string> = {
+    EPC: 'Medium', EPC_F: 'High', PPP: 'Medium-High',
+    PRIVATE: 'Variable', OTHER: 'Variable',
+  }
+  const calculatedRisk = d.project_type
+    ? riskMap[d.project_type.toUpperCase().replace(/\+/g, '_')]
+    : undefined
+
+  // Map dealStage
+  const validDealStages = ['CONCEPT', 'PREFEASIBILITY', 'FEASIBILITY', 'STRUCTURING', 'PROCUREMENT', 'FINANCIAL_CLOSE', 'CONSTRUCTION', 'OPERATIONS']
+  const resolvedDealStage = d.dealStage && validDealStages.includes(d.dealStage.toUpperCase())
+    ? d.dealStage.toUpperCase()
+    : 'CONCEPT'
+
   try {
     const project = await prisma.project.create({
       data: {
@@ -115,10 +140,13 @@ export async function POST(req: NextRequest) {
         title:       resolvedName,
         description: d.description || d.strategic_notes,
         status:      resolvedStatus,
+        dealStage:   resolvedDealStage as Prisma.ProjectCreateInput['dealStage'],
         totalCost:   d.targetAmount ?? d.estimated_cost,
         sector:      resolvedSector,
         country:     d.country,
         region:      d.region,
+        projectType: resolvedProjectType as Prisma.ProjectCreateInput['projectType'],
+        riskRating:  calculatedRisk,
         ownerId:     session.user.id,
       },
     })

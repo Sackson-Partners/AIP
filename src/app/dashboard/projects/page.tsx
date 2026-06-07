@@ -15,6 +15,14 @@ const STAGES  = ['planned', 'pre-feasibility', 'feasibility', 'procurement', 'co
 
 const DEAL_STAGES = ['CONCEPT', 'PREFEASIBILITY', 'FEASIBILITY', 'STRUCTURING', 'PROCUREMENT', 'FINANCIAL_CLOSE', 'CONSTRUCTION', 'OPERATIONS'];
 
+const PROJECT_TYPES = [
+  { value: 'EPC', label: 'EPC', risk: 'Medium' },
+  { value: 'EPC_F', label: 'EPC+F', risk: 'High' },
+  { value: 'PPP', label: 'PPP', risk: 'Medium-High' },
+  { value: 'PRIVATE', label: 'Private', risk: 'Variable' },
+  { value: 'OTHER', label: 'Other', risk: 'Variable' },
+];
+
 const STAGE_COLORS: Record<string, string> = {
   planned:           'bg-gray-100 text-gray-800',
   'pre-feasibility': 'bg-blue-100 text-blue-800',
@@ -36,6 +44,22 @@ const VERIFY_COLORS: Record<string, string> = {
   V1: 'bg-blue-100 text-blue-700',
   V2: 'bg-yellow-100 text-yellow-700',
   V3: 'bg-green-100 text-green-700',
+};
+
+const RISK_COLORS: Record<string, string> = {
+  Low: 'bg-green-100 text-green-800 border-green-200',
+  Medium: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  'Medium-High': 'bg-orange-100 text-orange-800 border-orange-200',
+  High: 'bg-red-100 text-red-800 border-red-200',
+  Variable: 'bg-blue-100 text-blue-800 border-blue-200',
+};
+
+const TYPE_ICONS: Record<string, string> = {
+  EPC: '🏗️',
+  EPC_F: '💰',
+  PPP: '🤝',
+  PRIVATE: '🔒',
+  OTHER: '📋',
 };
 
 type ViewMode = 'cards' | 'kanban' | 'table';
@@ -100,15 +124,17 @@ export default function ProjectsPage() {
   const [newForm, setNewForm] = useState<ProjectCreate>({
     project_name: '', country: '', sector: '', stage: '', status: 'planned',
     region: '', project_type: '', description: '', strategic_notes: '',
-    estimated_cost: undefined, currency: '',
+    estimated_cost: undefined, currency: '', dealStage: 'CONCEPT',
   });
   const [editForm, setEditForm] = useState<ProjectCreate>({
     project_name: '', sector: '', country: '', stage: '', region: '',
     project_type: '', description: '', strategic_notes: '',
-    estimated_cost: undefined, currency: '',
+    estimated_cost: undefined, currency: '', dealStage: '',
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fetchError, setFetchError]     = useState<string | null>(null);
+  const [draggedProject, setDraggedProject] = useState<Project | null>(null);
+  const [dragOverStage, setDragOverStage] = useState<string | null>(null);
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -168,7 +194,8 @@ export default function ProjectsPage() {
       region:          p.region  || '',
       sector:          p.sector  || '',
       stage:           p.stage   || '',
-      project_type:    p.project_type  || '',
+      dealStage:       p.dealStage || '',
+      project_type:    p.projectType || p.project_type  || '',
       estimated_cost:  projectCost(p) ?? undefined,
       status:          p.status  || 'planned',
       description:     p.description || '',
@@ -203,6 +230,42 @@ export default function ProjectsPage() {
       toastError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Failed to delete project.');
     }
   }, [fetchProjects, toastSuccess, toastError]);
+
+  const handleDragStart = useCallback((project: Project) => {
+    setDraggedProject(project);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent, stage: string) => {
+    e.preventDefault();
+    setDragOverStage(stage);
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverStage(null);
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent, targetStage: string) => {
+    e.preventDefault();
+    setDragOverStage(null);
+
+    if (!draggedProject) return;
+
+    const currentStage = (draggedProject.dealStage ?? draggedProject.stage ?? '').toUpperCase().replace(/ /g, '_');
+    if (currentStage === targetStage) {
+      setDraggedProject(null);
+      return;
+    }
+
+    try {
+      await projectsApi.updateStage(draggedProject.id, targetStage);
+      toastSuccess(`Moved ${projectTitle(draggedProject)} to ${targetStage.replace(/_/g, ' ')}`);
+      fetchProjects();
+    } catch (err: unknown) {
+      toastError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Failed to update stage.');
+    } finally {
+      setDraggedProject(null);
+    }
+  }, [draggedProject, fetchProjects, toastSuccess, toastError]);
 
   const countries = [...new Set(projects.map(p => p.country).filter(Boolean))];
 
@@ -280,32 +343,48 @@ export default function ProjectsPage() {
           )}
         </div>
       ) : viewMode === 'kanban' ? (
-        /* Kanban View */
+        /* Kanban View with Drag-and-Drop */
         <div className="flex gap-4 overflow-x-auto pb-4">
           {DEAL_STAGES.map(stage => {
             const colProjects = projects.filter(p =>
               (p.dealStage ?? p.stage ?? p.status ?? '').toUpperCase().replace(/ /g, '_') === stage
             );
+            const isDragOver = dragOverStage === stage;
             return (
               <div key={stage} className="shrink-0 w-64">
                 <div className={`flex items-center justify-between px-3 py-2 rounded-lg mb-3 ${STAGE_COLORS[stage] ?? 'bg-gray-100 text-gray-800'}`}>
                   <span className="text-xs font-semibold">{stage.replace(/_/g, ' ')}</span>
                   <span className="text-xs bg-white/60 px-1.5 py-0.5 rounded-full">{colProjects.length}</span>
                 </div>
-                <div className="space-y-3">
+                <div
+                  className={`space-y-3 min-h-[400px] rounded-xl p-3 transition-colors ${
+                    isDragOver ? 'bg-brand-gold/10 border-2 border-dashed border-brand-gold' : 'border-2 border-transparent'
+                  }`}
+                  onDragOver={(e) => handleDragOver(e, stage)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, stage)}
+                >
                   {colProjects.map(p => (
-                    <ProjectCard
+                    <div
                       key={p.id}
-                      project={p}
-                      compact
-                      verificationLevel={verificationMap[String(p.id)]}
-                      onView={() => setSelectedProject(p)}
-                      onEdit={() => openEdit(p)}
-                      onDelete={() => handleDelete(p.id)}
-                    />
+                      draggable
+                      onDragStart={() => handleDragStart(p)}
+                      className="cursor-move"
+                    >
+                      <ProjectCard
+                        project={p}
+                        compact
+                        verificationLevel={verificationMap[String(p.id)]}
+                        onView={() => setSelectedProject(p)}
+                        onEdit={() => openEdit(p)}
+                        onDelete={() => handleDelete(p.id)}
+                      />
+                    </div>
                   ))}
                   {colProjects.length === 0 && (
-                    <p className="text-xs text-gray-400 text-center py-4">No projects</p>
+                    <p className="text-xs text-gray-400 text-center py-8">
+                      {isDragOver ? 'Drop here' : 'No projects'}
+                    </p>
                   )}
                 </div>
               </div>
@@ -318,7 +397,7 @@ export default function ProjectsPage() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                {['Project', 'Sector', 'Country', 'Stage', 'Est. Cost', 'Verification', 'Health', 'Actions'].map(h => (
+                {['Project', 'Sector', 'Category', 'Country', 'Stage', 'Risk', 'Est. Cost', 'Health', 'Actions'].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                 ))}
               </tr>
@@ -327,6 +406,9 @@ export default function ProjectsPage() {
               {projects.length > 0 ? projects.map(p => {
                 const stage = projectStage(p);
                 const vLevel = verificationMap[String(p.id)];
+                const projectType = p.projectType || p.project_type;
+                const typeConfig = PROJECT_TYPES.find(pt => pt.value === projectType);
+                const riskRating = p.riskRating || typeConfig?.risk;
                 return (
                   <tr key={p.id} className="hover:bg-gray-50">
                     <td className="px-5 py-3">
@@ -336,20 +418,27 @@ export default function ProjectsPage() {
                     <td className="px-5 py-3">
                       {p.sector && <span className="px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">{p.sector}</span>}
                     </td>
+                    <td className="px-5 py-3">
+                      {projectType && (
+                        <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full font-medium">
+                          {typeConfig?.label || projectType}
+                        </span>
+                      )}
+                    </td>
                     <td className="px-5 py-3 text-sm text-gray-600">
                       {p.country ? `${countryFlag(p.country)} ${p.country}` : '—'}
                     </td>
                     <td className="px-5 py-3">
                       <span className={`px-2 py-0.5 text-xs rounded-full ${STAGE_COLORS[stage] ?? 'bg-gray-100 text-gray-800'}`}>{stage}</span>
                     </td>
-                    <td className="px-5 py-3 text-sm text-gray-700">{formatCost(projectCost(p))}</td>
                     <td className="px-5 py-3">
-                      {vLevel ? (
-                        <span className={`px-2 py-0.5 text-xs rounded-full ${VERIFY_COLORS[vLevel.substring(0, 2)] ?? 'bg-gray-100 text-gray-700'}`}>
-                          {vLevel.substring(0, 2)}
+                      {riskRating && (
+                        <span className={`px-2 py-0.5 text-xs rounded-full border ${RISK_COLORS[riskRating] ?? 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                          {riskRating}
                         </span>
-                      ) : '—'}
+                      )}
                     </td>
+                    <td className="px-5 py-3 text-sm text-gray-700">{formatCost(projectCost(p))}</td>
                     <td className="px-5 py-3"><HealthBadge project={p} /></td>
                     <td className="px-5 py-3 text-right space-x-2 text-sm whitespace-nowrap">
                       <button onClick={() => setSelectedProject(p)} className="text-brand-gold hover:underline">View</button>
@@ -363,7 +452,7 @@ export default function ProjectsPage() {
                   </tr>
                 );
               }) : (
-                <tr><td colSpan={8} className="px-5 py-12 text-center text-gray-500 text-sm">No projects found.</td></tr>
+                <tr><td colSpan={9} className="px-5 py-12 text-center text-gray-500 text-sm">No projects found.</td></tr>
               )}
             </tbody>
           </table>
@@ -414,6 +503,9 @@ function ProjectCard({ project, compact = false, verificationLevel, onView, onEd
   const cost  = projectCost(project);
   const score = projectHealthScore(project);
   const vKey  = verificationLevel?.substring(0, 2);
+  const projectType = project.projectType || project.project_type;
+  const typeConfig = PROJECT_TYPES.find(pt => pt.value === projectType);
+  const riskRating = project.riskRating || typeConfig?.risk;
 
   return (
     <div className="bg-white rounded-xl shadow-sm hover:shadow-md transition flex flex-col">
@@ -421,12 +513,15 @@ function ProjectCard({ project, compact = false, verificationLevel, onView, onEd
         {/* Flag + Title */}
         <div className="flex items-start gap-2 mb-2">
           <span className="text-xl shrink-0 mt-0.5">{countryFlag(project.country)}</span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="font-semibold text-gray-900 text-sm line-clamp-2">{projectTitle(project)}</p>
             {project.country && !compact && (
               <p className="text-xs text-gray-500 mt-0.5">{project.country}{project.region ? ` · ${project.region}` : ''}</p>
             )}
           </div>
+          {projectType && (
+            <span className="text-lg shrink-0">{TYPE_ICONS[projectType] || '📋'}</span>
+          )}
         </div>
 
         {/* Badges row */}
@@ -437,6 +532,16 @@ function ProjectCard({ project, compact = false, verificationLevel, onView, onEd
           {stage && stage !== '—' && (
             <span className={`px-2 py-0.5 text-xs rounded-full ${STAGE_COLORS[stage] ?? 'bg-gray-100 text-gray-800'}`}>
               {stage.replace(/_/g, ' ')}
+            </span>
+          )}
+          {projectType && (
+            <span className="px-2 py-0.5 text-xs bg-purple-100 text-purple-800 rounded-full font-medium">
+              {typeConfig?.label || projectType}
+            </span>
+          )}
+          {riskRating && (
+            <span className={`px-2 py-0.5 text-xs rounded-full border font-medium ${RISK_COLORS[riskRating] ?? 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+              Risk: {riskRating}
             </span>
           )}
           {vKey && (
@@ -537,16 +642,23 @@ function ProjectFormModal({ title, form, setForm, onClose, onSubmit, isSubmittin
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
-              <input value={form.project_type} onChange={e => setForm(f => ({ ...f, project_type: e.target.value }))}
-                placeholder="PPP, Greenfield, Brownfield…"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+              <label className="block text-sm font-medium text-gray-700 mb-1">Project Category</label>
+              <select value={form.project_type} onChange={e => {
+                const selectedType = PROJECT_TYPES.find(pt => pt.value === e.target.value);
+                setForm(f => ({ ...f, project_type: e.target.value }));
+              }}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
+                <option value="">Select category</option>
+                {PROJECT_TYPES.map(pt => (
+                  <option key={pt.value} value={pt.value}>{pt.label} — Risk: {pt.risk}</option>
+                ))}
+              </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Stage</label>
-              <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Deal Stage</label>
+              <select value={form.dealStage || form.status} onChange={e => setForm(f => ({ ...f, dealStage: e.target.value }))}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
-                {STAGES.map(s => <option key={s} value={s}>{s}</option>)}
+                {DEAL_STAGES.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
               </select>
             </div>
             <div>
@@ -587,6 +699,10 @@ function ProjectFormModal({ title, form, setForm, onClose, onSubmit, isSubmittin
 
 function ProjectDetailModal({ project, onClose }: { project: Project; onClose: () => void }) {
   const cost = projectCost(project);
+  const projectType = project.projectType || project.project_type;
+  const typeConfig = PROJECT_TYPES.find(pt => pt.value === projectType);
+  const riskRating = project.riskRating || typeConfig?.risk;
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -594,6 +710,9 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
           <div className="flex items-center gap-3">
             <span className="text-3xl">{countryFlag(project.country)}</span>
             <h2 className="text-lg font-bold text-gray-900">{projectTitle(project)}</h2>
+            {projectType && (
+              <span className="text-2xl">{TYPE_ICONS[projectType] || '📋'}</span>
+            )}
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XIcon className="w-5 h-5" /></button>
         </div>
@@ -603,7 +722,16 @@ function ProjectDetailModal({ project, onClose }: { project: Project; onClose: (
             <DItem label="Country"       val={project.country || '—'} />
             <DItem label="Region"        val={project.region || '—'} />
             <DItem label="Stage"         val={projectStage(project)} />
-            <DItem label="Project Type"  val={project.project_type || '—'} />
+            <div>
+              <p className="text-xs text-gray-500">Project Category</p>
+              <p className="text-sm font-medium text-gray-900">{typeConfig?.label || projectType || '—'}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Risk Rating</p>
+              <span className={`inline-block mt-1 px-3 py-1 text-xs rounded-full border font-medium ${riskRating ? RISK_COLORS[riskRating] : ''} ${!riskRating ? 'bg-gray-100 text-gray-700 border-gray-200' : ''}`}>
+                {riskRating || '—'}
+              </span>
+            </div>
             <DItem label="Estimated Cost" val={formatCost(cost)} />
             {project.description && (
               <div className="col-span-2">

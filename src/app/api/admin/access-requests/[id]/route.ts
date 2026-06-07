@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
+import { sendAccessRequestApproval, sendAccessRequestRejection } from '@/lib/email'
+import { logger } from '@/lib/logger'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -16,7 +18,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   }
 
   const body = await req.json().catch(() => ({}))
-  const { status } = body as { status?: string }
+  const { status, reason } = body as { status?: string; reason?: string }
 
   if (!['APPROVED', 'REJECTED'].includes(status ?? '')) {
     return NextResponse.json({ error: 'status must be APPROVED or REJECTED' }, { status: 400 })
@@ -48,11 +50,36 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
           organization:  request.organization ?? undefined,
         },
       })
+
+      // Send approval email with temporary password
+      try {
+        await sendAccessRequestApproval({
+          email: request.email,
+          name: request.fullName,
+          role: request.roleRequested,
+          temporaryPassword: tempPassword,
+        })
+      } catch (err) {
+        logger.error('[access-request-approval] Failed to send approval email', err)
+        // Continue - user is created, admin can manually share password
+      }
+    }
+  } else if (status === 'REJECTED') {
+    // Send rejection email
+    try {
+      await sendAccessRequestRejection({
+        email: request.email,
+        name: request.fullName,
+        reason,
+      })
+    } catch (err) {
+      logger.error('[access-request-rejection] Failed to send rejection email', err)
+      // Continue - rejection is recorded
     }
   }
 
   return NextResponse.json({
     data: { id, status, reviewed_by: session.user.id },
-    ...(tempPassword ? { temp_password: tempPassword, message: 'User created. Share temp_password with them securely.' } : {}),
+    ...(tempPassword ? { temp_password: tempPassword, message: 'User created and approval email sent.' } : {}),
   })
 }

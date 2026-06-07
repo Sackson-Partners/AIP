@@ -27,6 +27,8 @@ export default function AccessRequestsPage() {
   const [error, setError] = useState<string | null>(null)
   const [reviewing, setReviewing] = useState<string | null>(null)
   const [results, setResults] = useState<Record<string, ReviewResult>>({})
+  const [showRejectModal, setShowRejectModal] = useState<string | null>(null)
+  const [rejectReason, setRejectReason] = useState('')
 
   const load = async () => {
     setIsLoading(true)
@@ -42,17 +44,24 @@ export default function AccessRequestsPage() {
 
   useEffect(() => { load() }, [])
 
-  const review = async (id: string, status: 'APPROVED' | 'REJECTED') => {
+  const review = async (id: string, status: 'APPROVED' | 'REJECTED', reason?: string) => {
     setReviewing(id)
     try {
-      const res = await api.patch<ReviewResult>(`/admin/access-requests/${id}`, { status })
+      const res = await api.patch<ReviewResult>(`/admin/access-requests/${id}`, { status, reason })
       setResults(prev => ({ ...prev, [id]: res.data }))
       setRequests(prev => prev.filter(r => r.id !== id))
+      setShowRejectModal(null)
+      setRejectReason('')
     } catch {
       alert('Failed to process request. Please try again.')
     } finally {
       setReviewing(null)
     }
+  }
+
+  const openRejectModal = (id: string) => {
+    setShowRejectModal(id)
+    setRejectReason('')
   }
 
   return (
@@ -127,17 +136,50 @@ export default function AccessRequestsPage() {
                       {reviewing === req.id ? '…' : 'Approve'}
                     </button>
                     <button
-                      onClick={() => review(req.id, 'REJECTED')}
+                      onClick={() => openRejectModal(req.id)}
                       disabled={reviewing === req.id}
                       className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors disabled:opacity-50"
                     >
-                      {reviewing === req.id ? '…' : 'Reject'}
+                      Reject
                     </button>
                   </div>
                 )}
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-slate-800 border border-slate-700 rounded-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-white mb-4">Reject Access Request</h3>
+            <p className="text-slate-400 text-sm mb-4">
+              Provide a reason for rejection. This will be sent to the applicant via email.
+            </p>
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g., Your organization does not qualify for platform access at this time..."
+              className="w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-white text-sm min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-red-500/50 mb-4"
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => { setShowRejectModal(null); setRejectReason('') }}
+                className="px-4 py-2 bg-slate-700 text-slate-300 rounded-lg text-sm font-medium hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => review(showRejectModal, 'REJECTED', rejectReason || undefined)}
+                disabled={reviewing === showRejectModal}
+                className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors disabled:opacity-50"
+              >
+                {reviewing === showRejectModal ? 'Rejecting…' : 'Confirm Rejection'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

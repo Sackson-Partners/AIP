@@ -53,37 +53,42 @@ export const authOptions: NextAuthOptions = {
   },
 
   providers: [
-    AzureADProvider({
-      clientId: process.env.AZURE_AD_CLIENT_ID!,
-      clientSecret: process.env.AZURE_AD_CLIENT_SECRET!,
-      tenantId: process.env.AZURE_AD_TENANT_ID,
-      allowDangerousEmailAccountLinking: true,
-      authorization: {
-        params: {
-          scope: "openid profile email User.Read",
-          prompt: "select_account",
-        },
-      },
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      profile(profile: any) {
-        return {
-          id: profile.oid ?? profile.sub ?? "",
-          name: profile.name ?? null,
-          email: profile.email ?? profile.preferred_username ?? null,
-          image: null,
-          azureOid: profile.oid ?? null,
-          firstName: profile.given_name ?? null,
-          lastName: profile.family_name ?? null,
-          jobTitle: profile.jobTitle ?? null,
-          organization: null,
-          internalProfile: null,
-          role: "INSTITUTIONAL_INVESTOR" as const,
-          status: "PENDING" as const,
-          authProvider: "AZURE_AD" as const,
-          mustChangePass: false,
-        }
-      },
-    }),
+    // Azure AD provider — only enabled if credentials are configured
+    ...(process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_CLIENT_SECRET
+      ? [
+          AzureADProvider({
+            clientId: process.env.AZURE_AD_CLIENT_ID,
+            clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
+            tenantId: process.env.AZURE_AD_TENANT_ID,
+            allowDangerousEmailAccountLinking: true,
+            authorization: {
+              params: {
+                scope: "openid profile email User.Read",
+                prompt: "select_account",
+              },
+            },
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            profile(profile: any) {
+              return {
+                id: profile.oid ?? profile.sub ?? "",
+                name: profile.name ?? null,
+                email: profile.email ?? profile.preferred_username ?? null,
+                image: null,
+                azureOid: profile.oid ?? null,
+                firstName: profile.given_name ?? null,
+                lastName: profile.family_name ?? null,
+                jobTitle: profile.jobTitle ?? null,
+                organization: null,
+                internalProfile: null,
+                role: "INSTITUTIONAL_INVESTOR" as const,
+                status: "PENDING" as const,
+                authProvider: "AZURE_AD" as const,
+                mustChangePass: false,
+              }
+            },
+          }),
+        ]
+      : []),
 
     CredentialsProvider({
       id: "internal-credentials",
