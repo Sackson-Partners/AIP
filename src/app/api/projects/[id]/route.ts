@@ -77,19 +77,35 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const resolvedAmount = d.targetAmount ?? d.estimated_cost
   const resolvedProjectType = d.projectType || d.project_type
 
-  // Map project_type values to ProjectType enum
+  // Map project_type values to ProjectType enum (must match Prisma schema)
   const typeMap: Record<string, string> = {
-    EPC: 'EPC', EPC_F: 'BOT', 'EPC+F': 'BOT',
-    PPP: 'PPP', PRIVATE: 'CONCESSION', OTHER: 'OTHER',
+    EPC: 'SERVICE_CONTRACT',  // EPC contracts are service contracts
+    EPC_F: 'BOT',             // EPC+F includes financing = BOT
+    'EPC+F': 'BOT',
+    PPP: 'PPP',
+    PRIVATE: 'CONCESSION',
+    OTHER: 'OTHER',
+    IPP: 'IPP',               // Independent Power Producer
+    BOT: 'BOT',               // Build-Operate-Transfer
+    BOO: 'BOO',               // Build-Own-Operate
+    CONCESSION: 'CONCESSION',
+    DBFOM: 'DBFOM',
+    SERVICE_CONTRACT: 'SERVICE_CONTRACT',
   }
   const mappedProjectType = resolvedProjectType
-    ? (typeMap[resolvedProjectType.toUpperCase().replace(/\+/g, '_')] || resolvedProjectType)
+    ? (typeMap[resolvedProjectType.toUpperCase().replace(/\+/g, '_')] || 'OTHER')
     : undefined
 
   // Auto-calculate risk rating from projectType if riskRating not explicitly provided
   const riskMap: Record<string, string> = {
-    EPC: 'Medium', BOT: 'High', PPP: 'Medium-High',
-    CONCESSION: 'Variable', OTHER: 'Variable',
+    SERVICE_CONTRACT: 'Medium',  // EPC
+    BOT: 'High',                  // EPC+F, BOT
+    BOO: 'High',
+    PPP: 'Medium-High',
+    IPP: 'Medium-High',
+    CONCESSION: 'Variable',
+    DBFOM: 'High',
+    OTHER: 'Variable',
   }
   const calculatedRisk = mappedProjectType && !d.riskRating ? riskMap[mappedProjectType] : d.riskRating
 
@@ -144,8 +160,20 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
+    console.error('[PATCH /api/projects/[id]] Database error:', error);
     logger.error('[PATCH /api/projects/[id]]', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+
+    // Return detailed error in development
+    const errorMessage = error instanceof Error ? error.message : 'Internal server error';
+    const errorDetails = error instanceof Prisma.PrismaClientKnownRequestError
+      ? { code: error.code, meta: error.meta }
+      : undefined;
+
+    return NextResponse.json({
+      error: errorMessage,
+      details: errorDetails,
+      hint: 'Check console logs for details'
+    }, { status: 500 })
   }
 }
 
