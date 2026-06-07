@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
+import { getProjectVisibilityFilter } from '@/lib/project-visibility'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const userRole = session.user.role as string
+  const projectFilter = getProjectVisibilityFilter(userRole)
 
   const [
     totalProjects,
@@ -16,20 +20,21 @@ export async function GET() {
     projectsBySector,
     recentProjects,
   ] = await Promise.all([
-    prisma.project.count(),
+    prisma.project.count({ where: projectFilter }),
     prisma.investor.count(),
     prisma.user.count(),
-    prisma.project.groupBy({ by: ['status'],   _count: true }),
-    prisma.project.groupBy({ by: ['dealStage'], _count: true }),
-    prisma.project.groupBy({ by: ['sector'],   _count: true }),
+    prisma.project.groupBy({ by: ['status'],   _count: true, where: projectFilter }),
+    prisma.project.groupBy({ by: ['dealStage'], _count: true, where: projectFilter }),
+    prisma.project.groupBy({ by: ['sector'],   _count: true, where: projectFilter }),
     prisma.project.findMany({
+      where: projectFilter,
       orderBy: { createdAt: 'desc' },
       take:    5,
       select:  { id: true, title: true, status: true, dealStage: true, sector: true, country: true, createdAt: true },
     }),
   ])
 
-  const totalValue = await prisma.project.aggregate({ _sum: { totalCost: true } })
+  const totalValue = await prisma.project.aggregate({ _sum: { totalCost: true }, where: projectFilter })
 
   return NextResponse.json({
     data: {

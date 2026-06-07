@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
+import { filterByProjectVisibility } from '@/lib/project-visibility'
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -11,13 +12,16 @@ export async function GET() {
   const records = await prisma.pISReport.findMany({
     include: {
       project: {
-        select: { id: true, title: true, country: true, sector: true, dealStage: true, totalCost: true },
+        select: { id: true, title: true, country: true, sector: true, dealStage: true, totalCost: true, status: true },
       },
     },
     orderBy: { createdAt: 'desc' },
   })
 
-  const data = records.map((r) => ({
+  // Filter by project visibility
+  const filtered = await filterByProjectVisibility(records, session.user.role as string)
+
+  const data = filtered.map((r) => ({
     id: r.id,
     project_id: r.projectId,
     project_title: r.project.title,

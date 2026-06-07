@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
+import { getProjectVisibilityFilter, filterByProjectVisibility } from '@/lib/project-visibility'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -9,14 +10,25 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const projectId = searchParams.get('project_id')
+  const userRole = session.user.role as string
+
+  // Build WHERE clause with visibility filter
+  const projectFilter = getProjectVisibilityFilter(userRole)
 
   const verifications = await prisma.verification.findMany({
     where: projectId ? { projectId } : {},
     orderBy: { createdAt: 'desc' },
-    include: { project: { select: { id: true, title: true } } },
+    include: {
+      project: {
+        select: { id: true, title: true, status: true }
+      }
+    },
   })
 
-  const data = verifications.map(v => ({
+  // Filter verifications by project visibility
+  const filtered = await filterByProjectVisibility(verifications, userRole)
+
+  const data = filtered.map(v => ({
     id: v.id,
     project_id: v.projectId,
     project_name: v.project.title,

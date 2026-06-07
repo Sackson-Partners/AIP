@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
+import { filterByProjectVisibility } from '@/lib/project-visibility'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -13,10 +14,13 @@ export async function GET(req: NextRequest) {
   const events = await prisma.event.findMany({
     where: projectId ? { projectId } : {},
     orderBy: { eventDate: 'asc' },
-    include: { project: { select: { id: true, title: true } } },
+    include: { project: { select: { id: true, title: true, status: true } } },
   })
 
-  const data = events.map(e => ({
+  // Filter by project visibility
+  const filtered = await filterByProjectVisibility(events, session.user.role as string)
+
+  const data = filtered.map(e => ({
     id: e.id,
     name: e.name,
     description: e.description,
