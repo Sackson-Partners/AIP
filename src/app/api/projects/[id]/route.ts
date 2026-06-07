@@ -8,6 +8,8 @@ import { Prisma, UserRole } from '@prisma/client'
 import { z } from 'zod'
 
 const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+const INTERNAL_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
+const PUBLISHED_STATUSES = ['ACTIVE', 'FUNDED', 'CLOSED']
 
 const PatchSchema = z.object({
   name:            z.string().min(1).optional(),
@@ -38,6 +40,8 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   }
 
   const { id } = await params
+  const userRole = session.user.role as string
+  const isInternal = INTERNAL_ROLES.includes(userRole as UserRole)
 
   try {
     const project = await prisma.project.findUnique({
@@ -45,6 +49,13 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       include: { milestones: true, documents: true },
     })
     if (!project) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+    // External partners can only view published projects
+    if (!isInternal && !PUBLISHED_STATUSES.includes(project.status)) {
+      console.log(`[GET /api/projects/${id}] Access denied: ${session.user.email} (${userRole}) tried to access ${project.status} project`);
+      return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    }
+
     return NextResponse.json({ data: project })
   } catch (error: unknown) {
     logger.error('[GET /api/projects/[id]]', error)

@@ -9,6 +9,10 @@ import { z } from 'zod'
 
 const WRITE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
+// Internal staff can see all projects; external partners only see published (ACTIVE, FUNDED, CLOSED)
+const INTERNAL_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
+const PUBLISHED_STATUSES: ProjectStatus[] = [ProjectStatus.ACTIVE, ProjectStatus.FUNDED, ProjectStatus.CLOSED]
+
 const CreateSchema = z.object({
   name:            z.string().optional(),
   project_name:    z.string().optional(),
@@ -42,8 +46,17 @@ export async function GET(req: NextRequest) {
   const status = searchParams.get('status') as ProjectStatus | null
   const search = searchParams.get('search') ?? ''
 
+  const userRole = session.user.role as UserRole
+  const isInternal = INTERNAL_ROLES.includes(userRole)
+
+  console.log(`[GET /api/projects] User: ${session.user.email}, Role: ${userRole}, Internal: ${isInternal}`);
+
   const where: Prisma.ProjectWhereInput = {
+    // External partners only see published projects (ACTIVE, FUNDED, CLOSED)
+    ...(!isInternal ? { status: { in: PUBLISHED_STATUSES } } : {}),
+    // Status filter (only applies if user requests specific status)
     ...(status ? { status } : {}),
+    // Search filter
     ...(search ? {
       OR: [
         { title:       { contains: search, mode: 'insensitive' } },
