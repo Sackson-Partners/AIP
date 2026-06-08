@@ -30,10 +30,15 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     )
     return NextResponse.json({
       error: 'PROJECT_NOT_PUBLISHED',
-      message: 'This data room is only available for published projects',
+      message: 'This data room is only available for published projects. External partners must wait for project publication.',
       projectStatus: access.projectStatus,
+      requiresNDA: true, // Indicates NDA may be required in future
     }, { status: 403 })
   }
+
+  // Log access for auditing
+  console.log(`[data-room] Access granted: ${session.user.email} → project ${projectId} (${access.projectStatus})`)
+
 
   const documents = await prisma.document.findMany({
     where:   { projectId },

@@ -46,6 +46,7 @@ export default function PETFELPage() {
   const [isCalculating, setIsCalculating] = useState(false);
   const [isAugmenting, setIsAugmenting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [manualMode, setManualMode] = useState(false);
 
   // Fetch projects and criteria on mount
   useEffect(() => {
@@ -339,18 +340,48 @@ export default function PETFELPage() {
                 )}
               </div>
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleAIAugment}
-                  disabled={isAugmenting || assessment.status === 'submitted'}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-2"
-                >
-                  {isAugmenting ? (
-                    <span className="animate-spin">⟳</span>
-                  ) : (
-                    <SparklesIcon className="w-5 h-5" />
-                  )}
-                  AI Augment
-                </button>
+                {/* Mode Toggle */}
+                <div className="flex border border-gray-300 rounded-lg overflow-hidden mr-2">
+                  <button
+                    onClick={() => setManualMode(false)}
+                    disabled={assessment.status === 'submitted'}
+                    className={`px-3 py-1.5 text-xs font-medium transition ${
+                      !manualMode
+                        ? 'bg-purple-600 text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                    } disabled:opacity-50`}
+                  >
+                    AI Assisted
+                  </button>
+                  <button
+                    onClick={() => setManualMode(true)}
+                    disabled={assessment.status === 'submitted'}
+                    className={`px-3 py-1.5 text-xs font-medium transition ${
+                      manualMode
+                        ? 'bg-gray-700 text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50'
+                    } disabled:opacity-50`}
+                  >
+                    Manual
+                  </button>
+                </div>
+
+                {/* AI Augment - only visible in AI mode */}
+                {!manualMode && (
+                  <button
+                    onClick={handleAIAugment}
+                    disabled={isAugmenting || assessment.status === 'submitted'}
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {isAugmenting ? (
+                      <span className="animate-spin">⟳</span>
+                    ) : (
+                      <SparklesIcon className="w-5 h-5" />
+                    )}
+                    AI Augment
+                  </button>
+                )}
+
                 <button
                   onClick={handleCalculate}
                   disabled={isCalculating || assessment.status === 'submitted'}

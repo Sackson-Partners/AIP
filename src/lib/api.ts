@@ -250,10 +250,20 @@ export interface Verification {
 export interface VerificationCreate {
   project_id: string | number
   level: string
+  status?: string
+  notes?: string
   technical_readiness?: number
   financial_robustness?: number
   legal_clarity?: number
   esg_compliance?: number
+  focal_point_name?: string
+  focal_point_email?: string
+  focal_point_org?: string
+  focal_point_title?: string
+  local_partner_name?: string
+  local_partner_org?: string
+  local_partner_role?: string
+  local_partner_email?: string
   bankability?: {
     overall_score: number
     technical_readiness: number

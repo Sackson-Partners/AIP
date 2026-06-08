@@ -60,6 +60,8 @@ export default function VerificationsPage() {
   const [isLoading, setIsLoading]         = useState(true);
   const [viewMode, setViewMode]           = useState<ViewMode>('kanban');
   const [showModal, setShowModal]         = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingVerification, setEditingVerification] = useState<Verification | null>(null);
   const [selectedVerification, setSelectedVerification] = useState<Verification | null>(null);
 
   // Form state
@@ -101,6 +103,30 @@ export default function VerificationsPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  const openEdit = (v: Verification) => {
+    setEditingVerification(v);
+    setForm({
+      project_id: String(v.project_id),
+      level: v.level,
+      status: v.status ?? 'PENDING',
+      notes: v.notes ?? '',
+      technical_readiness: String(v.bankability?.technical_readiness ?? ''),
+      financial_robustness: String(v.bankability?.financial_robustness ?? ''),
+      legal_clarity: String(v.bankability?.legal_clarity ?? ''),
+      esg_compliance: String(v.bankability?.esg_compliance ?? ''),
+      focal_point_name: v.focal_point_name ?? '',
+      focal_point_email: v.focal_point_email ?? '',
+      focal_point_org: v.focal_point_org ?? '',
+      focal_point_title: v.focal_point_title ?? '',
+      local_partner_name: v.local_partner_name ?? '',
+      local_partner_org: v.local_partner_org ?? '',
+      local_partner_role: v.local_partner_role ?? '',
+      local_partner_email: v.local_partner_email ?? '',
+    });
+    setShowEditModal(true);
+    setSelectedVerification(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.project_id) { setFormError('Select a project'); return; }
@@ -138,6 +164,48 @@ export default function VerificationsPage() {
       fetchData();
     } catch {
       setFormError('Failed to create verification. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVerification) return;
+    setIsSubmitting(true);
+    setFormError(null);
+    try {
+      const isV3 = form.level.startsWith('V3');
+      await verificationsApi.update(editingVerification.id, {
+        level: form.level,
+        status: form.status,
+        notes: form.notes || undefined,
+        ...(isV3 ? {
+          technical_readiness:  Number(form.technical_readiness)  || 0,
+          financial_robustness: Number(form.financial_robustness) || 0,
+          legal_clarity:        Number(form.legal_clarity)        || 0,
+          esg_compliance:       Number(form.esg_compliance)       || 0,
+        } : {}),
+        focal_point_name:  form.focal_point_name  || undefined,
+        focal_point_email: form.focal_point_email || undefined,
+        focal_point_org:   form.focal_point_org   || undefined,
+        focal_point_title: form.focal_point_title || undefined,
+        local_partner_name:  form.local_partner_name  || undefined,
+        local_partner_org:   form.local_partner_org   || undefined,
+        local_partner_role:  form.local_partner_role  || undefined,
+        local_partner_email: form.local_partner_email || undefined,
+      });
+      setShowEditModal(false);
+      setEditingVerification(null);
+      setForm({
+        project_id: '', level: 'V0: Submitted', status: 'PENDING', notes: '',
+        technical_readiness: '', financial_robustness: '', legal_clarity: '', esg_compliance: '',
+        focal_point_name: '', focal_point_email: '', focal_point_org: '', focal_point_title: '',
+        local_partner_name: '', local_partner_org: '', local_partner_role: '', local_partner_email: '',
+      });
+      fetchData();
+    } catch {
+      setFormError('Failed to update verification. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -299,9 +367,19 @@ export default function VerificationsPage() {
                   {selectedVerification.level}
                 </span>
               </div>
-              <button onClick={() => setSelectedVerification(null)} className="text-gray-400 hover:text-gray-600">
-                <XIcon className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <PermissionGuard require="manage_verifications">
+                  <button
+                    onClick={() => openEdit(selectedVerification)}
+                    className="px-3 py-1.5 text-sm bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition"
+                  >
+                    Edit
+                  </button>
+                </PermissionGuard>
+                <button onClick={() => setSelectedVerification(null)} className="text-gray-400 hover:text-gray-600">
+                  <XIcon className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             <div className="p-5 space-y-6">
               {/* Bankability scores */}
@@ -373,6 +451,142 @@ export default function VerificationsPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && editingVerification && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-5 border-b flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">Edit Verification</h2>
+              <button onClick={() => { setShowEditModal(false); setEditingVerification(null); setFormError(null); }} className="text-gray-400 hover:text-gray-600">
+                <XIcon className="w-5 h-5" />
+              </button>
+            </div>
+            {formError && (
+              <div className="mx-5 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{formError}</div>
+            )}
+            <form onSubmit={handleUpdate} className="p-5 space-y-5">
+              {/* Core */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                  <input
+                    type="text"
+                    disabled
+                    value={getProjectName(editingVerification.project_id)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 text-gray-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Verification Level *</label>
+                  <select required value={form.level} onChange={e => setForm(f => ({ ...f, level: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
+                    {LEVELS.map(l => <option key={l.key} value={l.label}>{l.label}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                  <select value={form.status} onChange={e => setForm(f => ({ ...f, status: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
+                    <option value="PENDING">Pending</option>
+                    <option value="IN_REVIEW">In Review</option>
+                    <option value="APPROVED">Approved</option>
+                    <option value="REJECTED">Rejected</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Bankability (V3 only) */}
+              {form.level.startsWith('V3') && (
+                <div className="space-y-3 border-t pt-4">
+                  <h3 className="text-sm font-semibold text-gray-700">Bankability Scores (0–100)</h3>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      ['technical_readiness', 'Technical Readiness'],
+                      ['financial_robustness', 'Financial Robustness'],
+                      ['legal_clarity', 'Legal Clarity'],
+                      ['esg_compliance', 'ESG Compliance'],
+                    ].map(([k, label]) => (
+                      <div key={k}>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                        <input type="number" min="0" max="100"
+                          value={form[k as keyof typeof form] as string}
+                          onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Focal Point */}
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-blue-500" />
+                  Focal Point (Government Reference) — optional
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ['focal_point_name', 'Name'],
+                    ['focal_point_title', 'Title / Position'],
+                    ['focal_point_org', 'Ministry / Organisation'],
+                    ['focal_point_email', 'Email'],
+                  ].map(([k, label]) => (
+                    <div key={k}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                      <input type={k.includes('email') ? 'email' : 'text'}
+                        value={form[k as keyof typeof form] as string}
+                        onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Local Partner */}
+              <div className="border-t pt-4">
+                <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-green-500" />
+                  Local Partner — optional
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    ['local_partner_name', 'Name'],
+                    ['local_partner_role', 'Role'],
+                    ['local_partner_org', 'Organisation'],
+                    ['local_partner_email', 'Email'],
+                  ].map(([k, label]) => (
+                    <div key={k}>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
+                      <input type={k.includes('email') ? 'email' : 'text'}
+                        value={form[k as keyof typeof form] as string}
+                        onChange={e => setForm(f => ({ ...f, [k]: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="border-t pt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
+                <textarea rows={2} value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50"
+                  placeholder="Verification notes, observations…" />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setShowEditModal(false); setEditingVerification(null); setFormError(null); }}
+                  className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={isSubmitting}
+                  className="px-4 py-2 text-sm bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark disabled:opacity-50">
+                  {isSubmitting ? 'Updating…' : 'Update Verification'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

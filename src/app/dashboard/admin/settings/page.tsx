@@ -161,6 +161,45 @@ function AdminSettingsContent() {
         </div>
       </div>
 
+      {/* AI Engine Configuration */}
+      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">AI Engine Configuration</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">OpenAI API Key</label>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 bg-gray-900 rounded-lg px-4 py-2 font-mono text-xs text-gray-300">
+                {process.env.NEXT_PUBLIC_OPENAI_CONFIGURED === 'true' ? (
+                  <span className="text-green-400">✓ Configured</span>
+                ) : (
+                  <span className="text-yellow-400">⚠ Not configured</span>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 mt-1">Set OPENAI_API_KEY in .env.local</p>
+          </div>
+          <div>
+            <label className="block text-sm text-gray-400 mb-2">Amazon Bedrock Claude API Key (AWS External Token)</label>
+            <div className="flex items-center gap-3">
+              <div className="flex-1 bg-gray-900 rounded-lg px-4 py-2 font-mono text-xs text-gray-300">
+                {process.env.NEXT_PUBLIC_ANTHROPIC_CONFIGURED === 'true' ? (
+                  <span className="text-green-400">✓ Configured</span>
+                ) : (
+                  <span className="text-yellow-400">⚠ Not configured</span>
+                )}
+              </div>
+            </div>
+            <p className="text-xs text-gray-600 mt-1">Set ANTHROPIC_API_KEY in .env.local (AWS Bedrock external token)</p>
+          </div>
+          <div className="mt-3 p-3 bg-blue-900/20 border border-blue-800/40 rounded-lg">
+            <p className="text-xs text-blue-300/80">
+              <strong>Note:</strong> API keys are server-side environment variables and cannot be changed from this UI for security.
+              Update them in Vercel dashboard → Settings → Environment Variables, or locally in .env.local
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* Supabase config */}
       <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
         <h2 className="text-lg font-semibold text-white mb-4">Supabase Configuration Checklist</h2>
