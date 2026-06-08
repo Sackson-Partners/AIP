@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { scoreMatch, buildPartnerProfile, MatchResult } from '@/lib/matching'
+import { getCached, setCached, CacheKeys, CacheTTL } from '@/lib/redis'
 
 /**
  * POST /api/investors/match
@@ -26,6 +27,14 @@ export async function POST(req: NextRequest) {
 
   try {
     logger.info(`[POST /api/investors/match] Starting match for investor ${investorId}`)
+
+    // Check cache first
+    const cacheKey = CacheKeys.investors.matches(investorId)
+    const cached = await getCached<Array<MatchResult & { projectName: string }>>(cacheKey)
+    if (cached) {
+      logger.info(`[POST /api/investors/match] Cache HIT for investor ${investorId}`)
+      return NextResponse.json({ data: cached })
+    }
 
     const investor = await prisma.investor.findUnique({ where: { id: investorId } })
     if (!investor) {
@@ -84,6 +93,10 @@ export async function POST(req: NextRequest) {
         )
       )
     }
+
+    // Cache the results (15 minutes - matches don't change frequently)
+    await setCached(cacheKey, results, CacheTTL.LONG)
+    logger.info(`[POST /api/investors/match] Cached ${results.length} matches for investor ${investorId}`)
 
     return NextResponse.json({ data: results })
   } catch (error: unknown) {

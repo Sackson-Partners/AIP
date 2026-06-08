@@ -6,6 +6,7 @@ import { createAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { Prisma, UserRole, ProjectStatus, ProjectSector } from '@prisma/client'
 import { z } from 'zod'
+import { getCached, setCached, deleteCached, CacheKeys, CacheTTL } from '@/lib/redis'
 
 const WRITE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
@@ -51,6 +52,17 @@ export async function GET(req: NextRequest) {
 
   console.log(`[GET /api/projects] User: ${session.user.email}, Role: ${userRole}, Internal: ${isInternal}`);
 
+  // Generate cache key based on query parameters
+  const cacheKey = `projects:list:${userRole}:p${page}:l${limit}:s${status || 'all'}:q${search || 'none'}`
+
+  // Try to get from cache first (only if no search query - search results shouldn't be cached)
+  if (!search) {
+    const cached = await getCached<{ data: unknown[]; pagination: unknown }>(cacheKey)
+    if (cached) {
+      return NextResponse.json(cached)
+    }
+  }
+
   const where: Prisma.ProjectWhereInput = {
     // External partners only see published projects (ACTIVE, FUNDED, CLOSED)
     ...(!isInternal ? { status: { in: PUBLISHED_STATUSES } } : {}),
@@ -75,7 +87,15 @@ export async function GET(req: NextRequest) {
       }),
       prisma.project.count({ where }),
     ])
-    return NextResponse.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+
+    const response = { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } }
+
+    // Cache the response (only if no search query)
+    if (!search) {
+      await setCached(cacheKey, response, CacheTTL.MEDIUM) // 5 minutes
+    }
+
+    return NextResponse.json(response)
   } catch (error: unknown) {
     logger.error('[GET /api/projects]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -172,6 +192,10 @@ export async function POST(req: NextRequest) {
       recordId:  project.id,
       newValues: { title: resolvedName, status: project.status },
     })
+
+    // Invalidate project list caches for all users
+    await deleteCached('projects:list:*')
+    console.log('[POST /api/projects] Cache invalidated after project creation')
 
     return NextResponse.json({ data: project }, { status: 201 })
   } catch (error: unknown) {

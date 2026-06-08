@@ -6,6 +6,7 @@ import { createAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { Prisma, UserRole } from '@prisma/client'
 import { z } from 'zod'
+import { deleteCached, getCached, setCached, CacheKeys, CacheTTL } from '@/lib/redis'
 
 const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
 const INTERNAL_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
@@ -43,6 +44,13 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   const userRole = session.user.role as string
   const isInternal = INTERNAL_ROLES.includes(userRole as UserRole)
 
+  // Try cache first
+  const cacheKey = CacheKeys.projects.detail(id)
+  const cached = await getCached<unknown>(cacheKey)
+  if (cached) {
+    return NextResponse.json({ data: cached })
+  }
+
   try {
     const project = await prisma.project.findUnique({
       where: { id },
@@ -55,6 +63,9 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       console.log(`[GET /api/projects/${id}] Access denied: ${session.user.email} (${userRole}) tried to access ${project.status} project`);
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
+
+    // Cache the project details
+    await setCached(cacheKey, project, CacheTTL.MEDIUM) // 5 minutes
 
     return NextResponse.json({ data: project })
   } catch (error: unknown) {
@@ -165,6 +176,13 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       recordId:  id,
       newValues: parsed.data as Record<string, unknown>,
     })
+
+    // Invalidate caches
+    await Promise.all([
+      deleteCached('projects:list:*'),
+      deleteCached(CacheKeys.projects.detail(id)),
+    ])
+    console.log('[PATCH /api/projects/[id]] Cache invalidated after project update')
 
     return NextResponse.json({ data: project })
   } catch (error: unknown) {

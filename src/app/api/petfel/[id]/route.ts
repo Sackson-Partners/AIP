@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
+import { deleteCached, CacheKeys } from '@/lib/redis'
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -46,6 +47,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     where: { id },
     data: updateData
   })
+
+  // Invalidate PESTEL cache for this project
+  await deleteCached(CacheKeys.pestel.assessment(record.projectId))
+  console.log(`[PATCH /api/petfel/${id}] Cache invalidated for project ${record.projectId}`)
 
   return NextResponse.json({ data: record })
 }

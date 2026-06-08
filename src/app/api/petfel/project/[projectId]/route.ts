@@ -3,6 +3,7 @@ import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
+import { getCached, setCached, CacheKeys, CacheTTL } from '@/lib/redis'
 
 function normalize(record: {
   id: string; projectId: string
@@ -45,7 +46,21 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pro
   const { projectId } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Check cache first
+  const cacheKey = CacheKeys.pestel.assessment(projectId)
+  const cached = await getCached<ReturnType<typeof normalize>>(cacheKey)
+  if (cached) {
+    return NextResponse.json({ data: cached })
+  }
+
   const record = await prisma.pETFELAnalysis.findUnique({ where: { projectId } })
   if (!record) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json({ data: normalize(record) })
+
+  const normalized = normalize(record)
+
+  // Cache for 10 minutes
+  await setCached(cacheKey, normalized, CacheTTL.MEDIUM)
+
+  return NextResponse.json({ data: normalized })
 }
