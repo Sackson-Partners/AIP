@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { getCached, setCached, CacheTTL } from '@/lib/redis'
+import { getProjectVisibilityFilter } from '@/lib/project-visibility'
 
 /**
  * GET /api/search
@@ -54,12 +55,7 @@ export async function GET(req: NextRequest) {
                 { country: { contains: searchQuery, mode: 'insensitive' } },
                 { region: { contains: searchQuery, mode: 'insensitive' } },
               ],
-              // Only show published projects to external users
-              ...(session.user.role !== 'SUPER_ADMIN' &&
-              session.user.role !== 'ADMIN' &&
-              session.user.role !== 'ANALYST'
-                ? { status: 'PUBLISHED' }
-                : {}),
+              ...getProjectVisibilityFilter(session.user.role),
             },
             select: {
               id: true,
@@ -84,7 +80,7 @@ export async function GET(req: NextRequest) {
                 { name: { contains: searchQuery, mode: 'insensitive' } },
                 { email: { contains: searchQuery, mode: 'insensitive' } },
                 { type: { contains: searchQuery, mode: 'insensitive' } },
-                { country: { contains: searchQuery, mode: 'insensitive' } },
+                { countryOfOrigin: { contains: searchQuery, mode: 'insensitive' } },
               ],
             },
             select: {
@@ -92,7 +88,7 @@ export async function GET(req: NextRequest) {
               name: true,
               email: true,
               type: true,
-              country: true,
+              countryOfOrigin: true,
               minTicket: true,
               maxTicket: true,
               createdAt: true,
