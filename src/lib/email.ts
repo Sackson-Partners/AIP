@@ -1,31 +1,17 @@
-import nodemailer from "nodemailer"
+import { Resend } from 'resend'
 
-// Check if SMTP is configured
-const isEmailConfigured = Boolean(
-  process.env.SMTP_HOST &&
-  process.env.SMTP_USER &&
-  process.env.SMTP_PASS
-)
+// Check if Resend is configured
+const isEmailConfigured = Boolean(process.env.RESEND_API_KEY)
 
-const transporter = isEmailConfigured
-  ? nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT ?? 587),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-    })
-  : null
+const resend = isEmailConfigured ? new Resend(process.env.RESEND_API_KEY) : null
 
-const FROM = process.env.SMTP_FROM ?? "AIP Platform <noreply@aip.com>"
+const FROM = process.env.RESEND_FROM_EMAIL ?? 'AIP Platform <noreply@africa-infra.com>'
 
 // Helper to check if email is configured
 function checkEmailConfig(): void {
-  if (!isEmailConfigured || !transporter) {
-    console.warn('[Email] SMTP not configured. Emails will not be sent. Set SMTP_HOST, SMTP_USER, SMTP_PASS in .env.local')
-    throw new Error('SMTP not configured')
+  if (!isEmailConfigured || !resend) {
+    console.warn('[Email] Resend not configured. Emails will not be sent. Set RESEND_API_KEY in .env.local')
+    throw new Error('Resend not configured')
   }
 }
 
@@ -117,7 +103,7 @@ export async function sendWelcomeEmail(params: {
     ${p("If you did not request this account, contact your administrator immediately.")}
   `)
 
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: email,
     subject: `Welcome to AIP Platform — Your Account is Ready`,
