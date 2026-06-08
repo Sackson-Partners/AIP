@@ -1,7 +1,7 @@
-import { Inngest, EventSchemas } from 'inngest'
+import { Inngest } from 'inngest'
 
 // Define event types for type safety
-type Events = {
+export type Events = {
   'pis/generate': {
     data: {
       pisId: string
@@ -42,11 +42,10 @@ type Events = {
   }
 }
 
-// Create Inngest client
-export const inngest = new Inngest({
+// Create Inngest client with type-safe events
+export const inngest = new Inngest<Events>({
   id: 'aip-platform',
   name: 'AIP Platform',
-  schemas: new EventSchemas().fromRecord<Events>(),
   // In development, events are sent to dev server
   // In production, set INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY
   eventKey: process.env.INNGEST_EVENT_KEY,
