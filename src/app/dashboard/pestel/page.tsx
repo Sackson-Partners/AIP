@@ -339,70 +339,78 @@ export default function PETFELPage() {
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-3">
-                {/* Mode Toggle */}
-                <div className="flex border border-gray-300 rounded-lg overflow-hidden mr-2">
+              <div className="flex flex-col gap-2">
+                <div className="flex items-center gap-3">
+                  {/* Mode Toggle */}
+                  <div className="flex border border-gray-300 rounded-lg overflow-hidden mr-2">
+                    <button
+                      onClick={() => setManualMode(false)}
+                      disabled={assessment.status === 'submitted'}
+                      className={`px-3 py-1.5 text-xs font-medium transition ${
+                        !manualMode
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-white text-gray-600 hover:bg-gray-50'
+                      } disabled:opacity-50`}
+                    >
+                      AI Assisted
+                    </button>
+                    <button
+                      onClick={() => setManualMode(true)}
+                      disabled={assessment.status === 'submitted'}
+                      className={`px-3 py-1.5 text-xs font-medium transition ${
+                        manualMode
+                          ? 'bg-gray-700 text-white'
+                          : 'bg-white text-gray-600 hover:bg-gray-50'
+                      } disabled:opacity-50`}
+                    >
+                      Manual
+                    </button>
+                  </div>
+
+                  {/* AI Augment - only visible in AI mode */}
+                  {!manualMode && (
+                    <button
+                      onClick={handleAIAugment}
+                      disabled={isAugmenting || assessment.status === 'submitted'}
+                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-2"
+                    >
+                      {isAugmenting ? (
+                        <span className="animate-spin">⟳</span>
+                      ) : (
+                        <SparklesIcon className="w-5 h-5" />
+                      )}
+                      AI Augment
+                    </button>
+                  )}
+
                   <button
-                    onClick={() => setManualMode(false)}
-                    disabled={assessment.status === 'submitted'}
-                    className={`px-3 py-1.5 text-xs font-medium transition ${
-                      !manualMode
-                        ? 'bg-purple-600 text-white'
-                        : 'bg-white text-gray-600 hover:bg-gray-50'
-                    } disabled:opacity-50`}
+                    onClick={handleSaveScores}
+                    disabled={isSaving || assessment.status === 'submitted'}
+                    className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
                   >
-                    AI Assisted
+                    {isSaving ? 'Saving...' : 'Save Scores'}
                   </button>
                   <button
-                    onClick={() => setManualMode(true)}
-                    disabled={assessment.status === 'submitted'}
-                    className={`px-3 py-1.5 text-xs font-medium transition ${
-                      manualMode
-                        ? 'bg-gray-700 text-white'
-                        : 'bg-white text-gray-600 hover:bg-gray-50'
-                    } disabled:opacity-50`}
+                    onClick={handleCalculate}
+                    disabled={isCalculating || assessment.status === 'submitted'}
+                    className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition disabled:opacity-50"
                   >
-                    Manual
+                    {isCalculating ? 'Calculating...' : 'Calculate Final'}
                   </button>
+                  {assessment.status === 'draft' && assessment.overall_score && (
+                    <button
+                      onClick={handleSubmit}
+                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
+                    >
+                      Submit
+                    </button>
+                  )}
                 </div>
-
-                {/* AI Augment - only visible in AI mode */}
-                {!manualMode && (
-                  <button
-                    onClick={handleAIAugment}
-                    disabled={isAugmenting || assessment.status === 'submitted'}
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition disabled:opacity-50 flex items-center gap-2"
-                  >
-                    {isAugmenting ? (
-                      <span className="animate-spin">⟳</span>
-                    ) : (
-                      <SparklesIcon className="w-5 h-5" />
-                    )}
-                    AI Augment
-                  </button>
-                )}
-
-                <button
-                  onClick={handleCalculate}
-                  disabled={isCalculating || assessment.status === 'submitted'}
-                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition disabled:opacity-50"
-                >
-                  {isCalculating ? 'Calculating...' : 'Calculate'}
-                </button>
-                <button
-                  onClick={handleSaveScores}
-                  disabled={isSaving || assessment.status === 'submitted'}
-                  className="bg-brand-gold text-brand-navy px-4 py-2 rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50"
-                >
-                  {isSaving ? 'Saving...' : 'Save'}
-                </button>
-                {assessment.status === 'draft' && assessment.overall_score && (
-                  <button
-                    onClick={handleSubmit}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"
-                  >
-                    Submit
-                  </button>
+                {/* Workflow hint */}
+                {manualMode && (
+                  <p className="text-xs text-gray-500 italic">
+                    📝 Manual workflow: Score each criterion (1-5) → Click "Save Scores" → Click "Calculate Final" to get rating
+                  </p>
                 )}
               </div>
             </div>

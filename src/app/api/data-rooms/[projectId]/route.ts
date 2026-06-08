@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { canAccessProject, logAccessDenied } from '@/lib/project-visibility'
+import { canAccessDataRoom, requiresDataRoomNDA } from '@/lib/data-room-access'
 
 type Ctx = { params: Promise<{ projectId: string }> }
 
@@ -18,26 +19,51 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 })
 
   // Check project visibility (DRAFT vs PUBLISHED)
-  const access = await canAccessProject(session.user.id, session.user.role as string, projectId)
+  const projectAccess = await canAccessProject(session.user.id, session.user.role as string, projectId)
 
-  if (!access.allowed) {
+  if (!projectAccess.allowed) {
     logAccessDenied(
       session.user.email ?? 'unknown',
       session.user.role as string,
       'data-room',
       projectId,
-      access.projectStatus || 'unknown'
+      projectAccess.projectStatus || 'unknown'
     )
     return NextResponse.json({
       error: 'PROJECT_NOT_PUBLISHED',
       message: 'This data room is only available for published projects. External partners must wait for project publication.',
-      projectStatus: access.projectStatus,
-      requiresNDA: true, // Indicates NDA may be required in future
+      projectStatus: projectAccess.projectStatus,
+      requiresNDA: true,
     }, { status: 403 })
   }
 
+  // Check NDA + access code for external partners
+  const userRole = session.user.role as string
+  if (requiresDataRoomNDA(userRole)) {
+    const dataRoomAccess = await canAccessDataRoom(session.user.id, userRole, projectId)
+
+    if (!dataRoomAccess.allowed) {
+      logAccessDenied(
+        session.user.email ?? 'unknown',
+        userRole,
+        'data-room-nda',
+        projectId,
+        dataRoomAccess.reason || 'unknown'
+      )
+
+      return NextResponse.json({
+        error: dataRoomAccess.reason === 'NDA_REQUIRED' ? 'NDA_REQUIRED' : 'ACCESS_DENIED',
+        message: dataRoomAccess.reason === 'NDA_REQUIRED'
+          ? 'You must sign an NDA and receive an access code to view data room documents'
+          : dataRoomAccess.reason || 'Access denied',
+        requiresNDA: dataRoomAccess.requiresNDA,
+        accessId: dataRoomAccess.accessId,
+      }, { status: 403 })
+    }
+  }
+
   // Log access for auditing
-  console.log(`[data-room] Access granted: ${session.user.email} → project ${projectId} (${access.projectStatus})`)
+  console.log(`[data-room] Access granted: ${session.user.email} → project ${projectId}`)
 
 
   const documents = await prisma.document.findMany({

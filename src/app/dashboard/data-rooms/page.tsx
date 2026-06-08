@@ -314,14 +314,26 @@ export default function DataRoomsPage() {
       </div>
 
       {/* Access Control Notice */}
-      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
-        <ShieldIcon className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+      <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
+        <ShieldIcon className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
         <div>
-          <h3 className="text-sm font-semibold text-blue-900 mb-1">Secure Access Control</h3>
-          <p className="text-xs text-blue-800">
-            <strong>External Partners:</strong> Data rooms are restricted to <strong>published projects</strong> only.
-            Draft projects remain internal. Document access is logged for compliance and audit purposes.
-            {' '}<span className="text-blue-600">Future: NDA + credential code required for confidential documents.</span>
+          <h3 className="text-sm font-semibold text-red-900 mb-1 flex items-center gap-2">
+            🔒 Premium Access Required
+            <span className="text-xs bg-red-200 text-red-900 px-2 py-0.5 rounded-full">NDA + Credential Code</span>
+          </h3>
+          <p className="text-xs text-red-800">
+            <strong>External Partners:</strong> To access data room documents, you must:
+          </p>
+          <ol className="text-xs text-red-800 ml-4 mt-1 space-y-1 list-decimal">
+            <li>Be invited to the project by an administrator</li>
+            <li>Sign the Non-Disclosure Agreement (NDA)</li>
+            <li>Receive your unique 6-digit <strong>access code</strong></li>
+            <li>Enter the code to unlock documents</li>
+          </ol>
+          <p className="text-xs text-red-700 mt-2 flex items-center gap-1">
+            <strong>✓ Current:</strong> Project visibility enforced (published projects only)
+            <br />
+            <strong>⏳ Coming Soon:</strong> Full NDA workflow with credential codes
           </p>
         </div>
       </div>
