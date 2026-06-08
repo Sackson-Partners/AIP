@@ -27,6 +27,7 @@ interface DocEntry {
   blob_url: string | null
   version: number
   is_confidential: boolean
+  is_public: boolean
   uploaded_at: string
   uploader_name: string
 }
@@ -297,6 +298,23 @@ export default function DataRoomsPage() {
       ])
     } finally {
       setLogLoading(false)
+    }
+  }
+
+  // Toggle document publish status (internal staff only)
+  const togglePublish = async (documentId: string, currentStatus: boolean) => {
+    if (!selectedProjectId) return
+    try {
+      await fetch(`/api/data-rooms/${selectedProjectId}/${documentId}/publish`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isPublic: !currentStatus }),
+      })
+      // Reload room to refresh document list
+      const res = await dataRoomsApi.get(selectedProjectId) as RoomDetail
+      setDetail(res)
+    } catch (error) {
+      console.error('Failed to toggle publish status:', error)
     }
   }
 
@@ -574,6 +592,7 @@ export default function DataRoomsPage() {
                         canDelete={canDelete}
                         onDelete={handleDelete}
                         onView={loadAccessLog}
+                        onTogglePublish={isAdmin ? togglePublish : undefined}
                       />
                     ))}
                   </div>
@@ -707,12 +726,14 @@ function FolderSection({
   canDelete,
   onDelete,
   onView,
+  onTogglePublish,
 }: {
   folder: Folder
   projectId: string
   canDelete: boolean
   onDelete: (documentId: string, name: string) => void
   onView: (documentId: string) => void
+  onTogglePublish?: (documentId: string, currentStatus: boolean) => void
 }) {
   const [open, setOpen] = useState(true)
   const label = DOC_TYPE_LABELS[folder.type] ?? folder.type
@@ -759,6 +780,16 @@ function FolderSection({
                           Confidential
                         </span>
                       )}
+                      {!doc.is_public && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-600 shrink-0">
+                          Draft
+                        </span>
+                      )}
+                      {doc.is_public && (
+                        <span className="px-2 py-0.5 text-xs rounded-full bg-green-100 text-green-700 shrink-0">
+                          Published
+                        </span>
+                      )}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-500 text-xs">{formatBytes(doc.size)}</td>
@@ -767,6 +798,19 @@ function FolderSection({
                   <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell truncate max-w-30">{doc.uploader_name}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
+                      {onTogglePublish && (
+                        <button
+                          onClick={() => onTogglePublish(doc.id, doc.is_public)}
+                          className={`p-1.5 rounded-lg transition ${
+                            doc.is_public
+                              ? 'text-green-600 hover:bg-green-50'
+                              : 'text-gray-400 hover:bg-gray-100'
+                          }`}
+                          title={doc.is_public ? 'Unpublish (make draft)' : 'Publish to external partners'}
+                        >
+                          <EyeIcon className="w-4 h-4" />
+                        </button>
+                      )}
                       {doc.blob_url && (
                         <a
                           href={doc.blob_url}

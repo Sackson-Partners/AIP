@@ -65,9 +65,17 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   // Log access for auditing
   console.log(`[data-room] Access granted: ${session.user.email} → project ${projectId}`)
 
+  // Determine if user is internal staff
+  const isInternal = !requiresDataRoomNDA(userRole)
 
+  // Fetch documents with visibility filter
+  // Internal staff: see ALL documents (draft + published)
+  // External partners: see ONLY published documents (isPublic = true)
   const documents = await prisma.document.findMany({
-    where:   { projectId },
+    where: {
+      projectId,
+      ...(isInternal ? {} : { isPublic: true }), // External partners: published only
+    },
     include: { uploader: { select: { id: true, name: true, email: true } } },
     orderBy: { createdAt: 'desc' },
   })
@@ -91,6 +99,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       blob_url:      d.blobUrl,
       version:       d.version,
       is_confidential: d.isConfidential,
+      is_public:     d.isPublic, // Published status for internal staff UI
       uploaded_at:   d.createdAt.toISOString(),
       uploader_name: d.uploader.name ?? d.uploader.email ?? 'Unknown',
     })),

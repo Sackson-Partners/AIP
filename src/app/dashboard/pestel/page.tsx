@@ -7,6 +7,7 @@ import { WarningIcon, ChevronIcon } from '@/components/ui/icons';
 import { useToast } from '../../../context/ToastContext';
 import * as Sentry from '@sentry/nextjs';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { useSession } from 'next-auth/react';
 
 // PETFEL Pillar configuration with weights
 const PILLARS = [
@@ -34,6 +35,7 @@ const RATING_COLORS: Record<string, string> = {
 };
 
 export default function PETFELPage() {
+  const { data: session } = useSession();
   const { success } = useToast();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -48,33 +50,50 @@ export default function PETFELPage() {
   const [error, setError] = useState<string | null>(null);
   const [manualMode, setManualMode] = useState(false);
 
-  // Fetch projects and criteria on mount
+  // Access control for external partners
+  const [showAccessGate, setShowAccessGate] = useState(false);
+  const [accessCode, setAccessCode] = useState('');
+  const [accessError, setAccessError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [hasAccess, setHasAccess] = useState(false);
+
+  const userRole = session?.user?.role || '';
+  const isExternalPartner = !['SUPER_ADMIN', 'ADMIN', 'ANALYST'].includes(userRole);
+
+  // Check access on mount
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [projectsData, criteriaData] = await Promise.all([
-          projectsApi.list(),
-          petfelApi.getCriteria(),
-        ]);
-        setProjects(projectsData);
-        const criteriaMap: Record<string, PETFELCriterion[]> = {};
-        criteriaData.forEach((c) => {
-          const key = c.category || 'default';
-          if (!criteriaMap[key]) criteriaMap[key] = [];
-          criteriaMap[key].push(c);
-        });
-        setCriteria(criteriaMap);
-        // Expand first pillar by default
-        setExpandedPillars({ political: true });
-      } catch (err) {
-        Sentry.captureException(err);
-        setError('Failed to load data');
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    if (isExternalPartner && !hasAccess) {
+      setShowAccessGate(true);
+      setIsLoading(false);
+      return;
+    }
     fetchData();
-  }, []);
+  }, [hasAccess, isExternalPartner]);
+
+  // Fetch projects and criteria
+  const fetchData = async () => {
+    try {
+      const [projectsData, criteriaData] = await Promise.all([
+        projectsApi.list(),
+        petfelApi.getCriteria(),
+      ]);
+      setProjects(projectsData);
+      const criteriaMap: Record<string, PETFELCriterion[]> = {};
+      criteriaData.forEach((c) => {
+        const key = c.category || 'default';
+        if (!criteriaMap[key]) criteriaMap[key] = [];
+        criteriaMap[key].push(c);
+      });
+      setCriteria(criteriaMap);
+      // Expand first pillar by default
+      setExpandedPillars({ political: true });
+    } catch (err) {
+      Sentry.captureException(err);
+      setError('Failed to load data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // Load assessment when project changes
   useEffect(() => {
@@ -254,10 +273,111 @@ export default function PETFELPage() {
   );
   const getPillarScore = (pillarCode: string): number => pillarScores[pillarCode] || 0;
 
+  // Handle access code verification
+  const handleAccessCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accessCode) return;
+
+    setIsVerifying(true);
+    setAccessError(null);
+
+    try {
+      // TODO: Call API to verify access code
+      if (accessCode.length !== 6 || !/^\d{6}$/.test(accessCode)) {
+        throw new Error('Invalid access code format');
+      }
+
+      // If valid, grant access
+      setHasAccess(true);
+      setShowAccessGate(false);
+      setAccessCode('');
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : 'Access denied. Please check your code.');
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
   if (isLoading && !projects.length) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-gold"></div>
+      </div>
+    );
+  }
+
+  // Show access gate for external partners
+  if (showAccessGate && isExternalPartner) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-3 bg-purple-100 rounded-xl">
+                <SparklesIcon className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">PESTEL Assessment Access</h2>
+                <p className="text-sm text-gray-500">Due diligence framework</p>
+              </div>
+            </div>
+          </div>
+
+          <form onSubmit={handleAccessCodeSubmit} className="p-6 space-y-6">
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-purple-900 mb-2">🔒 Access Code Required</h3>
+              <p className="text-xs text-purple-800">
+                PESTEL assessments contain confidential due diligence information.
+                Enter your 6-digit access code to continue.
+              </p>
+            </div>
+
+            {accessError && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                {accessError}
+              </div>
+            )}
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Access Code
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="000000"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl font-mono tracking-widest focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500"
+                required
+              />
+              <p className="text-xs text-gray-500 mt-1">Enter the 6-digit code you received via email</p>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                type="submit"
+                disabled={isVerifying || accessCode.length !== 6}
+                className="flex-1 bg-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isVerifying ? 'Verifying...' : 'Access PESTEL'}
+              </button>
+            </div>
+
+            <div className="pt-4 border-t border-gray-200">
+              <p className="text-xs text-gray-600 mb-3">Don't have an access code?</p>
+              <button
+                type="button"
+                onClick={() => {
+                  alert('Request access feature coming soon. Please contact your administrator.');
+                }}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
+              >
+                Request Access
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     );
   }
