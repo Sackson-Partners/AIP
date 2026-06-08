@@ -66,6 +66,12 @@ Return JSON with exactly these keys:
   "investmentHighlights": "..."
 }`
 
+  // Validate API key
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error('[PIS generate] ANTHROPIC_API_KEY not configured')
+    return NextResponse.json({ error: 'AI service not configured. Please contact administrator.' }, { status: 503 })
+  }
+
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
   let generated: {
@@ -78,6 +84,7 @@ Return JSON with exactly these keys:
   } = {}
 
   try {
+    console.log(`[PIS generate] Starting AI generation for PIS ${id}`)
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
@@ -85,10 +92,25 @@ Return JSON with exactly these keys:
     })
 
     const text = response.content[0].type === 'text' ? response.content[0].text : ''
-    generated = JSON.parse(text)
+    console.log(`[PIS generate] Received ${text.length} chars from AI`)
+
+    // Try to parse JSON, handle potential markdown code blocks
+    let jsonText = text.trim()
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.replace(/^```json\n/, '').replace(/\n```$/, '')
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```\n/, '').replace(/\n```$/, '')
+    }
+
+    generated = JSON.parse(jsonText)
+    console.log(`[PIS generate] Successfully parsed JSON response`)
   } catch (err) {
     console.error('[PIS generate] AI generation failed:', err)
-    return NextResponse.json({ error: 'AI generation failed' }, { status: 500 })
+    const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({
+      error: 'AI generation failed',
+      details: errorMessage
+    }, { status: 500 })
   }
 
   const updated = await prisma.pISReport.update({

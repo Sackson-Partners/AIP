@@ -17,7 +17,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
   const body = await req.json().catch(() => ({}))
-  const record = await prisma.pETFELAnalysis.update({ where: { id }, data: body })
+
+  // Allow internal staff to update any field including scores, rating, and status
+  const updateData: { [key: string]: unknown } = {}
+
+  // Score fields
+  if (body.politicalScore !== undefined) updateData.politicalScore = Number(body.politicalScore)
+  if (body.economicScore !== undefined) updateData.economicScore = Number(body.economicScore)
+  if (body.technicalScore !== undefined) updateData.technicalScore = Number(body.technicalScore)
+  if (body.financialScore !== undefined) updateData.financialScore = Number(body.financialScore)
+  if (body.environmentalScore !== undefined) updateData.environmentalScore = Number(body.environmentalScore)
+  if (body.legalScore !== undefined) updateData.legalScore = Number(body.legalScore)
+  if (body.overallScore !== undefined) updateData.overallScore = Number(body.overallScore)
+
+  // Rating and status
+  if (body.rating !== undefined) updateData.rating = body.rating
+  if (body.status !== undefined) updateData.status = body.status
+
+  // Text fields
+  if (body.aiMemo !== undefined) updateData.aiMemo = body.aiMemo
+  if (body.riskFactors !== undefined) updateData.riskFactors = body.riskFactors
+  if (body.mitigants !== undefined) updateData.mitigants = body.mitigants
+  if (body.recommendations !== undefined) updateData.recommendations = body.recommendations
+
+  const record = await prisma.pETFELAnalysis.update({
+    where: { id },
+    data: updateData
+  })
+
   return NextResponse.json({ data: record })
 }

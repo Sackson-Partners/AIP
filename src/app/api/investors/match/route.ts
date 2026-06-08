@@ -25,8 +25,11 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    logger.info(`[POST /api/investors/match] Starting match for investor ${investorId}`)
+
     const investor = await prisma.investor.findUnique({ where: { id: investorId } })
     if (!investor) {
+      logger.warn(`[POST /api/investors/match] Investor ${investorId} not found`)
       return NextResponse.json({ error: 'Investor not found' }, { status: 404 })
     }
 
@@ -41,6 +44,8 @@ export async function POST(req: NextRequest) {
         projectType: true,
       },
     })
+
+    logger.info(`[POST /api/investors/match] Loaded ${projects.length} projects for matching`)
 
     const partner = buildPartnerProfile({
       id:               investor.id,

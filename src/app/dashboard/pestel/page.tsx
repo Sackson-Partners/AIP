@@ -238,6 +238,46 @@ export default function PETFELPage() {
     }
   }, [assessment]);
 
+  // Manual edit handlers for internal staff
+  const handleManualScoreEdit = async (pillar: string, value: number) => {
+    if (!assessment) return;
+    try {
+      // Map pillar code to API field name (e.g., "political" -> "politicalScore")
+      const fieldName = `${pillar}Score`;
+      const updated = await petfelApi.updateAssessment(assessment.id, {
+        [fieldName]: value
+      });
+      setAssessment(updated);
+      success(`Updated ${pillar} pillar score`);
+    } catch (err) {
+      Sentry.captureException(err);
+      setError(`Failed to update ${pillar} score`);
+    }
+  };
+
+  const handleManualRatingEdit = async (newRating: string) => {
+    if (!assessment) return;
+    try {
+      const updated = await petfelApi.updateAssessment(assessment.id, { rating: newRating });
+      setAssessment(updated);
+    } catch (err) {
+      Sentry.captureException(err);
+      setError('Failed to update rating');
+    }
+  };
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!assessment) return;
+    try {
+      const updated = await petfelApi.updateAssessment(assessment.id, { status: newStatus });
+      setAssessment(updated);
+      success(`Status changed to ${newStatus}`);
+    } catch (err) {
+      Sentry.captureException(err);
+      setError('Failed to update status');
+    }
+  };
+
   const handleAIAugment = async () => {
     if (!assessment) return;
     setIsAugmenting(true);
@@ -436,19 +476,46 @@ export default function PETFELPage() {
                     {assessment.overall_score?.toFixed(1) || '—'}
                   </div>
                 </div>
-                {assessment.rating && (
-                  <div>
-                    <span className="text-sm text-gray-500">Rating</span>
+                <div>
+                  <span className="text-sm text-gray-500">Rating</span>
+                  {!isExternalPartner ? (
+                    <select
+                      value={assessment.rating || ''}
+                      onChange={(e) => handleManualRatingEdit(e.target.value)}
+                      className="text-2xl font-bold px-4 py-1 rounded-lg border-2 border-gray-300 focus:border-brand-gold focus:outline-none"
+                    >
+                      <option value="">—</option>
+                      <option value="A">A</option>
+                      <option value="B">B</option>
+                      <option value="C">C</option>
+                      <option value="D">D</option>
+                    </select>
+                  ) : assessment.rating ? (
                     <div className={`text-2xl font-bold px-4 py-1 rounded-lg ${RATING_COLORS[assessment.rating]}`}>
                       {assessment.rating}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    <div className="text-lg text-gray-400">—</div>
+                  )}
+                </div>
                 <div>
                   <span className="text-sm text-gray-500">Status</span>
-                  <div className="text-lg font-medium text-gray-700 capitalize">
-                    {assessment.status}
-                  </div>
+                  {!isExternalPartner ? (
+                    <select
+                      value={assessment.status || 'pending'}
+                      onChange={(e) => handleStatusChange(e.target.value)}
+                      className="text-lg font-medium px-3 py-1 rounded-lg border-2 border-gray-300 capitalize focus:border-brand-gold focus:outline-none"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in_progress">In Progress</option>
+                      <option value="submitted">Submitted</option>
+                      <option value="verified">Verified</option>
+                    </select>
+                  ) : (
+                    <div className="text-lg font-medium text-gray-700 capitalize">
+                      {assessment.status}
+                    </div>
+                  )}
                 </div>
                 {assessment.gating_result && (
                   <div>
@@ -595,11 +662,24 @@ export default function PETFELPage() {
                     <span className="text-sm text-gray-500">({pillar.weight}%)</span>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="text-right">
+                    <div className="text-right flex items-center gap-2">
                       <span className="text-sm text-gray-500">Score:</span>
-                      <span className="ml-2 font-bold text-lg">
-                        {getPillarScore(pillar.code)?.toFixed(1) || '—'}
-                      </span>
+                      {!isExternalPartner && manualMode ? (
+                        <input
+                          type="number"
+                          min="0"
+                          max="5"
+                          step="0.1"
+                          value={getPillarScore(pillar.code) || ''}
+                          onChange={(e) => handleManualScoreEdit(pillar.code, Number(e.target.value))}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-20 px-2 py-1 text-lg font-bold border-2 border-gray-300 rounded-lg focus:border-brand-gold focus:outline-none text-center"
+                        />
+                      ) : (
+                        <span className="ml-2 font-bold text-lg">
+                          {getPillarScore(pillar.code)?.toFixed(1) || '—'}
+                        </span>
+                      )}
                     </div>
                     <ChevronIcon className={`w-5 h-5 transition-transform ${expandedPillars[pillar.code] ? 'rotate-180' : ''}`} />
                   </div>

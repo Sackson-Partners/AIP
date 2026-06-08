@@ -59,13 +59,18 @@ export default function InvestorDetailPage() {
     setError(null);
     Promise.all([investorsApi.get(id), projectsApi.list()])
       .then(([inv, projects]) => {
+        console.log('[Investor Detail] Loaded investor:', inv);
+        console.log('[Investor Detail] Loaded projects:', projects.length);
         setInvestor(inv);
-        setMatchedProjects(projects.filter((p) => matchesInvestor(p, inv)));
+        const matches = projects.filter((p) => matchesInvestor(p, inv));
+        console.log('[Investor Detail] Matched projects:', matches.length);
+        setMatchedProjects(matches);
       })
       .catch((err) => {
         // eslint-disable-next-line no-console
         console.error('Failed to load investor:', err);
-        setError('Failed to load investor details. Please try again.');
+        const errorMsg = err instanceof Error ? err.message : 'Unknown error';
+        setError(`Failed to load investor details: ${errorMsg}. Please try again.`);
       })
       .finally(() => setIsLoading(false));
   }, [id]);
@@ -106,16 +111,40 @@ export default function InvestorDetailPage() {
 
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-sm p-8">
-        <h1 className="text-3xl font-bold text-brand-navy">{investor.fund_name}</h1>
-        {investor.aum && (
-          <p className="text-gray-500 mt-1">AUM: {formatAUM(investor.aum)}</p>
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-brand-navy">{investor.fund_name}</h1>
+            <div className="flex items-center gap-4 mt-2">
+              {investor.aum && (
+                <p className="text-gray-600">AUM: <span className="font-semibold">{formatAUM(investor.aum)}</span></p>
+              )}
+              {investor.email && (
+                <a href={`mailto:${investor.email}`} className="text-brand-gold hover:underline text-sm">
+                  {investor.email}
+                </a>
+              )}
+              {investor.website && (
+                <a href={investor.website} target="_blank" rel="noopener noreferrer" className="text-brand-gold hover:underline text-sm">
+                  Website ↗
+                </a>
+              )}
+            </div>
+          </div>
+          {(investor as Investor & { organization_type?: string; profile_complete?: number }).organization_type && (
+            <span className="px-3 py-1 text-sm font-medium rounded-full bg-brand-gold/10 text-brand-gold border border-brand-gold/20">
+              {(investor as Investor & { organization_type?: string }).organization_type}
+            </span>
+          )}
+        </div>
+        {investor.description && (
+          <p className="mt-4 text-gray-700 leading-relaxed">{(investor as Investor & { description?: string }).description}</p>
         )}
       </div>
 
       {/* Metrics */}
       <div className="bg-white rounded-2xl shadow-sm p-8">
-        <h2 className="text-lg font-semibold text-brand-navy mb-5">Fund Overview</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+        <h2 className="text-lg font-semibold text-brand-navy mb-5">Investment Criteria</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div>
             <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Target IRR</p>
             <p className="text-sm font-semibold text-gray-900">
@@ -129,12 +158,30 @@ export default function InvestorDetailPage() {
             </p>
           </div>
           <div>
-            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Instruments</p>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Country Focus</p>
             <p className="text-sm font-semibold text-gray-900">
-              {instruments.length > 0 ? instruments.join(', ') : '—'}
+              {countryFocus.length > 0 ? countryFocus.join(', ') : '—'}
+            </p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-1">Stage Focus</p>
+            <p className="text-sm font-semibold text-gray-900">
+              {(investor as Investor & { stage_focus?: string[] }).stage_focus?.join(', ') || '—'}
             </p>
           </div>
         </div>
+        {instruments.length > 0 && (
+          <div className="mt-6">
+            <p className="text-xs text-gray-400 uppercase tracking-wider mb-2">Instruments</p>
+            <div className="flex flex-wrap gap-2">
+              {instruments.map(i => (
+                <span key={i} className="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                  {i}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Sector & Geography Focus */}

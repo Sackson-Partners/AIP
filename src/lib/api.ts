@@ -607,6 +607,7 @@ export const petfelApi = {
   createAssessment: (projectId: string | number, d?: object) => post<{ data: PETFELAssessment }>(`/petfel/assess/${projectId}`, d ?? {}).then(r => r.data),
   score:            (assessmentId: string | number, scores: ScoreInput[]) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/scores`, { scores }).then(r => r.data),
   updateScores:     (assessmentId: string | number, scores: ScoreInput[]) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/scores`, { scores }).then(r => r.data),
+  updateAssessment: (assessmentId: string | number, data: object) => patch<{ data: PETFELAssessment }>(`/petfel/${assessmentId}`, data).then(r => r.data),
   calculate:        (assessmentId: string | number) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/calculate`).then(r => r.data),
   submit:           (assessmentId: string | number) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/submit`).then(r => r.data),
 }

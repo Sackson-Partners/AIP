@@ -41,7 +41,8 @@ export function projectHealthScore(p: ProjectHealthInput): number {
   let score = 0;
 
   // Stage maturity (max 80)
-  score += STAGE_SCORE[p.status ?? p.stage ?? ''] ?? 0;
+  const stageScore = STAGE_SCORE[p.status ?? p.stage ?? ''] ?? 0;
+  score += stageScore;
 
   // Profile completeness (max 20)
   if (p.sector) score += 5;
@@ -50,10 +51,17 @@ export function projectHealthScore(p: ProjectHealthInput): number {
   if (p.estimated_cost ?? p.capex ?? p.estimated_capex) score += 5;
 
   // Pipeline stage bonus (max 20)
-  score += PIPELINE_STAGE_SCORE[p.pipeline_stage ?? ''] ?? 0;
+  const pipelineScore = PIPELINE_STAGE_SCORE[p.pipeline_stage ?? ''] ?? 0;
+  score += pipelineScore;
 
   // SLA penalty (max -15)
-  score += SLA_MODIFIER[p.sla_status ?? ''] ?? 0;
+  const slaPenalty = SLA_MODIFIER[p.sla_status ?? ''] ?? 0;
+  score += slaPenalty;
+
+  // Ensure minimum score if any data exists
+  if (score === 0 && (p.sector || p.country)) {
+    score = 15; // Baseline for projects with minimal data
+  }
 
   return Math.max(0, Math.min(100, score));
 }
