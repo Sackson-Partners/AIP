@@ -8,8 +8,8 @@ export const generatePIS = inngest.createFunction(
     id: 'generate-pis',
     name: 'Generate PIS with AI',
     retries: 2, // Retry twice on failure
+    triggers: [{ event: 'pis/generate' }],
   },
-  { event: 'pis/generate' },
   async ({ event, step }) => {
     const { pisId, projectId, userId } = event.data
 

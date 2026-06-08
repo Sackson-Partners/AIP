@@ -76,21 +76,22 @@ export async function deleteCached(keyOrPattern: string): Promise<number> {
   try {
     // If pattern contains wildcard, use scan + delete
     if (keyOrPattern.includes('*')) {
-      let cursor = 0
+      let cursor: string = '0'
       let deletedCount = 0
 
       do {
-        const [newCursor, keys] = await redis.scan(cursor, {
+        const result: [string, string[]] = await redis.scan(cursor, {
           match: keyOrPattern,
           count: 100,
         })
+        const [newCursor, keys] = result
         cursor = newCursor
 
         if (keys.length > 0) {
           const deleted = await redis.del(...keys)
           deletedCount += deleted
         }
-      } while (cursor !== 0)
+      } while (cursor !== '0')
 
       console.log(`[Redis] Cache DELETE pattern ${keyOrPattern}: ${deletedCount} keys`)
       return deletedCount

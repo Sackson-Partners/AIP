@@ -40,8 +40,8 @@ export const sendAccessCodeEmail = inngest.createFunction(
     id: 'send-access-code-email',
     name: 'Send Access Code Email',
     retries: 2,
+    triggers: [{ event: 'email/send-access-code' }],
   },
-  { event: 'email/send-access-code' },
   async ({ event, step }) => {
     const { email, accessCode, projectId, projectTitle } = event.data
 

@@ -40,8 +40,8 @@ export const sendNDAEmail = inngest.createFunction(
     id: 'send-nda-email',
     name: 'Send NDA Request Email',
     retries: 2,
+    triggers: [{ event: 'email/send-nda' }],
   },
-  { event: 'email/send-nda' },
   async ({ event, step }) => {
     const { email, projectId, projectTitle } = event.data
 

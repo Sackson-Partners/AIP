@@ -8,8 +8,8 @@ export const augmentPETFEL = inngest.createFunction(
     id: 'augment-pestel',
     name: 'Augment PESTEL with AI',
     retries: 2,
+    triggers: [{ event: 'pestel/augment' }],
   },
-  { event: 'pestel/augment' },
   async ({ event, step }) => {
     const { assessmentId, projectId, userId } = event.data
 
