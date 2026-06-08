@@ -122,7 +122,7 @@ export async function sendActivationEmail(params: {
     ${p("An administrator has approved your AIP Platform account. You can now sign in and access all features available to your account type.")}
     ${btn(`${appUrl}/auth/signin`, "Sign In Now")}
   `)
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Account Approved",
@@ -143,7 +143,7 @@ export async function sendSuspensionEmail(params: {
     ${params.reason ? `<div style="background:#1e1010;border:1px solid #7f1d1d;border-radius:8px;padding:16px;margin:12px 0"><p style="margin:0;color:#fca5a5;font-size:13px">Reason: ${params.reason}</p></div>` : ""}
     ${p("To appeal this decision, contact your administrator.")}
   `)
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Account Suspended",
@@ -173,7 +173,7 @@ export async function sendPasswordResetEmail(params: {
     </div>
     ${btn(`${appUrl}/auth/signin`, "Sign In Now")}
   `)
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Password Reset",
@@ -191,7 +191,7 @@ export async function sendAdminNotificationEmail(params: {
     ${h2(params.subject)}
     ${p(params.message)}
   `)
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: params.adminEmail,
     subject: `[AIP Admin] ${params.subject}`,
@@ -222,7 +222,7 @@ export async function sendAccessRequestConfirmation(params: {
     ${p("If you have any questions, please contact our support team.")}
   `)
 
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Access Request Received",
@@ -261,7 +261,7 @@ export async function sendAccessRequestApproval(params: {
     ${p("If you have any questions or need assistance getting started, our support team is here to help.")}
   `)
 
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Access Request Approved! 🎉",
@@ -286,7 +286,7 @@ export async function sendAccessRequestRejection(params: {
     ${p("We appreciate your understanding.")}
   `)
 
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: params.email,
     subject: "AIP Platform — Access Request Update",
@@ -325,7 +325,7 @@ export async function notifyAdminsOfAccessRequest(params: {
     ${p("Please action this request within 2-3 business days to maintain a good user experience.")}
   `)
 
-  await transporter!.sendMail({
+  await resend!.emails.send({
     from: FROM,
     to: params.adminEmails,
     subject: `[AIP Admin] New Access Request — ${params.applicantName}`,
