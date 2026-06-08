@@ -316,22 +316,37 @@ export default function PETFELPage() {
   // Handle access code verification
   const handleAccessCodeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!accessCode) return;
+    if (!accessCode || !selectedProjectId) return;
 
     setIsVerifying(true);
     setAccessError(null);
 
     try {
-      // TODO: Call API to verify access code
-      if (accessCode.length !== 6 || !/^\d{6}$/.test(accessCode)) {
-        throw new Error('Invalid access code format');
+      // Verify access code via API
+      const verifyResponse = await fetch('/api/access/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessCode,
+          projectId: selectedProjectId,
+          type: 'pestel'
+        })
+      });
+
+      const verifyData = await verifyResponse.json();
+
+      if (!verifyResponse.ok || !verifyData.valid) {
+        throw new Error(verifyData.error || 'Invalid access code');
       }
+
+      console.log('[pestel] Access verified:', verifyData);
 
       // If valid, grant access
       setHasAccess(true);
       setShowAccessGate(false);
       setAccessCode('');
     } catch (error) {
+      console.error('[pestel] Access verification failed:', error);
       setAccessError(error instanceof Error ? error.message : 'Access denied. Please check your code.');
     } finally {
       setIsVerifying(false);

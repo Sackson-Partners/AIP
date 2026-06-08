@@ -46,6 +46,39 @@ const SYSTEM_CHECKS = [
 
 function AdminSettingsContent() {
   const [selectedTemplate, setSelectedTemplate] = useState(0);
+  const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
+  const [isMigrating, setIsMigrating] = useState(false);
+
+  const runDataRoomAccessMigration = async () => {
+    if (!confirm('Run DataRoomAccess table migration? This will create the table if it doesn\'t exist.')) {
+      return;
+    }
+
+    setIsMigrating(true);
+    setMigrationStatus(null);
+
+    try {
+      const response = await fetch('/api/admin/migrate-data-room-access', {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.alreadyExists) {
+          setMigrationStatus('✓ Table already exists - no changes needed');
+        } else {
+          setMigrationStatus('✓ Migration successful! DataRoomAccess table created');
+        }
+      } else {
+        setMigrationStatus(`✗ Migration failed: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      setMigrationStatus(`✗ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setIsMigrating(false);
+    }
+  };
 
   return (
     <div className="space-y-8 max-w-5xl">
@@ -158,6 +191,38 @@ function AdminSettingsContent() {
               </span>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Database Migrations */}
+      <div className="bg-gray-800 rounded-xl border border-gray-700 p-6">
+        <h2 className="text-lg font-semibold text-white mb-4">Database Migrations</h2>
+        <div className="space-y-4">
+          <div className="flex items-start justify-between gap-4 p-4 bg-gray-900 rounded-lg">
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-white mb-1">DataRoomAccess Table</h3>
+              <p className="text-xs text-gray-400">
+                Creates the DataRoomAccess table for access code verification. Required for Data Room and PESTEL access control.
+              </p>
+              {migrationStatus && (
+                <div className={`mt-2 text-xs ${migrationStatus.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>
+                  {migrationStatus}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={runDataRoomAccessMigration}
+              disabled={isMigrating}
+              className="px-4 py-2 bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark transition disabled:opacity-50 text-sm font-medium whitespace-nowrap"
+            >
+              {isMigrating ? 'Running...' : 'Run Migration'}
+            </button>
+          </div>
+          <div className="p-3 bg-yellow-900/20 border border-yellow-800/40 rounded-lg">
+            <p className="text-xs text-yellow-300/80">
+              <strong>⚠ Warning:</strong> Only run migrations once. Check the status message to see if the table already exists.
+            </p>
+          </div>
         </div>
       </div>
 

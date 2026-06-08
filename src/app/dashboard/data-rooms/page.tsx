@@ -250,11 +250,24 @@ export default function DataRoomsPage() {
     setAccessError(null)
 
     try {
-      // TODO: Call API to verify access code
-      // For now, check if code is 6 digits
-      if (accessCode.length !== 6 || !/^\d{6}$/.test(accessCode)) {
-        throw new Error('Invalid access code format')
+      // Verify access code via API
+      const verifyResponse = await fetch('/api/access/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          accessCode,
+          projectId: selectedProjectId,
+          type: 'data-room'
+        })
+      })
+
+      const verifyData = await verifyResponse.json()
+
+      if (!verifyResponse.ok || !verifyData.valid) {
+        throw new Error(verifyData.error || 'Invalid access code')
       }
+
+      console.log('[data-rooms] Access verified:', verifyData)
 
       // If valid, load the data room
       const res = await dataRoomsApi.get(selectedProjectId) as RoomDetail
@@ -262,6 +275,7 @@ export default function DataRoomsPage() {
       setShowAccessGate(false)
       setAccessCode('')
     } catch (error) {
+      console.error('[data-rooms] Access verification failed:', error)
       setAccessError(error instanceof Error ? error.message : 'Access denied. Please check your code.')
     } finally {
       setIsVerifying(false)
