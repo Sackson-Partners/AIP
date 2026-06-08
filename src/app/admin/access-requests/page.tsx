@@ -33,7 +33,7 @@ export default function AccessRequestsPage() {
   const load = async () => {
     setIsLoading(true)
     try {
-      const res = await api.get<{ data: AccessRequest[] }>('/admin/access-requests')
+      const res = await api.get<{ data: AccessRequest[] }>('/access-requests?status=PENDING')
       setRequests(res.data.data ?? [])
     } catch {
       setError('Failed to load access requests.')
@@ -44,10 +44,10 @@ export default function AccessRequestsPage() {
 
   useEffect(() => { load() }, [])
 
-  const review = async (id: string, status: 'APPROVED' | 'REJECTED', reason?: string) => {
+  const review = async (id: string, action: 'approve' | 'reject', reason?: string) => {
     setReviewing(id)
     try {
-      const res = await api.patch<ReviewResult>(`/admin/access-requests/${id}`, { status, reason })
+      const res = await api.patch<ReviewResult>(`/access-requests/${id}`, { action, reason })
       setResults(prev => ({ ...prev, [id]: res.data }))
       setRequests(prev => prev.filter(r => r.id !== id))
       setShowRejectModal(null)
@@ -129,7 +129,7 @@ export default function AccessRequestsPage() {
                 {req.status === 'PENDING' && (
                   <div className="flex gap-2 shrink-0">
                     <button
-                      onClick={() => review(req.id, 'APPROVED')}
+                      onClick={() => review(req.id, 'approve')}
                       disabled={reviewing === req.id}
                       className="px-4 py-2 bg-green-500/20 text-green-400 border border-green-500/30 rounded-lg text-sm font-medium hover:bg-green-500/30 transition-colors disabled:opacity-50"
                     >
@@ -172,7 +172,7 @@ export default function AccessRequestsPage() {
                 Cancel
               </button>
               <button
-                onClick={() => review(showRejectModal, 'REJECTED', rejectReason || undefined)}
+                onClick={() => review(showRejectModal, 'reject', rejectReason || undefined)}
                 disabled={reviewing === showRejectModal}
                 className="px-4 py-2 bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm font-medium hover:bg-red-500/30 transition-colors disabled:opacity-50"
               >
