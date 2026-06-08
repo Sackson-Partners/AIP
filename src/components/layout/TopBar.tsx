@@ -22,13 +22,20 @@ export function TopBar() {
   const [unread, setUnread]         = useState(0)
 
   useEffect(() => {
-    fetch("/api/notifications")
-      .then((r) => r.json())
-      .then((d) => {
-        setNotifs(d.notifications ?? [])
-        setUnread(d.unreadCount ?? 0)
-      })
-      .catch(() => {})
+    const loadNotifications = () => {
+      fetch("/api/notifications")
+        .then((r) => r.json())
+        .then((d) => {
+          setNotifs(d.notifications ?? [])
+          setUnread(d.unreadCount ?? 0)
+        })
+        .catch(() => {})
+    }
+
+    loadNotifications()
+    // Poll every 30 seconds for new notifications
+    const interval = setInterval(loadNotifications, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   async function markAllRead() {

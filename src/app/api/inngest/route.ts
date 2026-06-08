@@ -4,6 +4,7 @@ import { generatePIS } from '@/lib/inngest/functions/generate-pis'
 import { augmentPETFEL } from '@/lib/inngest/functions/augment-pestel'
 import { sendAccessCodeEmail } from '@/lib/inngest/functions/send-access-code-email'
 import { sendNDAEmail } from '@/lib/inngest/functions/send-nda-email'
+import { sendNotification } from '@/lib/inngest/functions/send-notification'
 
 // Create the Inngest serve handler with all functions
 export const { GET, POST, PUT } = serve({
@@ -13,6 +14,7 @@ export const { GET, POST, PUT } = serve({
     augmentPETFEL,
     sendAccessCodeEmail,
     sendNDAEmail,
+    sendNotification,
   ],
   servePath: '/api/inngest',
 })
