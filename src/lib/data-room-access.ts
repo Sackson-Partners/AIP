@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { UserRole } from '@prisma/client'
+import { inngest } from '@/lib/inngest/client'
 import crypto from 'crypto'
 
 // Internal staff bypass NDA + access code requirement
@@ -130,7 +131,7 @@ export async function grantDataRoomAccess(
   email: string,
   grantedBy?: string
 ) {
-  return await prisma.dataRoomAccess.upsert({
+  const access = await prisma.dataRoomAccess.upsert({
     where: {
       projectId_userId: { projectId, userId },
     },
@@ -144,6 +145,29 @@ export async function grantDataRoomAccess(
       grantedBy,
     },
   })
+
+  // Get project title for email
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    select: { title: true },
+  })
+
+  // Send NDA request email via background job
+  if (project) {
+    await inngest.send({
+      name: 'email/send-nda',
+      data: {
+        email,
+        projectId,
+        projectTitle: project.title,
+      },
+    }).catch(err => {
+      console.error('[grantDataRoomAccess] Failed to send NDA email:', err)
+      // Don't throw - access is granted even if email fails
+    })
+  }
+
+  return access
 }
 
 /**
@@ -152,7 +176,7 @@ export async function grantDataRoomAccess(
 export async function signNDAAndIssueCode(accessId: string) {
   const accessCode = generateAccessCode()
 
-  return await prisma.dataRoomAccess.update({
+  const updated = await prisma.dataRoomAccess.update({
     where: { id: accessId },
     data: {
       ndaSigned: true,
@@ -160,5 +184,24 @@ export async function signNDAAndIssueCode(accessId: string) {
       accessCode,
       codeIssuedAt: new Date(),
     },
+    include: {
+      project: { select: { title: true } },
+    },
   })
+
+  // Send access code email via background job
+  await inngest.send({
+    name: 'email/send-access-code',
+    data: {
+      email: updated.email,
+      accessCode,
+      projectId: updated.projectId,
+      projectTitle: updated.project.title,
+    },
+  }).catch(err => {
+    console.error('[signNDAAndIssueCode] Failed to send access code email:', err)
+    // Don't throw - access code is issued even if email fails
+  })
+
+  return updated
 }
