@@ -103,7 +103,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
           role: accessRequest.roleRequested as any,
           status: 'ACTIVE',
           authProvider: 'INTERNAL',
-          password: hashedPassword,
+          passwordHash: hashedPassword,
           mustChangePass: true,
           organization: accessRequest.organization,
           country: accessRequest.country,

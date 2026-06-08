@@ -74,7 +74,7 @@ export async function POST(req: NextRequest) {
               role: accessRequest.roleRequested as any,
               status: 'ACTIVE',
               authProvider: 'INTERNAL',
-              password: hashedPassword,
+              passwordHash: hashedPassword,
               mustChangePass: true,
               organization: accessRequest.organization,
               country: accessRequest.country,
