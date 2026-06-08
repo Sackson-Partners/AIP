@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from "react"
 import { useSession, signOut } from "next-auth/react"
-import { Bell, LogOut, User, Settings } from "lucide-react"
+import { Bell, LogOut, User, Settings, Search } from "lucide-react"
 import Link from "next/link"
+import { useSearch } from "@/components/search/SearchProvider"
 
 interface Notification {
   id: string
@@ -16,6 +17,7 @@ interface Notification {
 
 export function TopBar() {
   const { data: session } = useSession()
+  const { open: openSearch } = useSearch()
   const [showNotifs, setShowNotifs] = useState(false)
   const [showUser, setShowUser]     = useState(false)
   const [notifs, setNotifs]         = useState<Notification[]>([])
@@ -56,6 +58,18 @@ export function TopBar() {
       <span className="font-bold text-white tracking-tight">AIP Platform</span>
 
       <div className="flex items-center gap-3 relative">
+        {/* Search */}
+        <button
+          onClick={openSearch}
+          className="flex items-center gap-2 px-3 py-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition text-sm"
+        >
+          <Search className="w-4 h-4" />
+          <span className="hidden sm:inline">Search</span>
+          <kbd className="hidden sm:inline px-1.5 py-0.5 text-xs bg-slate-800 rounded border border-slate-700">
+            ⌘K
+          </kbd>
+        </button>
+
         {/* Notifications */}
         <div className="relative">
           <button

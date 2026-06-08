@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { SessionProvider } from "@/providers/SessionProvider"
 import { ToastProvider } from "@/context/ToastContext"
+import { SearchProvider } from "@/components/search/SearchProvider"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 
 const inter = Inter({ subsets: ["latin"] })
@@ -35,7 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ErrorBoundary>
           <SessionProvider>
             <ToastProvider>
-              {children}
+              <SearchProvider>
+                {children}
+              </SearchProvider>
             </ToastProvider>
           </SessionProvider>
         </ErrorBoundary>
