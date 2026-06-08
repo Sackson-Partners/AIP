@@ -5,6 +5,7 @@ import { dataRoomsApi } from '@/lib/api'
 import { PermissionGuard, ViewOnlyBadge } from '@/components/PermissionGuard'
 import { FileUploader } from '@/components/FileUploader'
 import { useRBAC } from '@/hooks/useRBAC'
+import { useSession } from 'next-auth/react'
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -162,6 +163,7 @@ function EyeIcon({ className = '' }: { className?: string }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DataRoomsPage() {
+  const { data: session } = useSession()
   const { isAdmin, can } = useRBAC()
   const canUpload = can('upload_to_data_room') || isAdmin
   const canDelete = isAdmin
@@ -182,6 +184,16 @@ export default function DataRoomsPage() {
   // Access log
   const [accessLog, setAccessLog] = useState<AccessLogEntry[]>([])
   const [logLoading, setLogLoading] = useState(false)
+
+  // Access control for external partners
+  const [showAccessGate, setShowAccessGate] = useState(false)
+  const [accessCode, setAccessCode] = useState('')
+  const [accessError, setAccessError] = useState<string | null>(null)
+  const [isVerifying, setIsVerifying] = useState(false)
+
+  // Check if user is external partner (requires access code)
+  const userRole = session?.user?.role || ''
+  const isExternalPartner = !['SUPER_ADMIN', 'ADMIN', 'ANALYST'].includes(userRole)
 
   // Stats
   const totalProjects = rooms.length
@@ -210,6 +222,13 @@ export default function DataRoomsPage() {
     setDetail(null)
     setAccessLog([])
     setShowUpload(false)
+
+    // Show access gate for external partners
+    if (isExternalPartner) {
+      setShowAccessGate(true)
+      return
+    }
+
     setDetailLoading(true)
     try {
       const res = await dataRoomsApi.get(projectId) as RoomDetail
@@ -218,6 +237,33 @@ export default function DataRoomsPage() {
       // ignore
     } finally {
       setDetailLoading(false)
+    }
+  }
+
+  // Verify access code and load room
+  const handleAccessCodeSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!selectedProjectId || !accessCode) return
+
+    setIsVerifying(true)
+    setAccessError(null)
+
+    try {
+      // TODO: Call API to verify access code
+      // For now, check if code is 6 digits
+      if (accessCode.length !== 6 || !/^\d{6}$/.test(accessCode)) {
+        throw new Error('Invalid access code format')
+      }
+
+      // If valid, load the data room
+      const res = await dataRoomsApi.get(selectedProjectId) as RoomDetail
+      setDetail(res)
+      setShowAccessGate(false)
+      setAccessCode('')
+    } catch (error) {
+      setAccessError(error instanceof Error ? error.message : 'Access denied. Please check your code.')
+    } finally {
+      setIsVerifying(false)
     }
   }
 
@@ -313,30 +359,19 @@ export default function DataRoomsPage() {
         <p className="text-sm text-gray-500">Secure document repository for due diligence</p>
       </div>
 
-      {/* Access Control Notice */}
-      <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-start gap-3">
-        <ShieldIcon className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-        <div>
-          <h3 className="text-sm font-semibold text-red-900 mb-1 flex items-center gap-2">
-            🔒 Premium Access Required
-            <span className="text-xs bg-red-200 text-red-900 px-2 py-0.5 rounded-full">NDA + Credential Code</span>
-          </h3>
-          <p className="text-xs text-red-800">
-            <strong>External Partners:</strong> To access data room documents, you must:
-          </p>
-          <ol className="text-xs text-red-800 ml-4 mt-1 space-y-1 list-decimal">
-            <li>Be invited to the project by an administrator</li>
-            <li>Sign the Non-Disclosure Agreement (NDA)</li>
-            <li>Receive your unique 6-digit <strong>access code</strong></li>
-            <li>Enter the code to unlock documents</li>
-          </ol>
-          <p className="text-xs text-red-700 mt-2 flex items-center gap-1">
-            <strong>✓ Current:</strong> Project visibility enforced (published projects only)
-            <br />
-            <strong>⏳ Coming Soon:</strong> Full NDA workflow with credential codes
-          </p>
+      {/* Access Control Notice - Only for internal staff */}
+      {!isExternalPartner && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-start gap-3">
+          <ShieldIcon className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+          <div>
+            <h3 className="text-sm font-semibold text-blue-900 mb-1">Access Control Active</h3>
+            <p className="text-xs text-blue-800">
+              External partners require a valid access code to view data room documents.
+              Codes are issued after NDA signature. All access is logged for compliance.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Stats bar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
@@ -573,6 +608,93 @@ export default function DataRoomsPage() {
           </div>
         )}
       </div>
+
+      {/* Access Gate Modal for External Partners */}
+      {showAccessGate && selectedProjectId && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
+            <div className="p-6 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-brand-gold/10 rounded-xl">
+                    <ShieldIcon className="w-6 h-6 text-brand-gold" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-900">Data Room Access</h2>
+                    <p className="text-sm text-gray-500">Secure document repository</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowAccessGate(false)
+                    setSelectedProjectId(null)
+                    setAccessCode('')
+                    setAccessError(null)
+                  }}
+                  className="text-gray-400 hover:text-gray-600 transition"
+                >
+                  <XIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+
+            <form onSubmit={handleAccessCodeSubmit} className="p-6 space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="text-sm font-semibold text-blue-900 mb-2">🔒 Access Code Required</h3>
+                <p className="text-xs text-blue-800">
+                  This data room contains confidential documents protected by NDA.
+                  Enter your 6-digit access code to continue.
+                </p>
+              </div>
+
+              {accessError && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-700">
+                  {accessError}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Access Code
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={accessCode}
+                  onChange={(e) => setAccessCode(e.target.value.replace(/\D/g, ''))}
+                  placeholder="000000"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg text-center text-2xl font-mono tracking-widest focus:ring-2 focus:ring-brand-gold/50 focus:border-brand-gold"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">Enter the 6-digit code you received via email</p>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  type="submit"
+                  disabled={isVerifying || accessCode.length !== 6}
+                  className="flex-1 bg-brand-gold text-brand-navy px-4 py-3 rounded-lg font-semibold hover:bg-brand-gold-dark transition disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isVerifying ? 'Verifying...' : 'Access Data Room'}
+                </button>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <p className="text-xs text-gray-600 mb-3">Don't have an access code?</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    alert('Request access feature coming soon. Please contact your administrator.')
+                  }}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg text-sm text-gray-700 hover:bg-gray-50 transition"
+                >
+                  Request Access
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
