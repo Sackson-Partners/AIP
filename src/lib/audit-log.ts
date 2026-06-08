@@ -46,6 +46,10 @@ export type AuditAction =
   | 'admin.settings_change'
   | 'admin.role_change'
   | 'admin.bulk_delete'
+  | 'admin.access_request_submitted'
+  | 'admin.access_request_approved'
+  | 'admin.access_request_rejected'
+  | 'admin.access_request_deleted'
 
 export interface LogAuditParams {
   userId?: string
