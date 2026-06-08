@@ -43,10 +43,14 @@ export type Events = {
 }
 
 // Create Inngest client with type-safe events
-export const inngest = new Inngest<Events>({
+export const inngest = new Inngest({
   id: 'aip-platform',
   name: 'AIP Platform',
   // In development, events are sent to dev server
   // In production, set INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY
   eventKey: process.env.INNGEST_EVENT_KEY,
-})
+}) as Inngest<{
+  id: 'aip-platform'
+  name: 'AIP Platform'
+  events: Events
+}>

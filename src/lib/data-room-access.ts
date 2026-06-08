@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma'
 import { UserRole } from '@prisma/client'
 import { inngest } from '@/lib/inngest/client'
+import { logAudit } from '@/lib/audit-log'
 import crypto from 'crypto'
 
 // Internal staff bypass NDA + access code requirement
@@ -152,6 +153,16 @@ export async function grantDataRoomAccess(
     select: { title: true },
   })
 
+  // Log audit event
+  await logAudit({
+    userId: grantedBy,
+    email,
+    action: 'data_room.access_granted',
+    tableName: 'DataRoomAccess',
+    recordId: access.id,
+    newValues: { projectId, userId, email, grantedBy },
+  })
+
   // Send NDA request email via background job
   if (project) {
     await inngest.send({
@@ -187,6 +198,25 @@ export async function signNDAAndIssueCode(accessId: string) {
     include: {
       project: { select: { title: true } },
     },
+  })
+
+  // Log audit events
+  await logAudit({
+    userId: updated.userId,
+    email: updated.email,
+    action: 'data_room.nda_signed',
+    tableName: 'DataRoomAccess',
+    recordId: accessId,
+    newValues: { ndaSigned: true, ndaSignedAt: updated.ndaSignedAt },
+  })
+
+  await logAudit({
+    userId: updated.userId,
+    email: updated.email,
+    action: 'data_room.code_issued',
+    tableName: 'DataRoomAccess',
+    recordId: accessId,
+    newValues: { accessCode, codeIssuedAt: updated.codeIssuedAt },
   })
 
   // Send access code email via background job

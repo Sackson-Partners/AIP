@@ -1,5 +1,6 @@
 import { inngest } from '../client'
 import { prisma } from '@/lib/prisma'
+import { logAudit } from '@/lib/audit-log'
 import Anthropic from '@anthropic-ai/sdk'
 
 export const generatePIS = inngest.createFunction(
@@ -114,7 +115,22 @@ Return JSON with exactly these keys:
       })
     })
 
-    // Step 4: Send notification (optional)
+    // Step 4: Log audit event
+    await step.run('log-audit', async () => {
+      await logAudit({
+        userId,
+        action: 'pis.ai_generate',
+        tableName: 'PISReport',
+        recordId: pisId,
+        metadata: {
+          projectId,
+          fieldsGenerated: Object.keys(generated).length,
+          generatedAt: updated.generatedAt,
+        },
+      })
+    })
+
+    // Step 5: Send notification (optional)
     await step.run('send-notification', async () => {
       await inngest.send({
         name: 'notification/send',

@@ -1,5 +1,6 @@
 import { inngest } from '../client'
 import { prisma } from '@/lib/prisma'
+import { logAudit } from '@/lib/audit-log'
 import Anthropic from '@anthropic-ai/sdk'
 
 export const augmentPETFEL = inngest.createFunction(
@@ -101,7 +102,21 @@ Return ONLY valid JSON:
       })
     })
 
-    // Step 4: Send notification
+    // Step 4: Log audit event
+    await step.run('log-audit', async () => {
+      await logAudit({
+        userId,
+        action: 'pestel.ai_augment',
+        tableName: 'PETFELAnalysis',
+        recordId: assessmentId,
+        metadata: {
+          projectId,
+          augmentedAt: new Date(),
+        },
+      })
+    })
+
+    // Step 5: Send notification
     await step.run('send-notification', async () => {
       await inngest.send({
         name: 'notification/send',

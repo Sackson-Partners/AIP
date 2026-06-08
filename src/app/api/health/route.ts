@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { isCacheAvailable } from '@/lib/redis'
+import { aggregateHealth, type HealthCheckResult, logError } from '@/lib/monitoring'
 
 /**
  * GET /api/health
@@ -8,58 +9,67 @@ import { isCacheAvailable } from '@/lib/redis'
  * Returns 200 if all systems operational, 503 if critical services down
  */
 export async function GET() {
-  const checks = {
-    status: 'healthy',
-    timestamp: new Date().toISOString(),
-    services: {
-      database: { status: 'unknown', latency: 0 },
-      redis: { status: 'unknown', available: false },
-      ai: {
-        anthropic: process.env.ANTHROPIC_API_KEY ? 'configured' : 'not_configured',
-        openai: process.env.OPENAI_API_KEY ? 'configured' : 'not_configured',
-      },
-    },
-  }
-
-  let hasErrors = false
+  const healthChecks: HealthCheckResult[] = []
 
   // Check database connection
   try {
     const start = Date.now()
     await prisma.$queryRaw`SELECT 1`
-    checks.services.database = {
-      status: 'healthy',
-      latency: Date.now() - start,
-    }
+    const latency = Date.now() - start
+
+    healthChecks.push({
+      service: 'database',
+      status: latency > 1000 ? 'degraded' : 'healthy',
+      latency,
+    })
   } catch (error) {
-    checks.services.database = {
+    healthChecks.push({
+      service: 'database',
       status: 'unhealthy',
-      latency: 0,
-    }
-    hasErrors = true
-    console.error('[Health Check] Database error:', error)
+      error: error instanceof Error ? error.message : 'Unknown error',
+    })
+    logError('Database health check failed', error instanceof Error ? error : undefined, {
+      service: 'database',
+    }, 'critical')
   }
 
   // Check Redis (optional)
   try {
     const redisAvailable = await isCacheAvailable()
-    checks.services.redis = {
-      status: redisAvailable ? 'healthy' : 'not_configured',
-      available: redisAvailable,
-    }
+    healthChecks.push({
+      service: 'redis',
+      status: redisAvailable ? 'healthy' : 'degraded',
+      details: { available: redisAvailable, optional: true },
+    })
   } catch (error) {
-    checks.services.redis = {
-      status: 'error',
-      available: false,
-    }
-    // Redis is optional, don't mark as error
-    console.warn('[Health Check] Redis error:', error)
+    healthChecks.push({
+      service: 'redis',
+      status: 'degraded',
+      error: error instanceof Error ? error.message : 'Unknown error',
+      details: { optional: true },
+    })
   }
 
-  if (hasErrors) {
-    checks.status = 'unhealthy'
-    return NextResponse.json(checks, { status: 503 })
-  }
+  // Check AI service configuration
+  healthChecks.push({
+    service: 'ai',
+    status: 'healthy',
+    details: {
+      anthropic: process.env.ANTHROPIC_API_KEY ? 'configured' : 'not_configured',
+      openai: process.env.OPENAI_API_KEY ? 'configured' : 'not_configured',
+    },
+  })
 
-  return NextResponse.json(checks, { status: 200 })
+  // Aggregate health status
+  const health = aggregateHealth(healthChecks)
+  const statusCode = health.overall === 'unhealthy' ? 503 : 200
+
+  return NextResponse.json(
+    {
+      status: health.overall,
+      timestamp: new Date().toISOString(),
+      checks: health.checks,
+    },
+    { status: statusCode }
+  )
 }
