@@ -52,7 +52,7 @@ export async function GET(req: NextRequest) {
                 { title: { contains: searchQuery, mode: 'insensitive' } },
                 { description: { contains: searchQuery, mode: 'insensitive' } },
                 { country: { contains: searchQuery, mode: 'insensitive' } },
-                { sector: { contains: searchQuery, mode: 'insensitive' } },
+                { region: { contains: searchQuery, mode: 'insensitive' } },
               ],
               // Only show published projects to external users
               ...(session.user.role !== 'SUPER_ADMIN' &&
