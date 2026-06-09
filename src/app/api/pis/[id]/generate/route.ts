@@ -27,15 +27,17 @@ async function generatePISSync(pisId: string, projectId: string, userId: string)
   const petfel = petfelResult.status === 'fulfilled' ? petfelResult.value : null
   const ein = einResult.status === 'fulfilled' ? einResult.value : null
 
-  // Try AWS Anthropic Claude first, fallback to OpenAI
+  // AWS Anthropic Claude AI generation
   let generated: Record<string, string> = {}
 
   try {
-    // AWS Anthropic Claude (preferred)
-    if (process.env.ANTHROPIC_API_KEY) {
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY not configured')
+    }
 
-      const prompt = `You are an expert infrastructure investment analyst. Generate a professional Project Information Sheet (PIS) for the following project. Return ONLY valid JSON with no markdown, no code blocks, no additional text.
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+    const prompt = `You are an expert infrastructure investment analyst. Generate a professional Project Information Sheet (PIS) for the following project. Return ONLY valid JSON with no markdown, no code blocks, no additional text.
 
 PROJECT DATA:
 - Name: ${project.title ?? 'N/A'}
@@ -62,44 +64,24 @@ Return JSON with exactly these keys:
   "investmentHighlights": "..."
 }`
 
-      const response = await client.messages.create({
-        model: 'claude-sonnet-4-6',
-        max_tokens: 4000,
-        messages: [{ role: 'user', content: prompt }],
-      })
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      messages: [{ role: 'user', content: prompt }],
+    })
 
-      const text = response.content[0].type === 'text' ? response.content[0].text : ''
+    const text = response.content[0].type === 'text' ? response.content[0].text : ''
 
-      // Handle potential markdown code blocks
-      let jsonText = text.trim()
-      if (jsonText.startsWith('```json')) {
-        jsonText = jsonText.replace(/^```json\n/, '').replace(/\n```$/, '')
-      } else if (jsonText.startsWith('```')) {
-        jsonText = jsonText.replace(/^```\n/, '').replace(/\n```$/, '')
-      }
-
-      generated = JSON.parse(jsonText)
-      console.log('[PIS] Generated with AWS Anthropic Claude')
-    } else if (process.env.OPENAI_API_KEY) {
-      // Fallback to OpenAI
-      const OpenAI = (await import('openai')).default
-      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
-      const prompt = `Generate a professional Project Information Sheet (PIS) for: ${project.title}. Return valid JSON only with keys: executiveSummary, projectBackground, financialStructure, marketAnalysis, riskFactors, investmentHighlights. Each section 2-4 paragraphs.
-
-Project: ${project.country} | ${project.sector} | ${project.projectType} | USD ${project.totalCost?.toLocaleString() ?? 'TBD'}`
-
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o',
-        messages: [{ role: 'user', content: prompt }],
-        response_format: { type: 'json_object' },
-      })
-
-      generated = JSON.parse(response.choices[0].message.content || '{}')
-      console.log('[PIS] Generated with OpenAI fallback')
-    } else {
-      throw new Error('No AI API keys configured (ANTHROPIC_API_KEY or OPENAI_API_KEY)')
+    // Handle potential markdown code blocks
+    let jsonText = text.trim()
+    if (jsonText.startsWith('```json')) {
+      jsonText = jsonText.replace(/^```json\n/, '').replace(/\n```$/, '')
+    } else if (jsonText.startsWith('```')) {
+      jsonText = jsonText.replace(/^```\n/, '').replace(/\n```$/, '')
     }
+
+    generated = JSON.parse(jsonText)
+    console.log('[PIS] Generated with AWS Anthropic Claude')
   } catch (aiError) {
     console.error('[PIS] AI generation failed:', aiError)
     throw aiError
