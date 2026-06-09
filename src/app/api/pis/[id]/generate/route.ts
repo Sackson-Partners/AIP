@@ -3,9 +3,138 @@ import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
-import { inngest } from '@/lib/inngest/client'
+import { logAudit } from '@/lib/audit-log'
+import Anthropic from '@anthropic-ai/sdk'
 
 type Ctx = { params: Promise<{ id: string }> }
+
+// Synchronous AI generation (fallback when Inngest not configured)
+async function generatePISSync(pisId: string, projectId: string, userId: string) {
+  // Load data
+  const pisReport = await prisma.pISReport.findUnique({
+    where: { id: pisId },
+    include: { project: true },
+  })
+
+  if (!pisReport) throw new Error(`PIS report ${pisId} not found`)
+
+  const [petfelResult, einResult] = await Promise.allSettled([
+    prisma.pETFELAnalysis.findUnique({ where: { projectId } }),
+    prisma.eINReport.findUnique({ where: { projectId } }),
+  ])
+
+  const project = pisReport.project
+  const petfel = petfelResult.status === 'fulfilled' ? petfelResult.value : null
+  const ein = einResult.status === 'fulfilled' ? einResult.value : null
+
+  // Try AWS Anthropic Claude first, fallback to OpenAI
+  let generated: Record<string, string> = {}
+
+  try {
+    // AWS Anthropic Claude (preferred)
+    if (process.env.ANTHROPIC_API_KEY) {
+      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+      const prompt = `You are an expert infrastructure investment analyst. Generate a professional Project Information Sheet (PIS) for the following project. Return ONLY valid JSON with no markdown, no code blocks, no additional text.
+
+PROJECT DATA:
+- Name: ${project.title ?? 'N/A'}
+- Country: ${project.country ?? 'N/A'}
+- Region: ${project.region ?? 'N/A'}
+- Sector: ${project.sector ?? 'N/A'}
+- Project Type: ${project.projectType ?? 'N/A'}
+- Deal Stage: ${project.dealStage ?? 'N/A'}
+- Total Cost: ${project.totalCost ? `USD ${project.totalCost.toLocaleString()}` : 'N/A'}
+- Risk Rating: ${project.riskRating ?? 'N/A'}
+- Description: ${project.description ?? 'N/A'}
+${petfel ? `- PESTEL Score: ${petfel.overallScore ?? 'N/A'}` : ''}
+${ein ? `- EIN Summary: ${ein.projectSummary ?? 'N/A'}` : ''}
+
+Generate detailed, professional content for each section. Each section should be 2-4 paragraphs of substantive analysis appropriate for institutional investors.
+
+Return JSON with exactly these keys:
+{
+  "executiveSummary": "...",
+  "projectBackground": "...",
+  "financialStructure": "...",
+  "marketAnalysis": "...",
+  "riskFactors": "...",
+  "investmentHighlights": "..."
+}`
+
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: prompt }],
+      })
+
+      const text = response.content[0].type === 'text' ? response.content[0].text : ''
+
+      // Handle potential markdown code blocks
+      let jsonText = text.trim()
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/^```json\n/, '').replace(/\n```$/, '')
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```\n/, '').replace(/\n```$/, '')
+      }
+
+      generated = JSON.parse(jsonText)
+      console.log('[PIS] Generated with AWS Anthropic Claude')
+    } else if (process.env.OPENAI_API_KEY) {
+      // Fallback to OpenAI
+      const OpenAI = (await import('openai')).default
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+
+      const prompt = `Generate a professional Project Information Sheet (PIS) for: ${project.title}. Return valid JSON only with keys: executiveSummary, projectBackground, financialStructure, marketAnalysis, riskFactors, investmentHighlights. Each section 2-4 paragraphs.
+
+Project: ${project.country} | ${project.sector} | ${project.projectType} | USD ${project.totalCost?.toLocaleString() ?? 'TBD'}`
+
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+      })
+
+      generated = JSON.parse(response.choices[0].message.content || '{}')
+      console.log('[PIS] Generated with OpenAI fallback')
+    } else {
+      throw new Error('No AI API keys configured (ANTHROPIC_API_KEY or OPENAI_API_KEY)')
+    }
+  } catch (aiError) {
+    console.error('[PIS] AI generation failed:', aiError)
+    throw aiError
+  }
+
+  // Save results
+  const updated = await prisma.pISReport.update({
+    where: { id: pisId },
+    data: {
+      executiveSummary: generated.executiveSummary ?? pisReport.executiveSummary,
+      projectBackground: generated.projectBackground ?? pisReport.projectBackground,
+      financialStructure: generated.financialStructure ?? pisReport.financialStructure,
+      marketAnalysis: generated.marketAnalysis ?? pisReport.marketAnalysis,
+      riskFactors: generated.riskFactors ?? pisReport.riskFactors,
+      investmentHighlights: generated.investmentHighlights ?? pisReport.investmentHighlights,
+      aiGenerated: true,
+      generatedAt: new Date(),
+    },
+  })
+
+  // Log audit
+  await logAudit({
+    userId,
+    action: 'pis.ai_generate',
+    tableName: 'PISReport',
+    recordId: pisId,
+    metadata: {
+      projectId,
+      fieldsGenerated: Object.keys(generated).length,
+      generatedAt: updated.generatedAt,
+    },
+  })
+
+  return updated
+}
 
 export async function POST(_req: NextRequest, { params }: Ctx) {
   const { id } = await params
@@ -18,29 +147,22 @@ export async function POST(_req: NextRequest, { params }: Ctx) {
   })
   if (!pisReport) return NextResponse.json({ error: 'PIS report not found' }, { status: 404 })
 
-  // Trigger background job instead of running inline
   try {
-    await inngest.send({
-      name: 'pis/generate',
-      data: {
-        pisId: id,
-        projectId: pisReport.projectId,
-        userId: session.user.id,
-      },
-    })
+    // Run synchronously (fallback mode for demo without Inngest)
+    console.log(`[PIS generate] Running synchronous generation for PIS ${id}`)
 
-    console.log(`[PIS generate] Background job triggered for PIS ${id}`)
+    const updated = await generatePISSync(id, pisReport.projectId, session.user.id)
 
     return NextResponse.json({
       success: true,
-      message: 'AI generation started in background. Refresh the page in a minute to see results.',
+      message: 'PIS generated successfully with AI',
       pisId: id,
-      status: 'processing',
+      data: updated,
     })
   } catch (err) {
-    console.error('[PIS generate] Failed to trigger background job:', err)
+    console.error('[PIS generate] Failed:', err)
     return NextResponse.json({
-      error: 'Failed to start AI generation',
+      error: 'Failed to generate PIS',
       details: err instanceof Error ? err.message : 'Unknown error',
     }, { status: 500 })
   }
