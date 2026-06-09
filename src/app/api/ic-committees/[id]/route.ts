@@ -61,6 +61,8 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       ...(body.status      !== undefined ? { status: body.status }                                : {}),
       ...(body.meetingDate !== undefined ? { meetingDate: body.meetingDate ? new Date(body.meetingDate) : null } : {}),
       ...(body.scheduled_date !== undefined ? { meetingDate: body.scheduled_date ? new Date(body.scheduled_date) : null } : {}),
+      ...(body.quorum_required !== undefined ? { quorumRequired: Number(body.quorum_required) } : {}),
+      ...(body.project_id !== undefined ? { projectId: body.project_id } : {}),
     },
   }).catch(() => null)
 

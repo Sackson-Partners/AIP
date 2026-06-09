@@ -59,12 +59,18 @@ export default function ICPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [selectedCommittee, setSelectedCommittee] = useState<ICCommitteeListItem | null>(null);
   const [committeeDetail, setCommitteeDetail] = useState<CommitteeDetail | null>(null);
   const [voteOption, setVoteOption] = useState<VoteOption>('approve');
   const [voteRationale, setVoteRationale] = useState('');
   const [isVoting, setIsVoting] = useState(false);
   const [newForm, setNewForm] = useState({
+    project_id: '',
+    scheduled_date: '',
+    quorum_required: 3,
+  });
+  const [editForm, setEditForm] = useState({
     project_id: '',
     scheduled_date: '',
     quorum_required: 3,
@@ -124,6 +130,33 @@ export default function ICPage() {
       fetchCommittees();
     } catch (err: unknown) {
       toastError((err as ApiError)?.response?.data?.detail || 'Failed to schedule IC session');
+    }
+  };
+
+  const openEditModal = (committee: ICCommitteeListItem) => {
+    setSelectedCommittee(committee);
+    setEditForm({
+      project_id: committee.project_id || '',
+      scheduled_date: committee.scheduled_date ? new Date(committee.scheduled_date).toISOString().slice(0, 16) : '',
+      quorum_required: committee.quorum,
+    });
+    setShowEditModal(true);
+  };
+
+  const handleUpdateIC = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedCommittee) return;
+    try {
+      await icApi.update(selectedCommittee.committee_id, {
+        project_id: editForm.project_id,
+        scheduled_date: editForm.scheduled_date,
+        quorum_required: editForm.quorum_required,
+      });
+      setShowEditModal(false);
+      toastSuccess('IC session updated.');
+      fetchCommittees();
+    } catch (err: unknown) {
+      toastError((err as ApiError)?.response?.data?.detail || 'Failed to update IC session');
     }
   };
 
@@ -196,11 +229,10 @@ export default function ICPage() {
           {committees.map((c) => (
             <div
               key={c.committee_id}
-              className="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-200 cursor-pointer transition-colors"
-              onClick={() => openCommittee(c)}
+              className="bg-white rounded-xl border border-gray-200 p-5 hover:border-blue-200 transition-colors"
             >
               <div className="flex items-start justify-between">
-                <div>
+                <div className="flex-1 cursor-pointer" onClick={() => openCommittee(c)}>
                   <h3 className="font-semibold text-gray-900">
                     {c.project_name || `Project #${c.project_id}`}
                   </h3>
@@ -213,13 +245,23 @@ export default function ICPage() {
                   </p>
                 </div>
                 <div className="flex flex-col items-end gap-2">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-600'}`}>
-                    {c.status}
-                  </span>
-                  {c.outcome && (
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${OUTCOME_COLORS[c.outcome] || 'bg-gray-100 text-gray-600'}`}>
-                      {c.outcome}
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[c.status] || 'bg-gray-100 text-gray-600'}`}>
+                      {c.status}
                     </span>
+                    {c.outcome && (
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${OUTCOME_COLORS[c.outcome] || 'bg-gray-100 text-gray-600'}`}>
+                        {c.outcome}
+                      </span>
+                    )}
+                  </div>
+                  {c.status !== 'decided' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); openEditModal(c); }}
+                      className="text-xs px-3 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition"
+                    >
+                      Edit
+                    </button>
                   )}
                 </div>
               </div>
@@ -273,6 +315,57 @@ export default function ICPage() {
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowNewModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600">Cancel</button>
                 <button type="submit" className="px-6 py-2 bg-brand-gold text-brand-navy rounded-lg text-sm font-medium hover:bg-brand-gold-dark">Schedule</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Modal */}
+      {showEditModal && selectedCommittee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between p-6 border-b">
+              <h2 className="text-xl font-bold">Edit IC Session</h2>
+              <button onClick={() => setShowEditModal(false)} className="text-gray-400 text-2xl leading-none">×</button>
+            </div>
+            <form onSubmit={handleUpdateIC} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Project *</label>
+                <select
+                  value={editForm.project_id}
+                  onChange={(e) => setEditForm({ ...editForm, project_id: e.target.value })}
+                  required
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="">Select a project...</option>
+                  {projects.map((p) => (
+                    <option key={p.id} value={p.id}>{p.title ?? p.project_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Scheduled Date</label>
+                <input
+                  type="datetime-local"
+                  value={editForm.scheduled_date}
+                  onChange={(e) => setEditForm({ ...editForm, scheduled_date: e.target.value })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Quorum Required</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={editForm.quorum_required}
+                  onChange={(e) => setEditForm({ ...editForm, quorum_required: parseInt(e.target.value) })}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowEditModal(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-600">Cancel</button>
+                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">Update</button>
               </div>
             </form>
           </div>

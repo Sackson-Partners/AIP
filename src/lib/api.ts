@@ -503,12 +503,14 @@ export const authAPI = {
 
 // Single canonical exports — camelCase only
 export const projectsApi = {
-  list:   (params?: object) => get<{ data: Project[] }>('/projects', params).then(r => r.data),
-  get:    (id: string | number) => get<Project>(`/projects/${id}`),
-  create: (d: ProjectCreate) => post<Project>('/projects', d),
-  update: (id: string | number, d: Partial<ProjectCreate> & { dealStage?: string; projectType?: string; riskRating?: string }) => patch<Project>(`/projects/${id}`, d),
+  list:    (params?: object) => get<{ data: Project[] }>('/projects', params).then(r => r.data),
+  get:     (id: string | number) => get<Project>(`/projects/${id}`),
+  create:  (d: ProjectCreate) => post<Project>('/projects', d),
+  update:  (id: string | number, d: Partial<ProjectCreate> & { dealStage?: string; projectType?: string; riskRating?: string }) => patch<Project>(`/projects/${id}`, d),
   updateStage: (id: string | number, dealStage: string) => patch<Project>(`/projects/${id}/stage`, { dealStage }),
-  delete: (id: string | number) => del<void>(`/projects/${id}`),
+  delete:  (id: string | number) => del<void>(`/projects/${id}`),
+  archive: (id: string | number) => post<{ data: Project }>(`/projects/${id}/archive`).then(r => r.data),
+  restore: (id: string | number) => del<{ data: Project }>(`/projects/${id}/archive`).then(r => r.data),
 }
 
 export const investorsApi = {
@@ -524,14 +526,18 @@ export const verificationsApi = {
   getByProject: (projectId: string | number) => get<{ data: Verification[] }>(`/verifications?project_id=${projectId}`).then(r => r.data),
   create:       (d: VerificationCreate) => post<Verification>('/verifications', d),
   update:       (id: string | number, d: Partial<VerificationCreate>) => patch<Verification>(`/verifications/${id}`, d),
+  archive:      (id: string | number) => post<{ data: Verification }>(`/verifications/${id}/archive`).then(r => r.data),
+  restore:      (id: string | number) => del<{ data: Verification }>(`/verifications/${id}/archive`).then(r => r.data),
 }
 
 export const eventsApi = {
-  list:   (params?: object) => get<{ data: Event[] }>('/events', params).then(r => r.data),
-  get:    (id: string | number) => get<Event>(`/events/${id}`),
-  create: (d: EventCreate) => post<Event>('/events', d),
-  update: (id: string | number, d: Partial<EventCreate>) => patch<Event>(`/events/${id}`, d),
-  delete: (id: string | number) => del<void>(`/events/${id}`),
+  list:    (params?: object) => get<{ data: Event[] }>('/events', params).then(r => r.data),
+  get:     (id: string | number) => get<Event>(`/events/${id}`),
+  create:  (d: EventCreate) => post<Event>('/events', d),
+  update:  (id: string | number, d: Partial<EventCreate>) => patch<Event>(`/events/${id}`, d),
+  delete:  (id: string | number) => del<void>(`/events/${id}`),
+  archive: (id: string | number) => post<{ data: Event }>(`/events/${id}/archive`).then(r => r.data),
+  restore: (id: string | number) => del<{ data: Event }>(`/events/${id}/archive`).then(r => r.data),
 }
 
 export const pipelineApi = {
@@ -554,6 +560,8 @@ export const analyticsApi = {
   get:     (id: string | number) => get<AnalyticReport>(`/analytics/reports/${id}`),
   create:  (d: AnalyticReportCreate) => post<AnalyticReport>('/analytics/reports', d),
   track:   (d: object) => post<unknown>('/analytics/track', d),
+  archive: (id: string | number) => post<{ data: AnalyticReport }>(`/analytics/${id}/archive`).then(r => r.data),
+  restore: (id: string | number) => del<{ data: AnalyticReport }>(`/analytics/${id}/archive`).then(r => r.data),
 }
 
 export interface UserStats {
@@ -637,6 +645,7 @@ export const icApi = {
   getCommittee:    (id: string | number) => get<{ data: ICCommittee }>(`/ic-committees/${id}`).then(r => r.data),
   create:          (d: object) => post<ICCommittee>('/ic-committees', d),
   createCommittee: (d: object) => post<ICCommittee>('/ic-committees', d),
+  update:          (id: string | number, d: object) => patch<{ data: ICCommittee }>(`/ic-committees/${id}`, d).then(r => r.data),
   vote:            (id: string | number, d: object) => post<ICVote>(`/ic-committees/${id}/vote`, d),
   submitVote:      (id: string | number, vote: string, rationale?: string) => post<ICVote>(`/ic-committees/${id}/vote`, { vote, rationale }),
   recordDecision:  (id: string | number, outcome: string | object) => post<ICCommittee>(`/ic-committees/${id}/decision`, typeof outcome === 'string' ? { outcome } : outcome),
@@ -723,6 +732,13 @@ export const pisApi = {
   update:   (id: string, d: Partial<PISReport>) => patch<{ data: PISReport }>(`/pis/${id}`, d).then(r => r.data),
   delete:   (id: string) => del<void>(`/pis/${id}`),
   generate: (id: string) => api.post<{ data: PISReport }>(`/pis/${id}/generate`, {}, { timeout: 120000 }).then(r => r.data.data),
+  archive:  (id: string) => post<{ data: PISReport }>(`/pis/${id}/archive`).then(r => r.data),
+  restore:  (id: string) => del<{ data: PISReport }>(`/pis/${id}/archive`).then(r => r.data),
+}
+
+export const documentsApi = {
+  publish:   (id: string | number) => post<{ data: unknown }>(`/documents/${id}/publish`).then(r => r.data),
+  unpublish: (id: string | number) => del<{ data: unknown }>(`/documents/${id}/publish`).then(r => r.data),
 }
 
 export default api

@@ -316,6 +316,9 @@ model Project {
   publishedAt       DateTime?
   featuredUntil     DateTime?
   viewCount         Int            @default(0)
+  archived          Boolean        @default(false)
+  archivedAt        DateTime?
+  archivedBy        String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -525,6 +528,8 @@ model Document {
   blobKey        String?
   isPublic       Boolean      @default(false)
   isConfidential Boolean      @default(false)
+  published      Boolean      @default(false)
+  publishedAt    DateTime?
   version        Int          @default(1)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
@@ -755,6 +760,8 @@ model Verification {
   localPartnerOrg     String?
   localPartnerRole    String?
   localPartnerEmail   String?
+  archived            Boolean  @default(false)
+  archivedAt          DateTime?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -779,6 +786,8 @@ model PISReport {
   legalStructure        String?   @db.Text
   aiGenerated           Boolean   @default(false)
   generatedAt           DateTime?
+  archived              Boolean   @default(false)
+  archivedAt            DateTime?
   createdBy             String
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
@@ -790,32 +799,36 @@ model PISReport {
 }
 
 model AnalyticReport {
-  id        String   @id @default(cuid())
-  title     String
-  type      String
-  sector    String?
-  country   String?
-  content   String?  @db.Text
-  data      String?  @db.Text
-  createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id         String    @id @default(cuid())
+  title      String
+  type       String
+  sector     String?
+  country    String?
+  content    String?   @db.Text
+  data       String?   @db.Text
+  archived   Boolean   @default(false)
+  archivedAt DateTime?
+  createdBy  String
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([createdBy])
   @@index([type])
 }
 
 model Event {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   name        String
-  description String?  @db.Text
+  description String?   @db.Text
   eventDate   DateTime
   location    String?
-  type        String   @default("general")
+  type        String    @default("general")
   projectId   String?
+  archived    Boolean   @default(false)
+  archivedAt  DateTime?
   createdBy   String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   creator User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)

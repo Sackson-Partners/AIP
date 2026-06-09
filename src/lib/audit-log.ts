@@ -22,6 +22,8 @@ export type AuditAction =
   | 'project.delete'
   | 'project.status_change'
   | 'project.publish'
+  | 'project.archive'
+  | 'project.restore'
   // Data room access
   | 'data_room.access_granted'
   | 'data_room.access_revoked'
@@ -30,6 +32,8 @@ export type AuditAction =
   | 'data_room.access_attempt'
   | 'data_room.document_upload'
   | 'data_room.document_delete'
+  | 'data_room.document_publish'
+  | 'data_room.document_unpublish'
   // PESTEL & PIS
   | 'pestel.create'
   | 'pestel.update'

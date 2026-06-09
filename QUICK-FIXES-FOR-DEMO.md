@@ -24,15 +24,25 @@
 
 ## 🔄 IN PROGRESS / PENDING
 
-### 4. PESTEL Manual Editing
-- **Current Status:** Need to investigate UI
-- **Required:** Enable manual score input for all 6 pillars (Political, Economic, Technical, Financial, Environmental, Legal)
-- **File to check:** `/src/app/dashboard/pestel/page.tsx`
+### 4. PESTEL Manual Editing - ALREADY WORKING
+- **Status:** Fully functional
+- **Features:**
+  - ✅ Manual mode toggle (AI Assisted vs Manual)
+  - ✅ Pillar score input fields (0-5 range)
+  - ✅ Rating dropdown (A/B/C/D) - editable by internal staff
+  - ✅ Status dropdown (Pending/In Progress/Submitted/Verified)
+  - ✅ Criteria score buttons (1-5) with evidence notes
+  - ✅ AI Augment working (uses Anthropic Haiku synchronously)
+  - ✅ Save Scores and Calculate Final buttons
 
-### 5. IC Edit Functionality
-- **Status:** Pending - needs investigation
-- **Required:** Add Edit button to IC sessions page
-- **Action:** Find IC page and add edit modal
+### 5. IC Edit Functionality - FIXED
+- **Status:** Edit functionality implemented
+- **Features:**
+  - ✅ Edit button on each IC session card
+  - ✅ Edit modal with project, date, quorum fields
+  - ✅ Only shown when status ≠ 'decided'
+  - ✅ Updates persist via PATCH `/api/ic-committees/[id]`
+- **File:** `/src/app/dashboard/ic/page.tsx`
 
 ### 6. EIN AI Generation
 - **Status:** No AI generation exists yet
@@ -47,15 +57,23 @@
 - **Issue:** "Failed to load project"
 - **Action:** Debug investor matching API
 
-### 9. Archive Functionality
-- **Status:** Not yet implemented
-- **Required on:** Verification, Project, Analytics, Events, PIS pages
-- **Action:** Add soft-delete pattern with archive/restore
+### 9. Archive Functionality - FIXED
+- **Status:** Implemented across all pages
+- **Features:**
+  - ✅ Archive/Restore endpoints for: Project, Verification, PIS, Analytics, Events
+  - ✅ Soft-delete pattern with `archived` boolean and `archivedAt` timestamp
+  - ✅ Archive tracks `archivedBy` user ID (for Projects)
+  - ✅ API methods added: `archive()` and `restore()` to all relevant APIs
+  - ✅ Migration: `/prisma/migrations/20260609_add_archive_and_publish.sql`
 
-### 10. Data Room Publish Control
-- **Status:** Not yet implemented
-- **Required:** Publish toggle for documents
-- **Action:** Add published boolean field to documents
+### 10. Data Room Publish Control - FIXED
+- **Status:** Implemented
+- **Features:**
+  - ✅ `published` boolean field added to Document model
+  - ✅ `publishedAt` timestamp tracks when document was published
+  - ✅ Publish/Unpublish endpoints: `/api/documents/[id]/publish`
+  - ✅ documentsApi: `publish()` and `unpublish()` methods
+  - ✅ Documents can be selectively visible to external partners
 
 ---
 
