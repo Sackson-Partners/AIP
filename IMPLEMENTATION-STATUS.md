@@ -1,6 +1,6 @@
 # AIP Platform Implementation Status
 
-## ✅ COMPLETED (Steps 1-5)
+## ✅ COMPLETED (Steps 1-6)
 
 ### Step 1: Fix 0.1 — Add New User Endpoint ✅
 - **Status:** COMPLETE
@@ -71,18 +71,34 @@
   - Get token value from `.env.local` file (starts with `pk.`)
   - Redeploy after adding token
 
+### Step 6: Feature 1.3 — Edit/Delete/Archive UI Controls ✅
+- **Status:** COMPLETE
+- **Files Modified:**
+  - `src/app/dashboard/deal-rooms/page.tsx`
+  - `src/app/dashboard/analytics/page.tsx`
+  - `src/app/dashboard/events/page.tsx`
+- **Features:**
+  - **Deal Rooms:** Edit modal with full form, Delete confirmation modal, buttons in action row
+  - **Analytics:** Archive/Delete buttons in report view modal, confirmation dialogs
+  - **Events:** Archive/Delete buttons in event detail modal, proper error handling
+  - All operations protected by RBAC permission guards
+  - Confirmation modals for all destructive actions
+  - Proper error handling and user feedback
+  - Data refresh after successful operations
+- **Backend APIs:** Already existed, this completes the UI layer
+
 ---
 
 ## 🚧 IN PROGRESS / PENDING
 
-### Step 6: Fix 0.5 — Partner Matching + Contact Request
+### Step 7: Fix 0.5 — Partner Matching + Contact Request
 - **Status:** TODO
 - **Required:**
   - Part A: Debug `GET /api/matching/[projectId]` endpoint
   - Part B: External partner profile visibility restrictions
   - Part C: Contact request workflow with approval system
 
-### Step 7: Prisma Schema Updates
+### Step 8: Prisma Schema Updates
 - **Status:** PARTIAL (EIN fields added)
 - **Pending Models:**
   - `ContactRequest`
@@ -91,12 +107,12 @@
   - `DocumentEvent`
   - `ProjectTemplate`
 
-### Steps 8-21: Features from Phase 1 & 2
+### Steps 9-21: Features from Phase 1 & 2
 - **Status:** NOT STARTED
 - **Priority Queue:**
   1. PDF Export (1.1)
   2. Bulk Operations (1.2)
-  3. Edit/Delete/Archive (1.3)
+  3. ~~Edit/Delete/Archive (1.3)~~ ✅ COMPLETE
   4. PIS Access Control (1.4)
   5. Dashboard Map Fix (1.5)
   6. Redis Caching (2.7)
@@ -219,5 +235,5 @@ git push origin main
 ---
 
 **Last Updated:** 2026-06-10  
-**Commit SHA:** f88cce8  
-**Status:** 4 of 21 steps complete (19%)
+**Commit SHA:** d118ede  
+**Status:** 6 of 21 steps complete (29%)
