@@ -15,6 +15,9 @@ export default function EventsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
+  const [deleteEvent, setDeleteEvent] = useState<Event | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'past'>('all');
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<EventCreate>();
@@ -89,6 +92,36 @@ export default function EventsPage() {
 
   const isUpcoming = (date: string) => {
     return new Date(date) >= new Date();
+  };
+
+  const handleArchive = async (event: Event) => {
+    try {
+      await eventsApi.archive(event.id);
+      setSelectedEvent(null);
+      fetchData();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to archive event:', error);
+      setError('Failed to archive event');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteEvent) return;
+    setDeleteSubmitting(true);
+    setError(null);
+    try {
+      await eventsApi.delete(deleteEvent.id);
+      setDeleteEvent(null);
+      setSelectedEvent(null);
+      fetchData();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to delete event:', error);
+      setError('Failed to delete event');
+    } finally {
+      setDeleteSubmitting(false);
+    }
   };
 
   return (
@@ -360,6 +393,57 @@ export default function EventsPage() {
                   </div>
                 </div>
               )}
+
+              {/* Action Buttons */}
+              <PermissionGuard require="manage_events">
+                <div className="flex gap-2 pt-2 border-t">
+                  <button
+                    onClick={() => handleArchive(selectedEvent)}
+                    className="flex-1 px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                  >
+                    Archive
+                  </button>
+                  <button
+                    onClick={() => { setDeleteEvent(selectedEvent); }}
+                    className="flex-1 px-4 py-2 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </PermissionGuard>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteEvent && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Delete Event</h2>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-600 mb-4">
+                Are you sure you want to delete <strong>{deleteEvent.name}</strong>? This action cannot be undone.
+              </p>
+              {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">{error}</div>}
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setDeleteEvent(null); setError(null); }}
+                  className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteSubmitting}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteSubmitting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
             </div>
           </div>
         </div>

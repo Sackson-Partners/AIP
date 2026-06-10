@@ -72,6 +72,15 @@ export default function DealRoomsPage() {
   const [eoiSubmitting, setEoiSubmitting] = useState(false);
   const [eoiSuccess, setEoiSuccess]       = useState(false);
 
+  // Edit modal
+  const [editRoom, setEditRoom] = useState<DealRoom | null>(null);
+  const [editForm, setEditForm] = useState<typeof form>(form);
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
+  // Delete confirmation
+  const [deleteRoom, setDeleteRoom] = useState<DealRoom | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
   const fetchRooms = useCallback(async () => {
     try {
       const data = await dealRoomsApi.list() as DealRoom[];
@@ -161,6 +170,71 @@ export default function DealRoomsPage() {
     setEoiSuccess(false);
   };
 
+  const openEdit = (room: DealRoom) => {
+    setEditRoom(room);
+    setEditForm({
+      project_id: room.project_id,
+      name: room.name,
+      description: room.description || '',
+      deal_value: room.deal_value ? String(room.deal_value) : '',
+      target_close_date: room.target_close_date || '',
+      require_nda: room.require_nda,
+      is_video_enabled: room.is_video_enabled,
+      is_chat_enabled: room.is_chat_enabled,
+      deal_type: room.deal_type || '',
+      target_raise: room.target_raise ? String(room.target_raise) : '',
+      min_ticket: room.min_ticket ? String(room.min_ticket) : '',
+      eoi_deadline: room.eoi_deadline || '',
+    });
+    setError(null);
+  };
+
+  const handleEdit = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editRoom) return;
+    setEditSubmitting(true);
+    setError(null);
+    try {
+      await fetch(`/api/deal-rooms/${editRoom.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editForm.name,
+          description: editForm.description || undefined,
+          deal_value: editForm.deal_value ? Number(editForm.deal_value) : undefined,
+          target_close_date: editForm.target_close_date || undefined,
+          require_nda: editForm.require_nda,
+          is_video_enabled: editForm.is_video_enabled,
+          is_chat_enabled: editForm.is_chat_enabled,
+          deal_type: editForm.deal_type || undefined,
+          target_raise: editForm.target_raise ? Number(editForm.target_raise) : undefined,
+          min_ticket: editForm.min_ticket ? Number(editForm.min_ticket) : undefined,
+          eoi_deadline: editForm.eoi_deadline || undefined,
+        }),
+      });
+      setEditRoom(null);
+      fetchRooms();
+    } catch {
+      setError('Failed to update deal room.');
+    } finally {
+      setEditSubmitting(false);
+    }
+  }, [editRoom, editForm, fetchRooms]);
+
+  const handleDelete = useCallback(async () => {
+    if (!deleteRoom) return;
+    setDeleteSubmitting(true);
+    try {
+      await dealRoomsApi.delete(deleteRoom.id);
+      setDeleteRoom(null);
+      fetchRooms();
+    } catch {
+      setError('Failed to delete deal room.');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  }, [deleteRoom, fetchRooms]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -239,9 +313,9 @@ export default function DealRoomsPage() {
 
       {/* Content */}
       {viewMode === 'cards' ? (
-        <CardsView rooms={filtered} canManage={canManage} onSave={toggleSave} onEoi={openEoi} />
+        <CardsView rooms={filtered} canManage={canManage} onSave={toggleSave} onEoi={openEoi} onEdit={openEdit} onDelete={(r) => setDeleteRoom(r)} />
       ) : (
-        <KanbanView rooms={filtered} canManage={canManage} onSave={toggleSave} onEoi={openEoi} />
+        <KanbanView rooms={filtered} canManage={canManage} onSave={toggleSave} onEoi={openEoi} onEdit={openEdit} onDelete={(r) => setDeleteRoom(r)} />
       )}
 
       {/* Create Modal */}
@@ -387,16 +461,126 @@ export default function DealRoomsPage() {
           </div>
         </div>
       )}
+
+      {/* Edit Modal */}
+      {editRoom && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Edit Deal Room</h2>
+              <button onClick={() => { setEditRoom(null); setError(null); }} className="text-gray-400 hover:text-gray-600"><XIcon className="w-5 h-5" /></button>
+            </div>
+            {error && <div className="mx-5 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">{error}</div>}
+            <form onSubmit={handleEdit} className="p-5 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deal Room Name *</label>
+                  <input required value={editForm.name} onChange={e => setEditForm(f => ({ ...f, name: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                  <textarea value={editForm.description} onChange={e => setEditForm(f => ({ ...f, description: e.target.value }))} rows={2}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deal Type</label>
+                  <select value={editForm.deal_type} onChange={e => setEditForm(f => ({ ...f, deal_type: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50">
+                    <option value="">Select type</option>
+                    {DEAL_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Raise ($)</label>
+                  <input type="number" value={editForm.target_raise} onChange={e => setEditForm(f => ({ ...f, target_raise: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Min Ticket ($)</label>
+                  <input type="number" value={editForm.min_ticket} onChange={e => setEditForm(f => ({ ...f, min_ticket: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">EOI Deadline</label>
+                  <input type="date" value={editForm.eoi_deadline} onChange={e => setEditForm(f => ({ ...f, eoi_deadline: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Deal Value ($)</label>
+                  <input type="number" value={editForm.deal_value} onChange={e => setEditForm(f => ({ ...f, deal_value: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Target Close Date</label>
+                  <input type="date" value={editForm.target_close_date} onChange={e => setEditForm(f => ({ ...f, target_close_date: e.target.value }))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50" />
+                </div>
+                <div className="md:col-span-2 flex flex-wrap gap-4">
+                  {[['require_nda', 'Require NDA'], ['is_video_enabled', 'Enable Video'], ['is_chat_enabled', 'Enable Chat']].map(([k, label]) => (
+                    <label key={k} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={editForm[k as keyof typeof editForm] as boolean}
+                        onChange={e => setEditForm(f => ({ ...f, [k]: e.target.checked }))} className="accent-brand-gold" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => { setEditRoom(null); setError(null); }} className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+                <button type="submit" disabled={editSubmitting} className="px-4 py-2 text-sm bg-brand-gold text-brand-navy rounded-lg hover:bg-brand-gold-dark disabled:opacity-50">
+                  {editSubmitting ? 'Saving…' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteRoom && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Delete Deal Room</h2>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-600 mb-4">
+                Are you sure you want to delete <strong>{deleteRoom.name}</strong>? This action cannot be undone.
+              </p>
+              {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">{error}</div>}
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setDeleteRoom(null); setError(null); }}
+                  className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteSubmitting}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteSubmitting ? 'Deleting…' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Cards View ─────────────────────────────────────────────────────────────────
-function CardsView({ rooms, canManage, onSave, onEoi }: {
+function CardsView({ rooms, canManage, onSave, onEoi, onEdit, onDelete }: {
   rooms: DealRoom[]
   canManage: boolean
   onSave: (r: DealRoom, e: React.MouseEvent) => void
   onEoi:  (r: DealRoom) => void
+  onEdit: (r: DealRoom) => void
+  onDelete: (r: DealRoom) => void
 }) {
   if (rooms.length === 0) {
     return (
@@ -407,17 +591,19 @@ function CardsView({ rooms, canManage, onSave, onEoi }: {
   }
   return (
     <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-      {rooms.map(r => <DealCard key={r.id} room={r} canManage={canManage} onSave={onSave} onEoi={onEoi} />)}
+      {rooms.map(r => <DealCard key={r.id} room={r} canManage={canManage} onSave={onSave} onEoi={onEoi} onEdit={onEdit} onDelete={onDelete} />)}
     </div>
   );
 }
 
 // ── Kanban View ────────────────────────────────────────────────────────────────
-function KanbanView({ rooms, canManage, onSave, onEoi }: {
+function KanbanView({ rooms, canManage, onSave, onEoi, onEdit, onDelete }: {
   rooms: DealRoom[]
   canManage: boolean
   onSave: (r: DealRoom, e: React.MouseEvent) => void
   onEoi:  (r: DealRoom) => void
+  onEdit: (r: DealRoom) => void
+  onDelete: (r: DealRoom) => void
 }) {
   return (
     <div className="flex gap-4 overflow-x-auto pb-4">
@@ -430,7 +616,7 @@ function KanbanView({ rooms, canManage, onSave, onEoi }: {
               <span className="text-xs bg-white/60 px-1.5 py-0.5 rounded-full">{colRooms.length}</span>
             </div>
             <div className="space-y-3">
-              {colRooms.map(r => <DealCard key={r.id} room={r} compact canManage={canManage} onSave={onSave} onEoi={onEoi} />)}
+              {colRooms.map(r => <DealCard key={r.id} room={r} compact canManage={canManage} onSave={onSave} onEoi={onEoi} onEdit={onEdit} onDelete={onDelete} />)}
               {colRooms.length === 0 && (
                 <p className="text-xs text-gray-400 text-center py-4">No deals</p>
               )}
@@ -443,12 +629,14 @@ function KanbanView({ rooms, canManage, onSave, onEoi }: {
 }
 
 // ── Deal Card ──────────────────────────────────────────────────────────────────
-function DealCard({ room, compact = false, canManage, onSave, onEoi }: {
+function DealCard({ room, compact = false, canManage, onSave, onEoi, onEdit, onDelete }: {
   room: DealRoom
   compact?: boolean
   canManage: boolean
   onSave: (r: DealRoom, e: React.MouseEvent) => void
   onEoi:  (r: DealRoom) => void
+  onEdit: (r: DealRoom) => void
+  onDelete: (r: DealRoom) => void
 }) {
   const deadlineClose = room.eoi_deadline
     ? Math.ceil((new Date(room.eoi_deadline).getTime() - Date.now()) / 86_400_000)
@@ -535,28 +723,48 @@ function DealCard({ room, compact = false, canManage, onSave, onEoi }: {
       </div>
 
       {/* Action row */}
-      <div className="px-4 pb-4 mt-auto flex gap-2">
-        <Link
-          href={`/dashboard/deal-rooms/${room.id}`}
-          className="flex-1 px-2 py-1.5 text-xs text-center text-brand-gold border border-brand-gold rounded-lg hover:bg-brand-gold/5 transition font-medium"
-        >
-          Open Room
-        </Link>
-        {!canManage && (
-          <button
-            onClick={() => onEoi(room)}
-            className="flex-1 px-2 py-1.5 text-xs text-white bg-brand-navy rounded-lg hover:bg-brand-navy/90 transition font-medium"
+      <div className="px-4 pb-4 mt-auto">
+        <div className="flex gap-2 mb-2">
+          <Link
+            href={`/dashboard/deal-rooms/${room.id}`}
+            className="flex-1 px-2 py-1.5 text-xs text-center text-brand-gold border border-brand-gold rounded-lg hover:bg-brand-gold/5 transition font-medium"
           >
-            Express Interest
-          </button>
-        )}
+            Open Room
+          </Link>
+          {!canManage && (
+            <button
+              onClick={() => onEoi(room)}
+              className="flex-1 px-2 py-1.5 text-xs text-white bg-brand-navy rounded-lg hover:bg-brand-navy/90 transition font-medium"
+            >
+              Express Interest
+            </button>
+          )}
+          {canManage && (
+            <button
+              onClick={() => onEoi(room)}
+              className="flex-1 px-2 py-1.5 text-xs text-white bg-brand-navy rounded-lg hover:bg-brand-navy/90 transition font-medium"
+            >
+              View EOIs
+            </button>
+          )}
+        </div>
         {canManage && (
-          <button
-            onClick={() => onEoi(room)}
-            className="flex-1 px-2 py-1.5 text-xs text-white bg-brand-navy rounded-lg hover:bg-brand-navy/90 transition font-medium"
-          >
-            View EOIs
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => onEdit(room)}
+              className="flex-1 px-2 py-1.5 text-xs text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition font-medium"
+              title="Edit"
+            >
+              Edit
+            </button>
+            <button
+              onClick={() => onDelete(room)}
+              className="flex-1 px-2 py-1.5 text-xs text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition font-medium"
+              title="Delete"
+            >
+              Delete
+            </button>
+          </div>
         )}
       </div>
     </div>

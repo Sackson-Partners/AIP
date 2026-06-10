@@ -13,6 +13,9 @@ export default function AnalyticsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedReport, setSelectedReport] = useState<AnalyticReport | null>(null);
+  const [deleteReport, setDeleteReport] = useState<AnalyticReport | null>(null);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<AnalyticReportCreate>();
 
@@ -81,6 +84,36 @@ export default function AnalyticsPage() {
     } catch (error) {
       // eslint-disable-next-line no-console
       console.error('Failed to create report:', error);
+    }
+  };
+
+  const handleArchive = async (report: AnalyticReport) => {
+    try {
+      await analyticsApi.archive(report.id);
+      setSelectedReport(null);
+      fetchReports();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to archive report:', error);
+      setError('Failed to archive report');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteReport) return;
+    setDeleteSubmitting(true);
+    setError(null);
+    try {
+      await fetch(`/api/analytics/${deleteReport.id}`, { method: 'DELETE' });
+      setDeleteReport(null);
+      setSelectedReport(null);
+      fetchReports();
+    } catch (error) {
+      // eslint-disable-next-line no-console
+      console.error('Failed to delete report:', error);
+      setError('Failed to delete report');
+    } finally {
+      setDeleteSubmitting(false);
     }
   };
 
@@ -296,6 +329,24 @@ export default function AnalyticsPage() {
             <div className="p-5 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900 flex-1 min-w-0 truncate pr-4">{selectedReport.title}</h2>
               <div className="flex items-center gap-2 shrink-0">
+                <PermissionGuard require="manage_analytics">
+                  <>
+                    <button
+                      onClick={() => handleArchive(selectedReport)}
+                      className="px-3 py-1.5 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
+                      title="Archive"
+                    >
+                      Archive
+                    </button>
+                    <button
+                      onClick={() => { setDeleteReport(selectedReport); }}
+                      className="px-3 py-1.5 text-sm text-red-600 border border-red-300 rounded-lg hover:bg-red-50 transition"
+                      title="Delete"
+                    >
+                      Delete
+                    </button>
+                  </>
+                </PermissionGuard>
                 <button
                   onClick={() => exportReport(selectedReport)}
                   className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition"
@@ -330,6 +381,39 @@ export default function AnalyticsPage() {
                   if (line.trim() === '') return <div key={i} className="h-2" />
                   return <p key={i} className="text-sm leading-relaxed">{line}</p>
                 })}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteReport && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+            <div className="p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Delete Report</h2>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-600 mb-4">
+                Are you sure you want to delete <strong>{deleteReport.title}</strong>? This action cannot be undone.
+              </p>
+              {error && <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm mb-4">{error}</div>}
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => { setDeleteReport(null); setError(null); }}
+                  className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={deleteSubmitting}
+                  className="px-4 py-2 text-sm bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                >
+                  {deleteSubmitting ? 'Deleting…' : 'Delete'}
+                </button>
               </div>
             </div>
           </div>
