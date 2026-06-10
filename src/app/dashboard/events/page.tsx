@@ -395,7 +395,7 @@ export default function EventsPage() {
               )}
 
               {/* Action Buttons */}
-              <PermissionGuard require="manage_events">
+              <PermissionGuard require={["edit_event", "delete_event"]}>
                 <div className="flex gap-2 pt-2 border-t">
                   <button
                     onClick={() => handleArchive(selectedEvent)}
