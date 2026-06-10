@@ -6,7 +6,7 @@ import { z } from 'zod'
 import { UserRole, ProjectStatus } from '@prisma/client'
 import { deleteCached } from '@/lib/redis'
 
-const WRITE_ROLES = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
+const WRITE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
 const BulkSchema = z.object({
   action: z.enum(['ARCHIVE', 'RESTORE', 'DELETE', 'UPDATE_STATUS', 'ASSIGN_OWNER']),
