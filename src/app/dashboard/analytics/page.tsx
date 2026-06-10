@@ -329,7 +329,7 @@ export default function AnalyticsPage() {
             <div className="p-5 border-b border-gray-200 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900 flex-1 min-w-0 truncate pr-4">{selectedReport.title}</h2>
               <div className="flex items-center gap-2 shrink-0">
-                <PermissionGuard require="manage_analytics">
+                <PermissionGuard require="edit_analytic_report">
                   <>
                     <button
                       onClick={() => handleArchive(selectedReport)}
