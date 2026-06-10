@@ -98,6 +98,31 @@
 
 ---
 
+### 6. Verify Dashboard Map Fix
+
+**Test Map Displays:**
+1. Navigate to Dashboard page
+2. Scroll to "Project Discovery Map" section
+3. **Expected:**
+   - If `NEXT_PUBLIC_MAPBOX_TOKEN` is set: Map loads with project markers
+   - If token missing: Error message displays with instructions
+4. If map loads:
+   - **Expected:** Markers appear for projects with valid countries
+   - Click on a marker: Popup shows project name, country, sector, stage
+   - Click on cluster: Map zooms in to show individual projects
+5. Only non-archived projects should appear on map
+
+**Test Environment Variable:**
+1. Go to Vercel → Project → Settings → Environment Variables
+2. Check if `NEXT_PUBLIC_MAPBOX_TOKEN` exists
+3. **If missing:**
+   - Copy token from `.env.local` file (starts with `pk.`)
+   - Add to all environments (Production, Preview, Development)
+   - Redeploy the application
+4. **Expected:** After redeploy, map loads successfully
+
+---
+
 ## 🚨 COMMON ISSUES & SOLUTIONS
 
 ### Issue: "Changes not visible"
@@ -179,6 +204,8 @@ After going through all tests above, confirm:
 - [ ] Add User form accepts 8-character passwords
 - [ ] PETFEL manual score input saves correctly
 - [ ] PETFEL Calculate Final updates rating
+- [ ] Dashboard map displays (or shows config error if token missing)
+- [ ] Map markers only show non-archived projects
 - [ ] Database migrations applied (if testing new features)
 
 ---
@@ -200,5 +227,10 @@ After going through all tests above, confirm:
 ---
 
 **Last Updated:** 2026-06-10  
-**Latest Commit:** 34fa67d  
+**Latest Commit:** (pending deployment)  
 **Vercel URL:** https://aip-plum.vercel.app
+
+**New Features in This Deployment:**
+- Dashboard Map Fix with proper error handling
+- Map data API endpoint with Redis caching
+- Filter archived projects from map display

@@ -1,9 +1,18 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Project } from '../../lib/api';
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN ?? '';
+
+// Alert icon for error state
+function AlertIcon({ className = 'w-5 h-5' }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    </svg>
+  );
+}
 
 // Country coordinate lookup [lng, lat] for Mapbox (note: lng first)
 const COUNTRY_COORDS: Record<string, [number, number]> = {
@@ -118,10 +127,30 @@ export default function MapPanel({ projects }: MapPanelProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null);
+  const [hasError, setHasError] = useState(false);
+
+  // Show error message if Mapbox token is not configured
+  if (!MAPBOX_TOKEN) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-gray-50 rounded-xl border border-gray-200 p-8">
+        <div className="text-center max-w-md">
+          <div className="w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mx-auto mb-4">
+            <AlertIcon className="w-6 h-6 text-amber-600" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-2">Map Configuration Required</h3>
+          <p className="text-xs text-gray-500 mb-4">
+            The <code className="px-1.5 py-0.5 bg-gray-100 rounded text-xs font-mono">NEXT_PUBLIC_MAPBOX_TOKEN</code> environment variable is not set.
+          </p>
+          <p className="text-xs text-gray-400">
+            Add your Mapbox token to Vercel environment variables and redeploy to enable the project map.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
-    if (!MAPBOX_TOKEN) return;
 
     let isMounted = true;
 

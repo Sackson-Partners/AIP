@@ -1,6 +1,6 @@
 # AIP Platform Implementation Status
 
-## ✅ COMPLETED (Steps 1-4)
+## ✅ COMPLETED (Steps 1-5)
 
 ### Step 1: Fix 0.1 — Add New User Endpoint ✅
 - **Status:** COMPLETE
@@ -52,18 +52,37 @@
   - Proper error handling and audit logging
   - 60-second timeout for AI processing
 
+### Step 5: Feature 1.5 — Dashboard Map Fix ✅
+- **Status:** COMPLETE
+- **Files Created:**
+  - `src/app/api/projects/map-data/route.ts` (new endpoint)
+- **Files Modified:**
+  - `src/components/dashboard/MapPanel.tsx` (error handling, filtering)
+  - `src/app/dashboard/page.tsx` (filter archived projects)
+- **Features:**
+  - New `/api/projects/map-data` endpoint returns GeoJSON for published projects
+  - Internal staff see all non-archived projects, external partners only see ACTIVE/FUNDED/CLOSED
+  - Added error message when `NEXT_PUBLIC_MAPBOX_TOKEN` is missing
+  - Filter out archived projects from map display
+  - Redis caching with 5-minute TTL for map data
+  - Comprehensive country coordinate mapping for Africa and major economies
+- **User Action Required:**
+  - Add `NEXT_PUBLIC_MAPBOX_TOKEN` to Vercel environment variables (all environments)
+  - Get token value from `.env.local` file (starts with `pk.`)
+  - Redeploy after adding token
+
 ---
 
 ## 🚧 IN PROGRESS / PENDING
 
-### Step 5: Fix 0.5 — Partner Matching + Contact Request
+### Step 6: Fix 0.5 — Partner Matching + Contact Request
 - **Status:** TODO
 - **Required:**
   - Part A: Debug `GET /api/matching/[projectId]` endpoint
   - Part B: External partner profile visibility restrictions
   - Part C: Contact request workflow with approval system
 
-### Step 6: Prisma Schema Updates
+### Step 7: Prisma Schema Updates
 - **Status:** PARTIAL (EIN fields added)
 - **Pending Models:**
   - `ContactRequest`
@@ -72,7 +91,7 @@
   - `DocumentEvent`
   - `ProjectTemplate`
 
-### Steps 7-21: Features from Phase 1 & 2
+### Steps 8-21: Features from Phase 1 & 2
 - **Status:** NOT STARTED
 - **Priority Queue:**
   1. PDF Export (1.1)
