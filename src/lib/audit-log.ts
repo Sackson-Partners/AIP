@@ -34,13 +34,16 @@ export type AuditAction =
   | 'data_room.document_delete'
   | 'data_room.document_publish'
   | 'data_room.document_unpublish'
-  // PETFEL & PIS
+  // PETFEL & PIS & EIN
   | 'petfel.create'
   | 'petfel.update'
   | 'petfel.ai_augment'
   | 'pis.create'
   | 'pis.update'
   | 'pis.ai_generate'
+  | 'ein.create'
+  | 'ein.update'
+  | 'ein.ai_generate'
   // Investor matching
   | 'investor.create'
   | 'investor.update'

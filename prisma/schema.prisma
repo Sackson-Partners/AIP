@@ -365,22 +365,29 @@ model PETFELAnalysis {
 }
 
 model EINReport {
-  id               String    @id @default(cuid())
-  projectId        String    @unique
-  einNumber        String    @unique
-  projectSummary   String?   @db.Text
-  financialSummary String?   @db.Text
-  riskSummary      String?   @db.Text
-  investmentThesis String?   @db.Text
-  creditRating     String?
-  riskRating       String?
-  esgScore         Float?
-  comparables      String?   @db.Text
-  marketAnalysis   String?   @db.Text
-  publishedAt      DateTime?
-  expiresAt        DateTime?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
+  id                    String    @id @default(cuid())
+  projectId             String    @unique
+  einNumber             String    @unique
+  status                String    @default("DRAFT") // DRAFT | COMPLETE | PUBLISHED
+  projectSummary        String?   @db.Text
+  strategicObjectives   String?   @db.Text
+  sectorContext         String?   @db.Text
+  financialStructure    String?   @db.Text
+  financialSummary      String?   @db.Text
+  riskProfile           String?   @db.Text
+  riskSummary           String?   @db.Text
+  investmentRationale   String?   @db.Text
+  investmentThesis      String?   @db.Text
+  creditRating          String?
+  riskRating            String?
+  esgScore              Float?
+  comparables           String?   @db.Text
+  marketAnalysis        String?   @db.Text
+  lastGeneratedAt       DateTime?
+  publishedAt           DateTime?
+  expiresAt             DateTime?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
