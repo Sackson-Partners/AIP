@@ -558,16 +558,18 @@ model Notification {
   userId    String
   type      NotificationType
   title     String
-  message   String
+  message   String           @db.Text
   link      String?
   read      Boolean          @default(false)
   readAt    DateTime?
+  metadata  String?          @db.Text // JSON for additional data
   createdAt DateTime         @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([userId, read])
+  @@index([createdAt])
 }
 
 model ActivityLog {
@@ -917,21 +919,5 @@ model ContactRequest {
   @@index([requesterId])
   @@index([targetType, targetId])
   @@index([status])
-  @@index([createdAt])
-}
-
-model Notification {
-  id        String    @id @default(cuid())
-  userId    String
-  type      String    // CONTACT_REQUEST | CONTACT_APPROVED | SYSTEM | REMINDER | etc.
-  title     String
-  message   String    @db.Text
-  link      String?
-  read      Boolean   @default(false)
-  readAt    DateTime?
-  metadata  String?   @db.Text // JSON for additional data
-  createdAt DateTime  @default(now())
-
-  @@index([userId, read])
   @@index([createdAt])
 }

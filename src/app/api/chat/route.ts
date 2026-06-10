@@ -81,16 +81,16 @@ export async function POST(req: NextRequest) {
         id: true,
         projectId: true,
         status: true,
-        projectDescription: true,
-        riskAssessment: true,
+        projectBackground: true,
+        riskFactors: true,
       },
     })
 
     const pisContext = pisReports.map(r =>
       `PIS Report (Project ID: ${r.projectId})\n` +
       `Status: ${r.status}\n` +
-      `Description: ${r.projectDescription?.substring(0, 200) || 'N/A'}...\n` +
-      `Risk Assessment: ${r.riskAssessment?.substring(0, 200) || 'N/A'}...`
+      `Background: ${r.projectBackground?.substring(0, 200) || 'N/A'}...\n` +
+      `Risk Factors: ${r.riskFactors?.substring(0, 200) || 'N/A'}...`
     ).join('\n---\n')
 
     const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })

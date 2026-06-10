@@ -744,15 +744,6 @@ export interface ContactRequest {
   updatedAt: string
 }
 
-export const notificationsApi = {
-  list: () =>
-    api
-      .get<{ notifications: Omit<Notification, 'is_read' | 'created_at' | 'text'>[]; unreadCount: number }>('/notifications')
-      .then((r) => r.data.notifications.map((n) => ({ ...n, is_read: n.read, created_at: n.createdAt, text: n.message }))),
-  markRead:    (id: string) => patch<Notification>(`/notifications/${id}`),
-  markAllRead: () => api.patch('/notifications').then((r) => r.data),
-}
-
 export interface PISReport {
   id: string
   project_id: string

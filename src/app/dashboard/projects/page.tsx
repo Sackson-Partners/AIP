@@ -146,6 +146,12 @@ export default function ProjectsPage() {
   const [fetchError, setFetchError]     = useState<string | null>(null);
   const [draggedProject, setDraggedProject] = useState<Project | null>(null);
   const [dragOverStage, setDragOverStage] = useState<string | null>(null);
+  const [selectedProjects, setSelectedProjects] = useState<Set<string>>(new Set());
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkAction, setBulkAction] = useState<'ARCHIVE' | 'RESTORE' | 'DELETE' | 'UPDATE_STATUS' | 'ASSIGN_OWNER' | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<string>('ACTIVE');
+  const [bulkOwnerId, setBulkOwnerId] = useState<string>('');
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
 
   const fetchProjects = useCallback(async () => {
     try {
@@ -285,6 +291,53 @@ export default function ProjectsPage() {
 
   const countries = [...new Set(projects.map(p => p.country).filter(Boolean))];
 
+  const toggleSelectAll = useCallback(() => {
+    if (selectedProjects.size === projects.length) {
+      setSelectedProjects(new Set());
+    } else {
+      setSelectedProjects(new Set(projects.map(p => String(p.id))));
+    }
+  }, [projects, selectedProjects.size]);
+
+  const toggleSelectProject = useCallback((projectId: string) => {
+    setSelectedProjects(prev => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  }, []);
+
+  const handleBulkAction = useCallback(async () => {
+    if (!bulkAction || selectedProjects.size === 0) return;
+    setIsBulkSubmitting(true);
+    try {
+      const projectIds = Array.from(selectedProjects);
+      const payload: { action: string; status?: string; ownerId?: string } = { action: bulkAction };
+      if (bulkAction === 'UPDATE_STATUS') payload.status = bulkStatus;
+      if (bulkAction === 'ASSIGN_OWNER') payload.ownerId = bulkOwnerId;
+
+      await projectsApi.bulk(bulkAction, projectIds, payload);
+      toastSuccess(`Bulk ${bulkAction.toLowerCase().replace('_', ' ')} completed.`);
+      setShowBulkModal(false);
+      setBulkAction(null);
+      setSelectedProjects(new Set());
+      fetchProjects();
+    } catch (err: unknown) {
+      toastError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Bulk operation failed.');
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  }, [bulkAction, selectedProjects, bulkStatus, bulkOwnerId, fetchProjects, toastSuccess, toastError]);
+
+  const openBulkModal = useCallback((action: typeof bulkAction) => {
+    setBulkAction(action);
+    setShowBulkModal(true);
+  }, []);
+
   // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <div>
@@ -410,9 +463,46 @@ export default function ProjectsPage() {
       ) : (
         /* Table View */
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+          {/* Bulk Actions Bar */}
+          {selectedProjects.size > 0 && (
+            <div className="px-5 py-3 bg-brand-gold/10 border-b border-brand-gold/20 flex items-center justify-between">
+              <p className="text-sm font-medium text-gray-900">
+                {selectedProjects.size} project{selectedProjects.size !== 1 ? 's' : ''} selected
+              </p>
+              <div className="flex gap-2">
+                <PermissionGuard require="delete_project">
+                  <button onClick={() => openBulkModal('ARCHIVE')}
+                    className="px-3 py-1.5 text-xs bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition">
+                    Archive Selected
+                  </button>
+                  <button onClick={() => openBulkModal('DELETE')}
+                    className="px-3 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 transition">
+                    Delete Selected
+                  </button>
+                </PermissionGuard>
+                <PermissionGuard require="edit_project">
+                  <button onClick={() => openBulkModal('UPDATE_STATUS')}
+                    className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+                    Change Status
+                  </button>
+                </PermissionGuard>
+                <button onClick={() => setSelectedProjects(new Set())}
+                  className="px-3 py-1.5 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                  Clear Selection
+                </button>
+              </div>
+            </div>
+          )}
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                <th className="px-5 py-3 text-left">
+                  <input type="checkbox"
+                    checked={selectedProjects.size === projects.length && projects.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded border-gray-300 text-brand-gold focus:ring-brand-gold/50"
+                  />
+                </th>
                 {['Project', 'Visibility', 'Sector', 'Category', 'Country', 'Stage', 'Risk', 'Est. Cost', 'Health', 'Actions'].map(h => (
                   <th key={h} className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase">{h}</th>
                 ))}
@@ -421,13 +511,20 @@ export default function ProjectsPage() {
             <tbody className="divide-y divide-gray-200">
               {projects.length > 0 ? projects.map(p => {
                 const stage = projectStage(p);
-                const vLevel = verificationMap[String(p.id)];
                 const projectType = p.projectType || p.project_type;
                 const typeConfig = PROJECT_TYPES.find(pt => pt.value === projectType);
                 const riskRating = p.riskRating || typeConfig?.risk;
                 const isPublished = ['ACTIVE', 'FUNDED', 'CLOSED'].includes(p.status || '');
+                const isSelected = selectedProjects.has(String(p.id));
                 return (
-                  <tr key={p.id} className="hover:bg-gray-50">
+                  <tr key={p.id} className={`hover:bg-gray-50 ${isSelected ? 'bg-brand-gold/5' : ''}`}>
+                    <td className="px-5 py-3">
+                      <input type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelectProject(String(p.id))}
+                        className="w-4 h-4 rounded border-gray-300 text-brand-gold focus:ring-brand-gold/50"
+                      />
+                    </td>
                     <td className="px-5 py-3">
                       <div className="font-medium text-gray-900 text-sm">{projectTitle(p)}</div>
                       {p.description && <div className="text-xs text-gray-500 truncate max-w-xs mt-0.5">{p.description}</div>}
@@ -480,7 +577,7 @@ export default function ProjectsPage() {
                   </tr>
                 );
               }) : (
-                <tr><td colSpan={10} className="px-5 py-12 text-center text-gray-500 text-sm">No projects found.</td></tr>
+                <tr><td colSpan={11} className="px-5 py-12 text-center text-gray-500 text-sm">No projects found.</td></tr>
               )}
             </tbody>
           </table>
@@ -488,6 +585,64 @@ export default function ProjectsPage() {
       )}
 
       {/* ── Modals ── */}
+      {showBulkModal && bulkAction && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="p-5 border-b">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-gray-900">
+                  Bulk {bulkAction.replace('_', ' ')}
+                </h2>
+                <button onClick={() => setShowBulkModal(false)} className="text-gray-400 hover:text-gray-600">
+                  <XIcon className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-5">
+              <p className="text-sm text-gray-600 mb-4">
+                {bulkAction === 'ARCHIVE' && `Archive ${selectedProjects.size} project${selectedProjects.size !== 1 ? 's' : ''}?`}
+                {bulkAction === 'DELETE' && `Permanently delete ${selectedProjects.size} project${selectedProjects.size !== 1 ? 's' : ''}? This action cannot be undone.`}
+                {bulkAction === 'RESTORE' && `Restore ${selectedProjects.size} archived project${selectedProjects.size !== 1 ? 's' : ''}?`}
+                {bulkAction === 'UPDATE_STATUS' && `Update status for ${selectedProjects.size} project${selectedProjects.size !== 1 ? 's' : ''}:`}
+                {bulkAction === 'ASSIGN_OWNER' && `Reassign owner for ${selectedProjects.size} project${selectedProjects.size !== 1 ? 's' : ''}:`}
+              </p>
+
+              {bulkAction === 'UPDATE_STATUS' && (
+                <select value={bulkStatus} onChange={(e) => setBulkStatus(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50 mb-4">
+                  {PROJECT_STATUSES.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              )}
+
+              {bulkAction === 'ASSIGN_OWNER' && (
+                <input type="text" value={bulkOwnerId} onChange={(e) => setBulkOwnerId(e.target.value)}
+                  placeholder="Enter owner user ID"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-gold/50 mb-4"
+                />
+              )}
+
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setShowBulkModal(false)}
+                  className="px-4 py-2 text-sm border border-gray-300 rounded-lg hover:bg-gray-50"
+                  disabled={isBulkSubmitting}>
+                  Cancel
+                </button>
+                <button onClick={handleBulkAction}
+                  disabled={isBulkSubmitting || (bulkAction === 'ASSIGN_OWNER' && !bulkOwnerId)}
+                  className={`px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50 ${
+                    bulkAction === 'DELETE' ? 'bg-red-600 hover:bg-red-700' :
+                    bulkAction === 'ARCHIVE' ? 'bg-yellow-600 hover:bg-yellow-700' :
+                    'bg-brand-gold hover:bg-brand-gold-dark text-brand-navy'
+                  }`}>
+                  {isBulkSubmitting ? 'Processing...' : 'Confirm'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       {showModal && (
         <ProjectFormModal
           title="Create New Project"
