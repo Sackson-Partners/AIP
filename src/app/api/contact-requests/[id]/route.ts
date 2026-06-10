@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
 import { UserRole } from '@prisma/client'
 
-const ADMIN_ROLES = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
 
 const ApproveSchema = z.object({
   action: z.enum(['APPROVE', 'REJECT']),
