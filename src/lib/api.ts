@@ -511,6 +511,8 @@ export const projectsApi = {
   delete:  (id: string | number) => del<void>(`/projects/${id}`),
   archive: (id: string | number) => post<{ data: Project }>(`/projects/${id}/archive`).then(r => r.data),
   restore: (id: string | number) => del<{ data: Project }>(`/projects/${id}/archive`).then(r => r.data),
+  bulk:    (action: 'ARCHIVE' | 'RESTORE' | 'DELETE' | 'UPDATE_STATUS' | 'ASSIGN_OWNER', projectIds: string[], options?: { status?: string; ownerId?: string }) =>
+    post<{ success: boolean; count: number; action: string }>('/projects/bulk', { action, projectIds, ...options }),
 }
 
 export const investorsApi = {
