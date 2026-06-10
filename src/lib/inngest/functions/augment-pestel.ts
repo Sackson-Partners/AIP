@@ -6,7 +6,7 @@ import Anthropic from '@anthropic-ai/sdk'
 export const augmentPETFEL = inngest.createFunction(
   {
     id: 'augment-pestel',
-    name: 'Augment PESTEL with AI',
+    name: 'Augment PETFEL with AI',
     retries: 2,
     triggers: [{ event: 'pestel/augment' }],
   },
@@ -20,7 +20,7 @@ export const augmentPETFEL = inngest.createFunction(
       })
 
       if (!assessment) {
-        throw new Error(`PESTEL assessment ${assessmentId} not found`)
+        throw new Error(`PETFEL assessment ${assessmentId} not found`)
       }
 
       const project = await prisma.project.findUnique({
@@ -42,7 +42,7 @@ export const augmentPETFEL = inngest.createFunction(
 
       const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-      const prompt = `You are an infrastructure due diligence expert. Analyze this project and provide PESTEL assessment insights.
+      const prompt = `You are an infrastructure due diligence expert. Analyze this project and provide PETFEL assessment insights.
 
 PROJECT:
 - Name: ${project.title}
@@ -123,7 +123,7 @@ Return ONLY valid JSON:
         data: {
           userId,
           type: 'pestel_augmented',
-          title: 'PESTEL Augmented',
+          title: 'PETFEL Augmented',
           message: `AI analysis complete for ${project.title}`,
           link: `/dashboard/pestel?project=${projectId}`,
         },

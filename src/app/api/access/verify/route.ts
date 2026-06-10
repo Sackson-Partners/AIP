@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 
 /**
  * POST /api/access/verify
- * Verify access code for Data Room or PESTEL access
+ * Verify access code for Data Room or PETFEL access
  * Body: { accessCode: string, projectId: string, type: 'data-room' | 'pestel' }
  */
 export async function POST(req: NextRequest) {

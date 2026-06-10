@@ -53,7 +53,7 @@ const navigation: NavItem[] = [
   { name: 'Dashboard',      href: '/dashboard',                icon: makeIcon('home') },
   { name: 'Projects',       href: '/dashboard/projects',       icon: makeIcon('folder'),   requiredPermissions: ['view_projects'] },
   { name: 'PIS',            href: '/dashboard/pis',            icon: makeIcon('file'),     requiredPermissions: ['view_projects'] },
-  { name: 'PESTEL',         href: '/dashboard/pestel',         icon: makeIcon('clip'),     requiredPermissions: ['run_petfel'] },
+  { name: 'PETFEL',         href: '/dashboard/pestel',         icon: makeIcon('clip'),     requiredPermissions: ['run_petfel'] },
   { name: 'EIN',            href: '/dashboard/ein',            icon: makeIcon('doc'),      requiredPermissions: ['view_ein_reports'] },
   { name: 'Pipeline',       href: '/dashboard/pipeline',       icon: makeIcon('bolt'),     requiredPermissions: ['view_pipeline'] },
   { name: 'IC',             href: '/dashboard/ic',             icon: makeIcon('gavel'),    requiredPermissions: ['vote_ic','manage_ic'] },

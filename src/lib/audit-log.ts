@@ -34,10 +34,10 @@ export type AuditAction =
   | 'data_room.document_delete'
   | 'data_room.document_publish'
   | 'data_room.document_unpublish'
-  // PESTEL & PIS
-  | 'pestel.create'
-  | 'pestel.update'
-  | 'pestel.ai_augment'
+  // PETFEL & PIS
+  | 'petfel.create'
+  | 'petfel.update'
+  | 'petfel.ai_augment'
   | 'pis.create'
   | 'pis.update'
   | 'pis.ai_generate'

@@ -57,7 +57,7 @@ PROJECT DATA:
 - Total Cost: ${project.totalCost ? `USD ${project.totalCost.toLocaleString()}` : 'N/A'}
 - Risk Rating: ${project.riskRating ?? 'N/A'}
 - Description: ${project.description ?? 'N/A'}
-${petfel ? `- PESTEL Score: ${petfel.overallScore ?? 'N/A'}` : ''}
+${petfel ? `- PETFEL Score: ${petfel.overallScore ?? 'N/A'}` : ''}
 ${ein ? `- EIN Summary: ${ein.projectSummary ?? 'N/A'}` : ''}
 
 Generate detailed, professional content for each section. Each section should be 2-4 paragraphs of substantive analysis appropriate for institutional investors.

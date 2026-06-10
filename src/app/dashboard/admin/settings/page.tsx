@@ -6,13 +6,13 @@ import Link from 'next/link';
 
 const ROLE_FEATURES: Record<string, string[]> = {
   super_admin:        ['Full platform access', 'User management', 'All analytics', 'All modules'],
-  private_fund:       ['All projects', 'PESTEL full', 'EIN reports', 'IC voting', 'Pipeline'],
-  dfi:                ['All projects', 'PESTEL full', 'EIN reports', 'IC management', 'Pipeline'],
-  epc_contractor:     ['Own projects only', 'PESTEL summary', 'Upload documents', 'Pipeline view'],
-  government:         ['Approved + curated projects', 'PESTEL summary', 'EIN approved only'],
-  academic:           ['Approved projects', 'Analytics', 'PESTEL summary'],
-  journalist_analyst: ['Approved projects only', 'PESTEL summary'],
-  investor:           ['Curated + approved projects', 'PESTEL summary', 'EIN approved only'],
+  private_fund:       ['All projects', 'PETFEL full', 'EIN reports', 'IC voting', 'Pipeline'],
+  dfi:                ['All projects', 'PETFEL full', 'EIN reports', 'IC management', 'Pipeline'],
+  epc_contractor:     ['Own projects only', 'PETFEL summary', 'Upload documents', 'Pipeline view'],
+  government:         ['Approved + curated projects', 'PETFEL summary', 'EIN approved only'],
+  academic:           ['Approved projects', 'Analytics', 'PETFEL summary'],
+  journalist_analyst: ['Approved projects only', 'PETFEL summary'],
+  investor:           ['Curated + approved projects', 'PETFEL summary', 'EIN approved only'],
 };
 
 const EMAIL_TEMPLATES = [
@@ -202,7 +202,7 @@ function AdminSettingsContent() {
             <div className="flex-1">
               <h3 className="text-sm font-medium text-white mb-1">DataRoomAccess Table</h3>
               <p className="text-xs text-gray-400">
-                Creates the DataRoomAccess table for access code verification. Required for Data Room and PESTEL access control.
+                Creates the DataRoomAccess table for access code verification. Required for Data Room and PETFEL access control.
               </p>
               {migrationStatus && (
                 <div className={`mt-2 text-xs ${migrationStatus.startsWith('✓') ? 'text-green-400' : 'text-red-400'}`}>

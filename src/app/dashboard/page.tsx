@@ -548,7 +548,7 @@ export default function Dashboard() {
           { label: 'Manage Users',     desc: 'View and manage platform users',      icon: 'users',    href: '/dashboard/admin/users' },
           { label: 'View Analytics',   desc: 'Platform-wide performance data',      icon: 'chart',    href: '/dashboard/analytics' },
           { label: 'Admin Settings',   desc: 'System configuration and setup',      icon: 'cog',      href: '/dashboard/admin/settings' },
-          { label: 'Run PESTEL',       desc: 'Start a PESTEL risk assessment',      icon: 'clip',     href: '/dashboard/pestel' },
+          { label: 'Run PETFEL',       desc: 'Start a PETFEL risk assessment',      icon: 'clip',     href: '/dashboard/pestel' },
           { label: 'Generate EIN',     desc: 'Create executive investment note',    icon: 'doc',      href: '/dashboard/ein' },
         ];
       case UserRole.INSTITUTIONAL_INVESTOR:
@@ -556,7 +556,7 @@ export default function Dashboard() {
         return [
           { label: 'New Project',      desc: 'Add a project to pipeline',          icon: 'plus',     href: '/dashboard/projects' },
           { label: 'View Pipeline',    desc: 'Manage deal-flow stages',             icon: 'bolt',     href: '/dashboard/pipeline' },
-          { label: 'Run PESTEL',       desc: 'Start a PESTEL risk assessment',      icon: 'clip',     href: '/dashboard/pestel' },
+          { label: 'Run PETFEL',       desc: 'Start a PETFEL risk assessment',      icon: 'clip',     href: '/dashboard/pestel' },
           { label: 'Generate EIN',     desc: 'Create executive investment note',    icon: 'doc',      href: '/dashboard/ein' },
           { label: 'IC Committee',     desc: 'Investment committee sessions',       icon: 'gavel',    href: '/dashboard/ic' },
           { label: 'Browse Investors', desc: 'Search the investor directory',       icon: 'deal',     href: '/dashboard/investors' },
@@ -573,14 +573,14 @@ export default function Dashboard() {
         return [
           { label: 'Browse Projects',  desc: 'View curated project pipeline',       icon: 'folder',   href: '/dashboard/projects' },
           { label: 'View Investors',   desc: 'Search the investor directory',        icon: 'users',    href: '/dashboard/investors' },
-          { label: 'Download Reports', desc: 'PESTEL summaries and analysis',        icon: 'download', href: '/dashboard/pestel' },
+          { label: 'Download Reports', desc: 'PETFEL summaries and analysis',        icon: 'download', href: '/dashboard/pestel' },
           { label: 'Events',           desc: 'Infrastructure events calendar',       icon: 'calendar', href: '/dashboard/events' },
         ];
       default:
         return [
           { label: 'Browse Projects',  desc: 'Explore verified infrastructure',     icon: 'eye',      href: '/dashboard/projects' },
           { label: 'Verifications',    desc: 'View verification reports',            icon: 'shield',   href: '/dashboard/verifications' },
-          { label: 'PESTEL Reports',   desc: 'Risk and environment summaries',       icon: 'clip',     href: '/dashboard/pestel' },
+          { label: 'PETFEL Reports',   desc: 'Risk and environment summaries',       icon: 'clip',     href: '/dashboard/pestel' },
           { label: 'Events',           desc: 'Infrastructure events calendar',       icon: 'calendar', href: '/dashboard/events' },
         ];
     }

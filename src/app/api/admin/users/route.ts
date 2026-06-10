@@ -10,17 +10,14 @@ import { sendWelcomeEmail } from "@/lib/email"
 import { generateEmployeeId } from "@/lib/utils/ids"
 
 const createSchema = z.object({
-  email: z.string().email(),
-  firstName: z.string().min(1),
-  lastName: z.string().min(1),
-  role: z.enum(["ANALYST", "SUPER_ADMIN"]),
+  email: z.string().email("Invalid email address"),
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  role: z.enum(["ANALYST", "SUPER_ADMIN", "ADMIN"], { errorMap: () => ({ message: "Role must be ANALYST, ADMIN, or SUPER_ADMIN" }) }),
   password: z
     .string()
-    .min(12)
-    .regex(/[A-Z]/)
-    .regex(/[a-z]/)
-    .regex(/[0-9]/)
-    .regex(/[@$!%*?&]/),
+    .min(8, "Password must be at least 8 characters")
+    .max(100, "Password too long"),
   department: z.string().optional(),
   accessLevel: z.number().int().min(1).max(10).default(1),
   canApprove: z.boolean().default(false),
@@ -93,11 +90,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const body = await req.json().catch(() => null)
+  let body
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 })
+  }
+
   const parsed = createSchema.safeParse(body)
   if (!parsed.success) {
+    const errors = parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join(', ')
     return NextResponse.json(
-      { error: parsed.error.issues[0]?.message ?? "Validation failed" },
+      { error: "Validation failed", details: errors },
       { status: 400 }
     )
   }
@@ -123,40 +127,58 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const [passwordHash, employeeId] = await Promise.all([
-    bcrypt.hash(password, 14),
-    generateEmployeeId(),
-  ])
+  let passwordHash, employeeId, user
 
-  const user = await prisma.$transaction(async (tx) => {
-    const u = await tx.user.create({
-      data: {
-        email,
-        firstName,
-        lastName,
-        name: `${firstName} ${lastName}`,
-        role: role as never,
-        status: "ACTIVE",
-        authProvider: "INTERNAL",
-        passwordHash,
-        mustChangePass: true,
-        emailVerified: new Date(),
-        createdBy: session.user.id,
-      },
+  try {
+    [passwordHash, employeeId] = await Promise.all([
+      bcrypt.hash(password, 14),
+      generateEmployeeId(),
+    ])
+  } catch (err) {
+    console.error('[POST /api/admin/users] Failed to generate password/ID:', err)
+    return NextResponse.json(
+      { error: "Failed to process user data" },
+      { status: 500 }
+    )
+  }
+
+  try {
+    user = await prisma.$transaction(async (tx) => {
+      const u = await tx.user.create({
+        data: {
+          email,
+          firstName,
+          lastName,
+          name: `${firstName} ${lastName}`,
+          role: role as never,
+          status: "ACTIVE",
+          authProvider: "INTERNAL",
+          passwordHash,
+          mustChangePass: true,
+          emailVerified: new Date(),
+          createdBy: session.user.id,
+        },
+      })
+      await tx.internalProfile.create({
+        data: {
+          userId: u.id,
+          employeeId,
+          department,
+          accessLevel,
+          canApprove,
+          canPublish,
+          canManageUsers,
+        },
+      })
+      return u
     })
-    await tx.internalProfile.create({
-      data: {
-        userId: u.id,
-        employeeId,
-        department,
-        accessLevel,
-        canApprove,
-        canPublish,
-        canManageUsers,
-      },
-    })
-    return u
-  })
+  } catch (err) {
+    console.error('[POST /api/admin/users] Database transaction failed:', err)
+    return NextResponse.json(
+      { error: "Failed to create user in database", details: err instanceof Error ? err.message : 'Unknown error' },
+      { status: 500 }
+    )
+  }
 
   // Best-effort email — don't fail the request if SMTP is not configured
   await sendWelcomeEmail({

@@ -102,7 +102,7 @@ export default function ProjectDetailPage() {
   ];
 
   const relatedLinks = [
-    { label: 'PESTEL Assessment', href: `/dashboard/pestel?project_id=${id}`,    description: 'Political, Economic, Social, Technological, Environmental & Legal analysis' },
+    { label: 'PETFEL Assessment', href: `/dashboard/pestel?project_id=${id}`,    description: 'Political, Economic, Social, Technological, Environmental & Legal analysis' },
     { label: 'EIN Report',        href: `/dashboard/ein?project_id=${id}`,        description: 'Executive Investment Note for this project' },
     { label: 'Data Rooms',        href: `/dashboard/data-rooms?project_id=${id}`, description: 'Access documents and due diligence materials' },
   ];

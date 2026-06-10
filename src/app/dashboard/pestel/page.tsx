@@ -372,7 +372,7 @@ export default function PETFELPage() {
                 <SparklesIcon className="w-6 h-6 text-purple-600" />
               </div>
               <div>
-                <h2 className="text-xl font-bold text-gray-900">PESTEL Assessment Access</h2>
+                <h2 className="text-xl font-bold text-gray-900">PETFEL Assessment Access</h2>
                 <p className="text-sm text-gray-500">Due diligence framework</p>
               </div>
             </div>
@@ -382,7 +382,7 @@ export default function PETFELPage() {
             <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
               <h3 className="text-sm font-semibold text-purple-900 mb-2">🔒 Access Code Required</h3>
               <p className="text-xs text-purple-800">
-                PESTEL assessments contain confidential due diligence information.
+                PETFEL assessments contain confidential due diligence information.
                 Enter your 6-digit access code to continue.
               </p>
             </div>
@@ -415,7 +415,7 @@ export default function PETFELPage() {
                 disabled={isVerifying || accessCode.length !== 6}
                 className="flex-1 bg-purple-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-purple-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isVerifying ? 'Verifying...' : 'Access PESTEL'}
+                {isVerifying ? 'Verifying...' : 'Access PETFEL'}
               </button>
             </div>
 
