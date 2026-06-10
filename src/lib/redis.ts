@@ -134,9 +134,9 @@ export const CacheKeys = {
     detail: (id: string) => `investors:detail:${id}`,
     matches: (id: string) => `investors:matches:${id}`,
   },
-  pestel: {
-    assessment: (projectId: string) => `pestel:assessment:${projectId}`,
-    calculation: (assessmentId: string) => `pestel:calc:${assessmentId}`,
+  petfel: {
+    assessment: (projectId: string) => `petfel:assessment:${projectId}`,
+    calculation: (assessmentId: string) => `petfel:calc:${assessmentId}`,
   },
   pis: {
     detail: (id: string) => `pis:detail:${id}`,

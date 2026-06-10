@@ -48,7 +48,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
 
   // Invalidate PETFEL cache for this project
-  await deleteCached(CacheKeys.pestel.assessment(record.projectId))
+  await deleteCached(CacheKeys.petfel.assessment(record.projectId))
   console.log(`[PATCH /api/petfel/${id}] Cache invalidated for project ${record.projectId}`)
 
   return NextResponse.json({ data: record })

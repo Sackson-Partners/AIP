@@ -48,7 +48,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pro
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   // Check cache first
-  const cacheKey = CacheKeys.pestel.assessment(projectId)
+  const cacheKey = CacheKeys.petfel.assessment(projectId)
   const cached = await getCached<ReturnType<typeof normalize>>(cacheKey)
   if (cached) {
     return NextResponse.json({ data: cached })

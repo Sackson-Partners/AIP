@@ -106,7 +106,7 @@ Return ONLY valid JSON:
     await step.run('log-audit', async () => {
       await logAudit({
         userId,
-        action: 'pestel.ai_augment',
+        action: 'petfel.ai_augment',
         tableName: 'PETFELAnalysis',
         recordId: assessmentId,
         metadata: {
