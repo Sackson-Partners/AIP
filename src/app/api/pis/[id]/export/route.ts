@@ -32,45 +32,85 @@ export async function GET(
       return NextResponse.json({ error: 'Report not found' }, { status: 404 })
     }
 
-    // Build PDF sections
+    // Build PDF sections from actual PISReport schema fields
     const sections = []
 
-    if (report.projectDescription) {
+    if (report.executiveSummary) {
       sections.push({
-        title: 'Project Description',
-        content: report.projectDescription,
+        title: 'Executive Summary',
+        content: report.executiveSummary,
         level: 2,
       })
     }
 
-    if (report.technicalDetails) {
+    if (report.projectBackground) {
       sections.push({
-        title: 'Technical Details',
-        content: report.technicalDetails,
+        title: 'Project Background',
+        content: report.projectBackground,
         level: 2,
       })
     }
 
-    if (report.financialModel) {
+    if (report.financialStructure) {
       sections.push({
-        title: 'Financial Model',
-        content: report.financialModel,
+        title: 'Financial Structure',
+        content: report.financialStructure,
         level: 2,
       })
     }
 
-    if (report.riskAssessment) {
+    if (report.marketAnalysis) {
       sections.push({
-        title: 'Risk Assessment',
-        content: report.riskAssessment,
+        title: 'Market Analysis',
+        content: report.marketAnalysis,
         level: 2,
       })
     }
 
-    if (report.recommendations) {
+    if (report.riskFactors) {
       sections.push({
-        title: 'Recommendations',
-        content: report.recommendations,
+        title: 'Risk Factors',
+        content: report.riskFactors,
+        level: 2,
+      })
+    }
+
+    if (report.investmentHighlights) {
+      sections.push({
+        title: 'Investment Highlights',
+        content: report.investmentHighlights,
+        level: 2,
+      })
+    }
+
+    if (report.useOfProceeds) {
+      sections.push({
+        title: 'Use of Proceeds',
+        content: report.useOfProceeds,
+        level: 2,
+      })
+    }
+
+    if (report.exitStrategy) {
+      sections.push({
+        title: 'Exit Strategy',
+        content: report.exitStrategy,
+        level: 2,
+      })
+    }
+
+    if (report.teamBackground) {
+      sections.push({
+        title: 'Team Background',
+        content: report.teamBackground,
+        level: 2,
+      })
+    }
+
+    if (report.legalStructure) {
+      sections.push({
+        title: 'Legal Structure',
+        content: report.legalStructure,
         level: 2,
       })
     }
