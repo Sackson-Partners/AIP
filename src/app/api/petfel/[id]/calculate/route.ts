@@ -43,7 +43,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     data:  {
       overallScore,
       rating,
-      status: 'scored', // Update status when calculation completes
     },
   })
 
@@ -61,7 +60,6 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       id:            record.id,
       projectId:     record.projectId,
       project_id:    record.projectId,
-      status:        record.status,
       overall_score: record.overallScore,
       overallScore:  record.overallScore,
       rating:        record.rating,

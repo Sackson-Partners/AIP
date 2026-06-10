@@ -33,15 +33,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.legalScore !== undefined) updateData.legalScore = Number(body.legalScore)
   if (body.overallScore !== undefined) updateData.overallScore = Number(body.overallScore)
 
-  // Rating and status
+  // Rating
   if (body.rating !== undefined) updateData.rating = body.rating
-  if (body.status !== undefined) updateData.status = body.status
-
-  // Auto-update status to 'in_progress' if scores are being manually edited
-  const scoreFieldsUpdated = ['politicalScore', 'economicScore', 'technicalScore', 'financialScore', 'environmentalScore', 'legalScore'].some(f => body[f] !== undefined)
-  if (scoreFieldsUpdated && !body.status) {
-    updateData.status = 'in_progress'
-  }
 
   // Text fields
   if (body.aiMemo !== undefined) updateData.aiMemo = body.aiMemo
