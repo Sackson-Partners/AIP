@@ -130,9 +130,13 @@ User question: ${message}`
       ? response.content[0].text
       : 'I apologize, but I could not generate a response.'
 
+    const tokensUsed = response.usage
+      ? (response.usage.input_tokens || 0) + (response.usage.output_tokens || 0)
+      : 0
+
     return NextResponse.json({
       message: assistantMessage,
-      tokensUsed: response.usage?.total_tokens || 0,
+      tokensUsed,
     })
   } catch (error) {
     console.error('[POST /api/chat] Error:', error)
