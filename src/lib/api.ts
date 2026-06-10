@@ -618,6 +618,7 @@ export const petfelApi = {
   updateAssessment: (assessmentId: string | number, data: object) => patch<{ data: PETFELAssessment }>(`/petfel/${assessmentId}`, data).then(r => r.data),
   calculate:        (assessmentId: string | number) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/calculate`).then(r => r.data),
   submit:           (assessmentId: string | number) => post<{ data: PETFELAssessment }>(`/petfel/${assessmentId}/submit`).then(r => r.data),
+  exportPDF:        (id: string | number) => `/api/petfel/${id}/export`, // Returns URL for download
 }
 
 export const einApi = {
@@ -635,6 +636,7 @@ export const einApi = {
   templates:     () => get<{ data: EINTemplate[] }>('/ein/templates').then(r => r.data ?? []),
   getTemplates:  () => get<{ data: EINTemplate[] }>('/ein/templates').then(r => r.data ?? []),
   generate:      (projectId: string | number) => post<EIN>(`/ein/generate/${projectId}`, {}),
+  exportPDF:     (id: string | number) => `/api/ein/${id}/export`, // Returns URL for download
 }
 
 export const icApi = {
@@ -775,6 +777,7 @@ export const pisApi = {
   generate: (id: string) => api.post<{ data: PISReport }>(`/pis/${id}/generate`, {}, { timeout: 120000 }).then(r => r.data.data),
   archive:  (id: string) => post<{ data: PISReport }>(`/pis/${id}/archive`).then(r => r.data),
   restore:  (id: string) => del<{ data: PISReport }>(`/pis/${id}/archive`).then(r => r.data),
+  exportPDF: (id: string) => `/api/pis/${id}/export`, // Returns URL for download
 }
 
 export const documentsApi = {
