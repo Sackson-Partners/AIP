@@ -8,6 +8,8 @@ import { XIcon } from '@/components/ui/icons'
 
 type TabType = 'sent' | 'received'
 
+const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+
 export default function ContactRequestsPage() {
   const { data: session } = useSession()
   const [tab, setTab] = useState<TabType>('sent')
@@ -23,7 +25,7 @@ export default function ContactRequestsPage() {
   const [rejectionReason, setRejectionReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  const isAdmin = [UserRole.SUPER_ADMIN, UserRole.ADMIN].includes(session?.user?.role as UserRole)
+  const isAdmin = ADMIN_ROLES.includes(session?.user?.role as UserRole)
 
   const fetchRequests = async () => {
     setLoading(true)
