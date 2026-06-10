@@ -40,7 +40,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
 
   const record = await prisma.pETFELAnalysis.update({
     where: { id },
-    data:  { overallScore, rating },
+    data:  {
+      overallScore,
+      rating,
+      status: 'scored', // Update status when calculation completes
+    },
   })
 
   const pillarScores = {
@@ -55,9 +59,11 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
   return NextResponse.json({
     data: {
       id:            record.id,
+      projectId:     record.projectId,
       project_id:    record.projectId,
-      status:        'scored',
+      status:        record.status,
       overall_score: record.overallScore,
+      overallScore:  record.overallScore,
       rating:        record.rating,
       gating_result: record.overallScore
         ? record.overallScore >= 3.5 ? 'GO' : record.overallScore >= 2.5 ? 'WATCH' : 'NO-GO'
