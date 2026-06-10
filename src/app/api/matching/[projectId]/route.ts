@@ -50,8 +50,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ pro
         const reasons: string[] = []
 
         // Parse JSON arrays from database
-        const sectorFocus = investor.sectorFocus ? JSON.parse(investor.sectorFocus as string) : []
-        const stageFocus = investor.stageFocus ? JSON.parse(investor.stageFocus as string) : []
+        let sectorFocus: string[] = []
+        let stageFocus: string[] = []
+
+        try {
+          sectorFocus = investor.sectorFocus
+            ? (typeof investor.sectorFocus === 'string' ? JSON.parse(investor.sectorFocus) : investor.sectorFocus)
+            : []
+          stageFocus = investor.stageFocus
+            ? (typeof investor.stageFocus === 'string' ? JSON.parse(investor.stageFocus) : investor.stageFocus)
+            : []
+        } catch (e) {
+          console.error(`[Matching] Failed to parse investor ${investor.id} focus arrays:`, e)
+        }
 
         // Sector match
         if (project.sector && sectorFocus.includes(project.sector)) {

@@ -657,6 +657,30 @@ export const matchingApi = {
   get:  (projectId: string | number) => get<unknown>(`/matching/${projectId}`),
 }
 
+export const contactRequestsApi = {
+  list:     (params?: { status?: string; type?: 'sent' | 'received' }) => {
+    const query = new URLSearchParams()
+    if (params?.status) query.set('status', params.status)
+    if (params?.type) query.set('type', params.type)
+    return get<{ data: ContactRequest[] }>(`/contact-requests?${query}`).then(r => r.data ?? [])
+  },
+  get:      (id: string) => get<{ data: ContactRequest }>(`/contact-requests/${id}`).then(r => r.data),
+  create:   (data: { targetType: 'PROJECT' | 'INVESTOR' | 'PARTNER'; targetId: string; message?: string }) =>
+    post<{ data: ContactRequest }>('/contact-requests', data).then(r => r.data),
+  approve:  (id: string, contactInfo?: string) =>
+    patch<{ data: ContactRequest }>(`/contact-requests/${id}`, { action: 'APPROVE', contactInfo }).then(r => r.data),
+  reject:   (id: string, rejectionReason?: string) =>
+    patch<{ data: ContactRequest }>(`/contact-requests/${id}`, { action: 'REJECT', rejectionReason }).then(r => r.data),
+  withdraw: (id: string) => del<void>(`/contact-requests/${id}`),
+}
+
+export const notificationsApi = {
+  list:     () => get<{ data: Notification[] }>('/notifications').then(r => r.data ?? []),
+  unread:   () => get<{ data: Notification[] }>('/notifications?read=false').then(r => r.data ?? []),
+  markRead: (id: string) => patch<{ data: Notification }>(`/notifications/${id}`, { read: true }).then(r => r.data),
+  markAllRead: () => post<void>('/notifications/mark-all-read'),
+}
+
 export const radarApi = {
   list:    () => get<{ data: unknown[] }>('/radar').then(r => r.data),
   results: () => get<{ data: unknown[] }>('/radar/results').then(r => r.data),
@@ -692,6 +716,23 @@ export interface Notification {
   readAt?: string | null
   createdAt: string
   created_at: string  // alias for createdAt — kept for backward compat
+}
+
+export interface ContactRequest {
+  id: string
+  requesterId: string
+  targetType: 'PROJECT' | 'INVESTOR' | 'PARTNER'
+  targetId: string
+  message?: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'WITHDRAWN'
+  approvedBy?: string
+  approvedAt?: string
+  rejectedBy?: string
+  rejectedAt?: string
+  rejectionReason?: string
+  contactInfo?: string
+  createdAt: string
+  updatedAt: string
 }
 
 export const notificationsApi = {
