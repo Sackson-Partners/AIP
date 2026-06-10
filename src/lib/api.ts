@@ -685,6 +685,11 @@ export const notificationsApi = {
   markAllRead: () => post<void>('/notifications/mark-all-read'),
 }
 
+export const chatApi = {
+  send: (message: string, conversationId?: string) =>
+    post<{ message: string; tokensUsed: number }>('/chat', { message, conversationId }),
+}
+
 export const radarApi = {
   list:    () => get<{ data: unknown[] }>('/radar').then(r => r.data),
   results: () => get<{ data: unknown[] }>('/radar/results').then(r => r.data),
