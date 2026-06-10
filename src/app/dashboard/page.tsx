@@ -647,7 +647,7 @@ export default function Dashboard() {
             <span className="text-xs text-gray-400">({allProjects.length} projects)</span>
           </div>
           <div className="rounded-xl border border-gray-200 overflow-hidden bg-gray-100" style={{ height: 360 }}>
-            <MapPanel projects={allProjects.filter(p => !p.archived)} />
+            <MapPanel projects={allProjects} />
           </div>
         </div>
 
