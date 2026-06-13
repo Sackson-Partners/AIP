@@ -57,6 +57,95 @@ async function main() {
   })
 
   console.log(`✅ Super Admin seeded: ${user.email} (id: ${user.id})`)
+
+  // Seed default project templates
+  const templates = [
+    {
+      id: 'tpl-solar',
+      name: 'Solar Power Plant',
+      description: 'Utility-scale solar photovoltaic power generation project',
+      sector: 'ENERGY',
+      stage: 'FEASIBILITY',
+      defaultFields: {
+        sector: 'ENERGY',
+        projectType: 'BOT',
+        dealStage: 'FEASIBILITY',
+        riskRating: 'Medium',
+      },
+      isPublic: true,
+      createdById: user.id,
+    },
+    {
+      id: 'tpl-wind',
+      name: 'Wind Farm',
+      description: 'Onshore or offshore wind energy generation facility',
+      sector: 'ENERGY',
+      stage: 'FEASIBILITY',
+      defaultFields: {
+        sector: 'ENERGY',
+        projectType: 'BOT',
+        dealStage: 'FEASIBILITY',
+        riskRating: 'Medium-High',
+      },
+      isPublic: true,
+      createdById: user.id,
+    },
+    {
+      id: 'tpl-road',
+      name: 'Road Infrastructure',
+      description: 'Highway, expressway, or rural road construction/rehabilitation',
+      sector: 'TRANSPORT',
+      stage: 'PREFEASIBILITY',
+      defaultFields: {
+        sector: 'TRANSPORT',
+        projectType: 'PPP',
+        dealStage: 'PREFEASIBILITY',
+        riskRating: 'Medium',
+      },
+      isPublic: true,
+      createdById: user.id,
+    },
+    {
+      id: 'tpl-water',
+      name: 'Water Treatment Plant',
+      description: 'Municipal water supply and wastewater treatment facility',
+      sector: 'WATER',
+      stage: 'FEASIBILITY',
+      defaultFields: {
+        sector: 'WATER',
+        projectType: 'CONCESSION',
+        dealStage: 'FEASIBILITY',
+        riskRating: 'Medium',
+      },
+      isPublic: true,
+      createdById: user.id,
+    },
+    {
+      id: 'tpl-housing',
+      name: 'Affordable Housing',
+      description: 'Mass housing development for low-to-middle income populations',
+      sector: 'HOUSING',
+      stage: 'CONCEPT',
+      defaultFields: {
+        sector: 'HOUSING',
+        projectType: 'OTHER',
+        dealStage: 'CONCEPT',
+        riskRating: 'Variable',
+      },
+      isPublic: true,
+      createdById: user.id,
+    },
+  ]
+
+  for (const tpl of templates) {
+    await prisma.projectTemplate.upsert({
+      where: { id: tpl.id },
+      update: {},
+      create: tpl,
+    })
+  }
+
+  console.log(`✅ Seeded ${templates.length} default project templates`)
 }
 
 main()
