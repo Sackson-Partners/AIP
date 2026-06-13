@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { logger } from '@/lib/logger'
 import { scoreMatch, buildPartnerProfile, MatchResult } from '@/lib/matching'
+import { generateMatchExplanation } from '@/lib/matching-ai'
 import { getCached, setCached, CacheKeys, CacheTTL } from '@/lib/redis'
 
 /**
@@ -51,6 +52,7 @@ export async function POST(req: NextRequest) {
         dealStage:   true,
         totalCost:   true,
         projectType: true,
+        riskRating:  true,
       },
     })
 
@@ -75,20 +77,69 @@ export async function POST(req: NextRequest) {
           dealStage:   p.dealStage as string,
           totalCost:   p.totalCost ?? null,
           projectType: p.projectType ?? null,
+          riskRating:  p.riskRating ?? null,
         }),
         projectName: p.title,
       }))
       .sort((a, b) => b.score - a.score)
 
-    // Persist top matches (score >= 30) to PartnerMatch table — upsert to avoid duplicates
+    // Persist top matches (score >= 30) to PartnerMatch table with 24h cache
     const topMatches = results.filter(r => r.score >= 30)
+    const now = new Date()
+    const cachedUntil = new Date(now.getTime() + 24 * 60 * 60 * 1000) // 24 hours
+
     if (topMatches.length > 0) {
+      // Generate AI explanations for top 10 matches only (to control API costs)
+      const top10 = topMatches.slice(0, 10)
+      const explanations: Record<string, string> = {}
+
+      for (const match of top10) {
+        const project = projects.find(p => p.id === match.projectId)!
+        try {
+          const explanation = await generateMatchExplanation({
+            match,
+            project: {
+              id: project.id,
+              title: project.title,
+              sector: (project.sector as string | null) ?? null,
+              country: project.country ?? null,
+              dealStage: project.dealStage as string,
+              totalCost: project.totalCost ?? null,
+              projectType: project.projectType ?? null,
+              riskRating: project.riskRating ?? null,
+            },
+            partner: {
+              ...partner,
+              name: investor.name || 'Investor',
+            },
+          })
+          explanations[match.projectId] = explanation
+        } catch (error) {
+          logger.error(`[POST /api/investors/match] Failed to generate explanation for ${match.projectId}:`, error)
+        }
+      }
+
+      // Upsert matches with explanations and cache expiry
       await Promise.allSettled(
         topMatches.map(r =>
           prisma.partnerMatch.upsert({
-            where:  { investorId_projectId: { investorId, projectId: r.projectId } },
-            create: { investorId, projectId: r.projectId, matchScore: r.score, action: 'INTERESTED', createdBy: session.user.id },
-            update: { matchScore: r.score },
+            where: { investorId_projectId: { investorId, projectId: r.projectId } },
+            create: {
+              investorId,
+              projectId: r.projectId,
+              matchScore: r.score,
+              matchTier: r.matchTier,
+              matchExplanation: explanations[r.projectId] || null,
+              action: 'INTERESTED',
+              createdBy: session.user.id,
+              cachedUntil,
+            },
+            update: {
+              matchScore: r.score,
+              matchTier: r.matchTier,
+              matchExplanation: explanations[r.projectId] || null,
+              cachedUntil,
+            },
           })
         )
       )

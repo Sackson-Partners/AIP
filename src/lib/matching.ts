@@ -1,14 +1,20 @@
 /**
- * Partner–Project matching engine
+ * Partner–Project matching engine v2 (Feature 2.3)
  *
  * Weighted scoring algorithm:
- *   Sector alignment     30 pts
+ *   Sector alignment     25 pts
  *   Country match        25 pts
  *   Deal stage match     20 pts
  *   Ticket size fit      15 pts
  *   Partner type fit     10 pts
+ *   Risk rating           5 pts
  *   ──────────────────── ─────
  *   Total               100 pts
+ *
+ * Match Tiers:
+ *   EXCELLENT: 70-100 (strong alignment across all factors)
+ *   STRONG:    50-69  (good alignment in key areas)
+ *   GOOD:      30-49  (reasonable fit worth exploring)
  */
 
 export interface PartnerProfile {
@@ -28,26 +34,32 @@ export interface ProjectProfile {
   dealStage:   string | null
   totalCost:   number | null
   projectType: string | null  // PPP | BOT | IPP ...
+  riskRating:  string | null  // Low | Medium | High
 }
+
+export type MatchTier = 'EXCELLENT' | 'STRONG' | 'GOOD'
 
 export interface MatchResult {
   projectId:  string
   score:      number   // 0-100
+  matchTier:  MatchTier | null
   breakdown:  {
     sector:    number
     country:   number
     stage:     number
     ticket:    number
     partnerType: number
+    risk:      number
   }
   reasons: string[]
 }
 
-const SECTOR_SCORE = 30
+const SECTOR_SCORE = 25
 const COUNTRY_SCORE = 25
 const STAGE_SCORE = 20
 const TICKET_SCORE = 15
 const TYPE_SCORE = 10
+const RISK_SCORE = 5
 
 // Project types that suit each partner org type
 const TYPE_AFFINITY: Record<string, string[]> = {
@@ -65,12 +77,11 @@ function parseJson(s: string | null | undefined): string[] {
 
 export function scoreMatch(partner: PartnerProfile, project: ProjectProfile): MatchResult {
   const reasons: string[] = []
-  const breakdown = { sector: 0, country: 0, stage: 0, ticket: 0, partnerType: 0 }
+  const breakdown = { sector: 0, country: 0, stage: 0, ticket: 0, partnerType: 0, risk: 0 }
 
   // ── Sector ────────────────────────────────────────────────────────────────
   if (partner.sectorFocus.length === 0) {
     breakdown.sector = SECTOR_SCORE * 0.5   // neutral — no preference
-    reasons.push('No sector preference (partial score)')
   } else if (project.sector && partner.sectorFocus.includes(project.sector)) {
     breakdown.sector = SECTOR_SCORE
     reasons.push(`Sector match: ${project.sector}`)
@@ -125,12 +136,37 @@ export function scoreMatch(partner: PartnerProfile, project: ProjectProfile): Ma
     }
   }
 
+  // ── Risk Rating ───────────────────────────────────────────────────────────
+  if (project.riskRating) {
+    const risk = project.riskRating.toLowerCase()
+    if (risk.includes('low')) {
+      breakdown.risk = RISK_SCORE
+      reasons.push('Low risk project')
+    } else if (risk.includes('medium')) {
+      breakdown.risk = RISK_SCORE * 0.75
+    } else if (risk.includes('high')) {
+      breakdown.risk = RISK_SCORE * 0.5
+    }
+  } else {
+    breakdown.risk = RISK_SCORE * 0.5
+  }
+
   const score = Math.round(
     breakdown.sector + breakdown.country + breakdown.stage +
-    breakdown.ticket + breakdown.partnerType
+    breakdown.ticket + breakdown.partnerType + breakdown.risk
   )
 
-  return { projectId: project.id, score, breakdown, reasons }
+  // ── Match Tier ────────────────────────────────────────────────────────────
+  let matchTier: MatchTier | null = null
+  if (score >= 70) {
+    matchTier = 'EXCELLENT'
+  } else if (score >= 50) {
+    matchTier = 'STRONG'
+  } else if (score >= 30) {
+    matchTier = 'GOOD'
+  }
+
+  return { projectId: project.id, score, matchTier, breakdown, reasons }
 }
 
 export function buildPartnerProfile(inv: {
