@@ -497,6 +497,42 @@ model DealRoomFolder {
   @@index([dealRoomId])
 }
 
+model DocumentVersion {
+  id          String   @id @default(cuid())
+  documentId  String
+  versionNum  Int
+  blobUrl     String
+  blobKey     String
+  size        Int?
+  uploadedBy  String
+  changeNote  String?  @db.Text
+  createdAt   DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, versionNum])
+  @@index([documentId])
+}
+
+model DocumentEvent {
+  id         String   @id @default(cuid())
+  documentId String
+  userId     String?
+  userEmail  String?
+  eventType  String   // VIEW | DOWNLOAD | SHARE | UPDATE | DELETE
+  metadata   Json?    // Additional event context
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId])
+  @@index([userId])
+  @@index([eventType])
+  @@index([createdAt])
+}
+
 model DocumentAccessLog {
   id         String   @id @default(cuid())
   documentId String
@@ -525,35 +561,42 @@ model ProjectWatchlist {
 }
 
 model Document {
-  id             String       @id @default(cuid())
-  projectId      String?
-  dealRoomId     String?
-  folderId       String?
-  uploaderId     String
-  name           String
-  type           DocumentType @default(OTHER)
-  mimeType       String?
-  size           Int?
-  blobUrl        String?
-  blobKey        String?
-  isPublic       Boolean      @default(false)
-  isConfidential Boolean      @default(false)
-  published      Boolean      @default(false)
-  publishedAt    DateTime?
-  version        Int          @default(1)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id                String       @id @default(cuid())
+  projectId         String?
+  dealRoomId        String?
+  folderId          String?
+  uploaderId        String
+  name              String
+  type              DocumentType @default(OTHER)
+  mimeType          String?
+  size              Int?
+  blobUrl           String?
+  blobKey           String?
+  isPublic          Boolean      @default(false)
+  isConfidential    Boolean      @default(false)
+  published         Boolean      @default(false)
+  publishedAt       DateTime?
+  version           Int          @default(1)
+  summary           String?      @db.Text  // AI-generated summary
+  keyInsights       Json?        // Structured key findings
+  summarizedAt      DateTime?    // When AI summary was generated
+  summarizationStatus String?    // PENDING | PROCESSING | COMPLETED | FAILED
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  project    Project?           @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  dealRoom   DealRoom?          @relation(fields: [dealRoomId], references: [id], onDelete: SetNull)
-  folder     DealRoomFolder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
-  uploader   User               @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
+  project    Project?            @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  dealRoom   DealRoom?           @relation(fields: [dealRoomId], references: [id], onDelete: SetNull)
+  folder     DealRoomFolder?     @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  uploader   User                @relation(fields: [uploaderId], references: [id], onDelete: Restrict)
   accessLogs DocumentAccessLog[]
+  versions   DocumentVersion[]
+  events     DocumentEvent[]
 
   @@index([projectId])
   @@index([dealRoomId])
   @@index([folderId])
   @@index([uploaderId])
+  @@index([summarizationStatus])
 }
 
 model Notification {
