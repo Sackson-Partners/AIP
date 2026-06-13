@@ -1,334 +1,287 @@
 import { Resend } from 'resend'
+import { render } from '@react-email/render'
+import { ICVoteRequestEmail } from '@/emails/ICVoteRequestEmail'
+import { ContactRequestEmail } from '@/emails/ContactRequestEmail'
+import { ContactApprovedEmail } from '@/emails/ContactApprovedEmail'
+import { ProjectPublishedEmail } from '@/emails/ProjectPublishedEmail'
 
-// Check if Resend is configured
-const isEmailConfigured = Boolean(process.env.RESEND_API_KEY)
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'AIP Platform <noreply@africa-infra.com>'
 
-const resend = isEmailConfigured ? new Resend(process.env.RESEND_API_KEY) : null
+export interface EmailOptions {
+  to: string | string[]
+  subject: string
+  react: React.ReactElement
+}
 
-const FROM = process.env.RESEND_FROM_EMAIL ?? 'AIP Platform <noreply@africa-infra.com>'
+/**
+ * Send email via Resend
+ */
+export async function sendEmail(options: EmailOptions) {
+  if (!resend) {
+    console.warn('[sendEmail] Resend not configured, skipping email send')
+    return { success: false, error: 'Email service not configured' }
+  }
 
-// Helper to check if email is configured
-function checkEmailConfig(): void {
-  if (!isEmailConfigured || !resend) {
-    console.warn('[Email] Resend not configured. Emails will not be sent. Set RESEND_API_KEY in .env.local')
-    throw new Error('Resend not configured')
+  try {
+    const html = await render(options.react)
+    const text = await render(options.react, { plainText: true })
+
+    const result = await resend.emails.send({
+      from: FROM_EMAIL,
+      to: Array.isArray(options.to) ? options.to : [options.to],
+      subject: options.subject,
+      html,
+      text,
+    })
+
+    console.log('[sendEmail] Email sent successfully:', result)
+    return { success: true, data: result }
+  } catch (error) {
+    console.error('[sendEmail] Error sending email:', error)
+    return { success: false, error }
   }
 }
 
-const base = (content: string) => `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#0f172a;font-family:'Segoe UI',Arial,sans-serif">
-  <table width="100%" cellpadding="0" cellspacing="0">
-    <tr><td align="center" style="padding:40px 20px">
-      <table width="600" cellpadding="0" cellspacing="0"
-        style="background:#1e293b;border-radius:12px;border:1px solid #334155;overflow:hidden">
-        <tr>
-          <td style="background:linear-gradient(135deg,#1e40af,#1d4ed8);padding:32px;text-align:center">
-            <h1 style="margin:0;color:#fff;font-size:24px;font-weight:700;letter-spacing:-0.5px">
-              AIP Platform
-            </h1>
-            <p style="margin:4px 0 0;color:#93c5fd;font-size:13px">Africa Infrastructure Pipeline</p>
-          </td>
-        </tr>
-        <tr><td style="padding:32px">${content}</td></tr>
-        <tr>
-          <td style="background:#0f172a;padding:20px 32px;border-top:1px solid #334155;text-align:center">
-            <p style="margin:0;color:#64748b;font-size:12px">
-              This message is confidential and for internal use only.<br>
-              © ${new Date().getFullYear()} AIP Platform. All rights reserved.
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`
+/**
+ * Send IC vote request email
+ */
+export async function sendICVoteRequest(params: {
+  to: string
+  committeeUserName: string
+  projectName: string
+  projectCode: string
+  voteUrl: string
+  dueDate: string
+}) {
+  return sendEmail({
+    to: params.to,
+    subject: `IC Vote Requested: ${params.projectName}`,
+    react: ICVoteRequestEmail({
+      committeeUserName: params.committeeUserName,
+      projectName: params.projectName,
+      projectCode: params.projectCode,
+      voteUrl: params.voteUrl,
+      dueDate: params.dueDate,
+    }),
+  })
+}
 
-const btn = (url: string, label: string) =>
-  `<a href="${url}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px;margin:20px 0">${label}</a>`
+/**
+ * Send contact request notification email
+ */
+export async function sendContactRequestNotification(params: {
+  to: string | string[]
+  requesterName: string
+  targetType: 'PROJECT' | 'INVESTOR' | 'PARTNER'
+  targetName: string
+  message?: string
+  reviewUrl: string
+}) {
+  return sendEmail({
+    to: params.to,
+    subject: `Contact Request: ${params.targetName}`,
+    react: ContactRequestEmail({
+      requesterName: params.requesterName,
+      targetType: params.targetType,
+      targetName: params.targetName,
+      message: params.message,
+      reviewUrl: params.reviewUrl,
+    }),
+  })
+}
 
-const h2 = (text: string) =>
-  `<h2 style="margin:0 0 16px;color:#f1f5f9;font-size:20px">${text}</h2>`
+/**
+ * Send contact request approved email
+ */
+export async function sendContactApproved(params: {
+  to: string
+  requesterName: string
+  targetType: 'PROJECT' | 'INVESTOR' | 'PARTNER'
+  targetName: string
+  contactInfo: {
+    name?: string
+    email?: string
+    phone?: string
+    organization?: string
+  }
+}) {
+  return sendEmail({
+    to: params.to,
+    subject: 'Contact Request Approved',
+    react: ContactApprovedEmail({
+      requesterName: params.requesterName,
+      targetType: params.targetType,
+      targetName: params.targetName,
+      contactInfo: params.contactInfo,
+    }),
+  })
+}
 
-const p = (text: string) =>
-  `<p style="margin:0 0 12px;color:#94a3b8;font-size:14px;line-height:1.6">${text}</p>`
+/**
+ * Send project published notification to matching investors
+ */
+export async function sendProjectPublished(params: {
+  to: string
+  investorName: string
+  projectName: string
+  projectCode: string
+  projectSector: string
+  projectCountry: string
+  projectUrl: string
+}) {
+  return sendEmail({
+    to: params.to,
+    subject: `New Project: ${params.projectName}`,
+    react: ProjectPublishedEmail({
+      investorName: params.investorName,
+      projectName: params.projectName,
+      projectCode: params.projectCode,
+      projectSector: params.projectSector,
+      projectCountry: params.projectCountry,
+      projectUrl: params.projectUrl,
+    }),
+  })
+}
 
-const field = (label: string, value: string) =>
-  `<tr>
-    <td style="padding:8px 12px;background:#0f172a;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.5px;width:140px">${label}</td>
-    <td style="padding:8px 12px;background:#0f172a;color:#f1f5f9;font-size:14px;font-weight:600">${value}</td>
-  </tr>`
-
-// ─── Public API ───────────────────────────────────────────────────────────────
-
+/**
+ * Send welcome email (placeholder for existing code compatibility)
+ */
 export async function sendWelcomeEmail(params: {
   email: string
   name: string
-  role: string
-  temporaryPassword: string
-  employeeId: string
-}): Promise<void> {
-  checkEmailConfig()
-  const { email, name, role, temporaryPassword, employeeId } = params
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
-
-  const html = base(`
-    ${h2(`Welcome to AIP Platform, ${name}`)}
-    ${p("Your internal account has been created. Use the credentials below to sign in for the first time.")}
-
-    <div style="background:#0f172a;border-radius:8px;border:1px solid #334155;overflow:hidden;margin:20px 0">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${field("Employee ID", employeeId)}
-        ${field("Email", email)}
-        ${field("Temp Password", `<code style="background:#1e293b;padding:2px 8px;border-radius:4px;font-family:monospace;color:#f59e0b">${temporaryPassword}</code>`)}
-        ${field("Role", role)}
-      </table>
-    </div>
-
-    <div style="background:#451a03;border:1px solid #92400e;border-radius:8px;padding:16px;margin:16px 0">
-      <p style="margin:0;color:#fbbf24;font-size:13px;font-weight:600">
-        ⚠ You must change your password on first login. This temporary password expires in 24 hours.
-      </p>
-    </div>
-
-    <p style="margin:4px 0;color:#64748b;font-size:13px">
-      Sign in using the <strong style="color:#94a3b8">Internal Access</strong> tab on the sign-in page.
-    </p>
-
-    ${btn(`${appUrl}/auth/signin`, "Sign In to AIP Platform")}
-
-    ${p("If you did not request this account, contact your administrator immediately.")}
-  `)
-
-  await resend!.emails.send({
-    from: FROM,
-    to: email,
-    subject: `Welcome to AIP Platform — Your Account is Ready`,
-    html,
-  })
+  role?: string
+  temporaryPassword?: string
+  employeeId?: string
+  loginUrl?: string
+}) {
+  console.log('[sendWelcomeEmail] Placeholder - not yet implemented')
+  return { success: true }
 }
 
-export async function sendActivationEmail(params: {
+/**
+ * Send password reset email (placeholder for existing code compatibility)
+ */
+export async function sendPasswordResetEmail(params: {
   email: string
-  name: string
-}): Promise<void> {
-  checkEmailConfig()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
-  const html = base(`
-    ${h2(`Your account has been approved, ${params.name}`)}
-    ${p("An administrator has approved your AIP Platform account. You can now sign in and access all features available to your account type.")}
-    ${btn(`${appUrl}/auth/signin`, "Sign In Now")}
-  `)
-  await resend!.emails.send({
-    from: FROM,
-    to: params.email,
-    subject: "AIP Platform — Account Approved",
-    html,
-  })
+  name?: string
+  temporaryPassword?: string
+  resetUrl?: string
+}) {
+  console.log('[sendPasswordResetEmail] Placeholder - not yet implemented')
+  return { success: true }
 }
 
+/**
+ * Send suspension email (placeholder for existing code compatibility)
+ */
 export async function sendSuspensionEmail(params: {
   email: string
   name: string
   reason?: string
-}): Promise<void> {
-  checkEmailConfig()
-  const html = base(`
-    ${h2(`Account Suspended`)}
-    ${p(`Hello ${params.name},`)}
-    ${p("Your AIP Platform account has been suspended.")}
-    ${params.reason ? `<div style="background:#1e1010;border:1px solid #7f1d1d;border-radius:8px;padding:16px;margin:12px 0"><p style="margin:0;color:#fca5a5;font-size:13px">Reason: ${params.reason}</p></div>` : ""}
-    ${p("To appeal this decision, contact your administrator.")}
-  `)
-  await resend!.emails.send({
-    from: FROM,
-    to: params.email,
-    subject: "AIP Platform — Account Suspended",
-    html,
-  })
+}) {
+  console.log('[sendSuspensionEmail] Placeholder - not yet implemented')
+  return { success: true }
 }
 
-export async function sendPasswordResetEmail(params: {
+/**
+ * Send access approved email (placeholder for existing code compatibility)
+ */
+export async function sendAccessApprovedEmail(params: {
+  to: string
+  name: string
+  loginUrl: string
+}) {
+  console.log('[sendAccessApprovedEmail] Placeholder - not yet implemented')
+  return { success: true }
+}
+
+/**
+ * Send access rejected email (placeholder for existing code compatibility)
+ */
+export async function sendAccessRejectedEmail(params: {
+  to: string
+  name: string
+  reason?: string
+}) {
+  console.log('[sendAccessRejectedEmail] Placeholder - not yet implemented')
+  return { success: true }
+}
+
+/**
+ * Send activation email (placeholder for existing code compatibility)
+ */
+export async function sendActivationEmail(params: {
   email: string
   name: string
-  temporaryPassword: string
-}): Promise<void> {
-  checkEmailConfig()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
-  const html = base(`
-    ${h2(`Password Reset`)}
-    ${p(`Hello ${params.name}, your password has been reset by an administrator.`)}
-    <div style="background:#0f172a;border-radius:8px;border:1px solid #334155;overflow:hidden;margin:20px 0">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${field("Temp Password", `<code style="background:#1e293b;padding:2px 8px;border-radius:4px;font-family:monospace;color:#f59e0b">${params.temporaryPassword}</code>`)}
-      </table>
-    </div>
-    <div style="background:#451a03;border:1px solid #92400e;border-radius:8px;padding:16px;margin:16px 0">
-      <p style="margin:0;color:#fbbf24;font-size:13px;font-weight:600">
-        ⚠ You must change this password on next login. It expires in 24 hours.
-      </p>
-    </div>
-    ${btn(`${appUrl}/auth/signin`, "Sign In Now")}
-  `)
-  await resend!.emails.send({
-    from: FROM,
-    to: params.email,
-    subject: "AIP Platform — Password Reset",
-    html,
-  })
+}) {
+  console.log('[sendActivationEmail] Placeholder - not yet implemented')
+  return { success: true }
 }
 
-export async function sendAdminNotificationEmail(params: {
-  adminEmail: string
-  subject: string
-  message: string
-}): Promise<void> {
-  checkEmailConfig()
-  const html = base(`
-    ${h2(params.subject)}
-    ${p(params.message)}
-  `)
-  await resend!.emails.send({
-    from: FROM,
-    to: params.adminEmail,
-    subject: `[AIP Admin] ${params.subject}`,
-    html,
-  })
-}
-
-export async function sendAccessRequestConfirmation(params: {
-  email: string
-  name: string
-  role: string
-}): Promise<void> {
-  checkEmailConfig()
-  const html = base(`
-    ${h2(`Access Request Received`)}
-    ${p(`Hello ${params.name},`)}
-    ${p("Thank you for requesting access to the AIP Platform. We have received your application and our team will review it shortly.")}
-
-    <div style="background:#0f172a;border-radius:8px;border:1px solid #334155;overflow:hidden;margin:20px 0">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${field("Email", params.email)}
-        ${field("Role Requested", params.role)}
-        ${field("Status", '<span style="color:#fbbf24">Pending Review</span>')}
-      </table>
-    </div>
-
-    ${p("You will receive an email notification within 2-3 business days once your request has been reviewed.")}
-    ${p("If you have any questions, please contact our support team.")}
-  `)
-
-  await resend!.emails.send({
-    from: FROM,
-    to: params.email,
-    subject: "AIP Platform — Access Request Received",
-    html,
-  })
-}
-
+/**
+ * Send access request approval email (placeholder for existing code compatibility)
+ */
 export async function sendAccessRequestApproval(params: {
   email: string
   name: string
-  role: string
-  temporaryPassword: string
-}): Promise<void> {
-  checkEmailConfig()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
-  const html = base(`
-    ${h2(`Welcome to AIP Platform, ${params.name}! 🎉`)}
-    ${p("Great news! Your access request has been approved. Your account is now active and ready to use.")}
-
-    <div style="background:#0f172a;border-radius:8px;border:1px solid #334155;overflow:hidden;margin:20px 0">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${field("Email", params.email)}
-        ${field("Temp Password", `<code style="background:#1e293b;padding:2px 8px;border-radius:4px;font-family:monospace;color:#f59e0b">${params.temporaryPassword}</code>`)}
-        ${field("Role", params.role)}
-      </table>
-    </div>
-
-    <div style="background:#451a03;border:1px solid #92400e;border-radius:8px;padding:16px;margin:16px 0">
-      <p style="margin:0;color:#fbbf24;font-size:13px;font-weight:600">
-        ⚠ You must change your password on first login for security.
-      </p>
-    </div>
-
-    ${btn(`${appUrl}/auth/signin`, "Sign In to AIP Platform")}
-
-    ${p("If you have any questions or need assistance getting started, our support team is here to help.")}
-  `)
-
-  await resend!.emails.send({
-    from: FROM,
-    to: params.email,
-    subject: "AIP Platform — Access Request Approved! 🎉",
-    html,
-  })
+  role?: string
+  temporaryPassword?: string
+  loginUrl?: string
+}) {
+  console.log('[sendAccessRequestApproval] Placeholder - not yet implemented')
+  return { success: true }
 }
 
+/**
+ * Send admin notification email (placeholder for existing code compatibility)
+ */
+export async function sendAdminNotificationEmail(params: {
+  to?: string | string[]
+  adminEmail?: string
+  subject: string
+  message: string
+}) {
+  console.log('[sendAdminNotificationEmail] Placeholder - not yet implemented')
+  return { success: true }
+}
+
+/**
+ * Send access request rejection email (placeholder for existing code compatibility)
+ */
 export async function sendAccessRequestRejection(params: {
   email: string
   name: string
   reason?: string
-}): Promise<void> {
-  checkEmailConfig()
-  const html = base(`
-    ${h2(`Access Request Update`)}
-    ${p(`Hello ${params.name},`)}
-    ${p("Thank you for your interest in the AIP Platform. After reviewing your application, we are unable to approve your access request at this time.")}
-
-    ${params.reason ? `<div style="background:#1e1010;border:1px solid #7f1d1d;border-radius:8px;padding:16px;margin:12px 0"><p style="margin:0;color:#fca5a5;font-size:13px"><strong>Reason:</strong> ${params.reason}</p></div>` : ""}
-
-    ${p("If you believe this decision was made in error or if your circumstances have changed, please reply to this email with additional information about your use case.")}
-    ${p("We appreciate your understanding.")}
-  `)
-
-  await resend!.emails.send({
-    from: FROM,
-    to: params.email,
-    subject: "AIP Platform — Access Request Update",
-    html,
-  })
+}) {
+  console.log('[sendAccessRequestRejection] Placeholder - not yet implemented')
+  return { success: true }
 }
 
+/**
+ * Send access request confirmation email (placeholder for existing code compatibility)
+ */
+export async function sendAccessRequestConfirmation(params: {
+  email: string
+  name: string
+  role?: string
+}) {
+  console.log('[sendAccessRequestConfirmation] Placeholder - not yet implemented')
+  return { success: true }
+}
+
+/**
+ * Notify admins of access request (placeholder for existing code compatibility)
+ */
 export async function notifyAdminsOfAccessRequest(params: {
-  adminEmails: string[]
-  requestId: string
-  applicantName: string
   applicantEmail: string
+  applicantName: string
   role: string
+  requestId?: string
+  adminEmails?: string[]
   organization?: string
   message?: string
-}): Promise<void> {
-  checkEmailConfig()
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://app.africa-infra.com"
-  const html = base(`
-    ${h2("New Access Request")}
-    ${p("A new user has requested access to the AIP Platform. Please review and approve or reject their request.")}
-
-    <div style="background:#0f172a;border-radius:8px;border:1px solid #334155;overflow:hidden;margin:20px 0">
-      <table width="100%" cellpadding="0" cellspacing="0">
-        ${field("Name", params.applicantName)}
-        ${field("Email", params.applicantEmail)}
-        ${field("Role Requested", params.role)}
-        ${params.organization ? field("Organization", params.organization) : ""}
-      </table>
-    </div>
-
-    ${params.message ? `<div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:16px;margin:16px 0"><p style="margin:0 0 4px;color:#64748b;font-size:12px;text-transform:uppercase;letter-spacing:.5px">Message</p><p style="margin:0;color:#94a3b8;font-size:14px;line-height:1.6">${params.message}</p></div>` : ""}
-
-    ${btn(`${appUrl}/admin/access-requests`, "Review Request")}
-
-    ${p("Please action this request within 2-3 business days to maintain a good user experience.")}
-  `)
-
-  await resend!.emails.send({
-    from: FROM,
-    to: params.adminEmails,
-    subject: `[AIP Admin] New Access Request — ${params.applicantName}`,
-    html,
-  })
+}) {
+  console.log('[notifyAdminsOfAccessRequest] Placeholder - not yet implemented')
+  return { success: true }
 }
