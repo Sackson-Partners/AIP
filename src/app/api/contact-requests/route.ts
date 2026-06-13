@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
+import { applyRateLimit, rateLimiters } from '@/middleware/rateLimit'
 
 const CreateSchema = z.object({
   targetType: z.enum(['PROJECT', 'INVESTOR', 'PARTNER']),
@@ -48,6 +49,10 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Apply rate limiting (5 requests per 24 hours per user)
+  const rateLimitResponse = await applyRateLimit(req, rateLimiters.contact)
+  if (rateLimitResponse) return rateLimitResponse
+
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
