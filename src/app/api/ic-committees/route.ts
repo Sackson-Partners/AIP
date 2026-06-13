@@ -2,75 +2,136 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
+import { UserRole } from '@prisma/client'
+import { z } from 'zod'
+import { sendVoteRequests } from '@/lib/ic-automation'
 
+const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+
+const CreateCommitteeSchema = z.object({
+  name: z.string().min(1).max(200),
+  description: z.string().optional(),
+  projectId: z.string().optional(),
+  meetingDate: z.string().datetime().optional(),
+  votingDeadline: z.string().datetime().optional(),
+  quorumRequired: z.number().int().min(1).optional(),
+  memberIds: z.array(z.string()).min(1),
+})
+
+/**
+ * GET /api/ic-committees
+ * List IC committees
+ */
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
 
   const { searchParams } = new URL(req.url)
-  const page  = Math.max(1, parseInt(searchParams.get('page')  ?? '1',  10))
-  const limit = Math.min(100, parseInt(searchParams.get('limit') ?? '20', 10))
+  const status = searchParams.get('status')
 
-  const [committees, total] = await Promise.all([
-    prisma.icCommittee.findMany({
-      skip:    (page - 1) * limit,
-      take:    limit,
+  try {
+    const where: any = {}
+    if (status) {
+      where.status = status
+    }
+
+    const committees = await prisma.icCommittee.findMany({
+      where,
+      include: {
+        project: {
+          select: { id: true, title: true, code: true },
+        },
+        votes: {
+          select: {
+            id: true,
+            userId: true,
+            vote: true,
+            votedAt: true,
+          },
+        },
+      },
       orderBy: { createdAt: 'desc' },
-      include: { project: { select: { id: true, title: true } }, votes: true },
-    }),
-    prisma.icCommittee.count(),
-  ])
+    })
 
-  const data = committees.map(c => ({
-    committee_id:   c.id,
-    project_id:     c.projectId ?? null,
-    project_name:   c.project?.title ?? c.name,
-    scheduled_date: c.meetingDate?.toISOString() ?? null,
-    status:         c.status,
-    outcome:        c.outcome ?? null,
-    vote_count:     c.votes.length,
-    quorum:         c.quorumRequired,
-  }))
-
-  return NextResponse.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+    return NextResponse.json({ data: committees })
+  } catch (error) {
+    console.error('[GET /api/ic-committees] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }
 
+/**
+ * POST /api/ic-committees
+ * Create new IC committee
+ */
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const body = await req.json().catch(() => ({}))
-  const projectId      = body.project_id ? String(body.project_id) : undefined
-  const scheduledDate  = body.scheduled_date ?? body.meetingDate ?? null
-  const quorumRequired = Number(body.quorum_required ?? body.quorumRequired ?? 3)
-
-  let name = body.name as string | undefined
-  if (!name && projectId) {
-    const project = await prisma.project.findUnique({ where: { id: projectId }, select: { title: true } })
-    name = `IC Session — ${project?.title ?? 'Project'} (${scheduledDate ? new Date(scheduledDate).toLocaleDateString() : 'TBD'})`
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
-  if (!name) name = `IC Session — ${new Date().toLocaleDateString()}`
 
-  const committee = await prisma.icCommittee.create({
-    data: {
-      name,
-      description:    body.description ?? null,
-      status:         'SCHEDULED',
-      meetingDate:    scheduledDate ? new Date(scheduledDate) : null,
-      projectId:      projectId ?? null,
-      quorumRequired,
-    },
-  })
+  if (!ADMIN_ROLES.includes(session.user.role as UserRole)) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
 
-  return NextResponse.json({
-    data: {
-      committee_id:   committee.id,
-      project_id:     committee.projectId,
-      project_name:   name,
-      scheduled_date: committee.meetingDate?.toISOString() ?? null,
-      status:         committee.status,
-      vote_count:     0,
-      quorum:         committee.quorumRequired,
-    },
-  }, { status: 201 })
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  const parsed = CreateCommitteeSchema.safeParse(body)
+  if (!parsed.success) {
+    return NextResponse.json(
+      { error: 'Validation failed', details: parsed.error.flatten() },
+      { status: 422 }
+    )
+  }
+
+  const { name, description, projectId, meetingDate, votingDeadline, quorumRequired, memberIds } = parsed.data
+
+  try {
+    // Calculate auto-close time (votingDeadline + 1 hour buffer)
+    const autoCloseAt = votingDeadline
+      ? new Date(new Date(votingDeadline).getTime() + 60 * 60 * 1000)
+      : undefined
+
+    // Create committee with votes
+    const committee = await prisma.icCommittee.create({
+      data: {
+        name,
+        description,
+        projectId,
+        meetingDate: meetingDate ? new Date(meetingDate) : undefined,
+        votingDeadline: votingDeadline ? new Date(votingDeadline) : undefined,
+        autoCloseAt,
+        quorumRequired: quorumRequired || 3,
+        createdById: session.user.id,
+        votes: {
+          create: memberIds.map(userId => ({
+            userId,
+            vote: '', // Empty initially
+          })),
+        },
+      },
+      include: {
+        votes: {
+          include: { user: true },
+        },
+      },
+    })
+
+    // Send vote request emails
+    await sendVoteRequests(committee.id).catch(err => {
+      console.error('[POST /api/ic-committees] Failed to send vote requests:', err)
+    })
+
+    return NextResponse.json({ data: committee }, { status: 201 })
+  } catch (error) {
+    console.error('[POST /api/ic-committees] Error:', error)
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+  }
 }

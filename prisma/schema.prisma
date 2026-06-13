@@ -209,6 +209,7 @@ model User {
   notifications     Notification[]
   activityLogs      ActivityLog[]
   icVotes           IcVote[]
+  createdCommittees IcCommittee[]
   createdEvents     Event[]
   dataRoomAccess    DataRoomAccess[]
 }
@@ -747,35 +748,47 @@ model IcCommittee {
   id              String    @id @default(cuid())
   name            String
   description     String?
-  status          String    @default("SCHEDULED")
+  status          String    @default("SCHEDULED") // SCHEDULED | IN_PROGRESS | COMPLETED | CANCELLED
   meetingDate     DateTime?
   projectId       String?
   quorumRequired  Int       @default(3)
-  outcome         String?
+  outcome         String?   // APPROVED | REJECTED | DEFERRED
   outcomeNotes    String?   @db.Text
+  votingDeadline  DateTime? // When voting closes
+  votesSent       Boolean   @default(false) // Email reminders sent
+  autoCloseAt     DateTime? // Auto-close voting after deadline
+  createdById     String
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  project Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  votes   IcVote[]
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  createdBy User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  votes     IcVote[]
 
   @@index([status])
   @@index([projectId])
+  @@index([votingDeadline])
+  @@index([autoCloseAt])
 }
 
 model IcVote {
   id          String      @id @default(cuid())
   committeeId String
   userId      String
-  vote        String      // approve | reject | abstain | defer
+  vote        String      // APPROVE | REJECT | ABSTAIN | DEFER
   rationale   String?     @db.Text
+  votedAt     DateTime?   // When vote was cast
+  reminderSent Boolean    @default(false) // Reminder email sent
   createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
 
   committee IcCommittee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
   user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([committeeId, userId])
   @@index([committeeId])
+  @@index([userId])
+  @@index([votedAt])
 }
 
 model AccessRequest {
