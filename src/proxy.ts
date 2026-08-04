@@ -87,6 +87,17 @@ export default withAuth(
     const token = req.nextauth.token
     const role  = (token?.role as string | undefined) ?? ''
 
+    // ── Block SUSPENDED/DEACTIVATED users ──────────────────────────────────────
+    if (
+      token?.status &&
+      ["SUSPENDED", "DEACTIVATED"].includes(token.status as string) &&
+      !pathname.startsWith("/auth/error")
+    ) {
+      return addSecurityHeaders(
+        NextResponse.redirect(new URL("/auth/error?error=AccountBlocked", req.url))
+      )
+    }
+
     // ── Pending users ──────────────────────────────────────────────────────────
     if (token?.status === "PENDING" && pathname !== "/auth/pending" && !pathname.startsWith("/api/")) {
       const url = req.nextUrl.clone()
