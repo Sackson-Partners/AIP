@@ -382,8 +382,8 @@ function SignInContent() {
 
                     <p className="mt-4 text-center text-xs text-slate-500">
                       Support:{" "}
-                      <a href="mailto:it@aip.com" className="text-blue-400 hover:text-blue-300">
-                        it@aip.com
+                      <a href="mailto:it@africa-infra.com" className="text-blue-400 hover:text-blue-300">
+                        it@africa-infra.com
                       </a>
                     </p>
                   </motion.div>

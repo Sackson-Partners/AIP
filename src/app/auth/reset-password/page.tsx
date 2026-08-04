@@ -64,8 +64,8 @@ function ResetPasswordInner() {
               <p className="text-slate-200 text-xs font-semibold">Internal Account</p>
               <p className="text-slate-400 text-xs">
                 Contact{' '}
-                <a href="mailto:support@aip.com" className="text-blue-400 hover:underline">
-                  support@aip.com
+                <a href="mailto:support@africa-infra.com" className="text-blue-400 hover:underline">
+                  support@africa-infra.com
                 </a>
               </p>
             </div>

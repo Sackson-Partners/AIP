@@ -159,8 +159,8 @@ export default function ForgotPasswordPage() {
                 </p>
                 <p className="text-slate-500 text-xs">
                   Internal account? Contact{' '}
-                  <a href="mailto:support@aip.com" className="text-blue-400 hover:underline">
-                    support@aip.com
+                  <a href="mailto:support@africa-infra.com" className="text-blue-400 hover:underline">
+                    support@africa-infra.com
                   </a>
                 </p>
               </motion.div>

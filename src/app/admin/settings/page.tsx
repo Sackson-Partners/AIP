@@ -5,7 +5,7 @@ import { Settings2, Loader2, CheckCircle2 } from "lucide-react"
 
 const DEFAULT_SETTINGS: Record<string, string> = {
   platform_name: "AIP - Africa Infrastructure Pipeline",
-  support_email: "support@aip.com",
+  support_email: "support@africa-infra.com",
   maintenance_mode: "false",
   auto_approve_azure_users: "false",
   require_kyc: "true",

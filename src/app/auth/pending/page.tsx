@@ -25,8 +25,8 @@ export default function PendingPage() {
           <Mail className="w-4 h-4" />
           <span>
             Questions?{" "}
-            <a href="mailto:support@aip.com" className="text-blue-400 hover:text-blue-300">
-              support@aip.com
+            <a href="mailto:support@africa-infra.com" className="text-blue-400 hover:text-blue-300">
+              support@africa-infra.com
             </a>
           </span>
         </div>
