@@ -60,7 +60,6 @@ export const authOptions: NextAuthOptions = {
             clientId: process.env.AZURE_AD_CLIENT_ID,
             clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
             tenantId: process.env.AZURE_AD_TENANT_ID,
-            allowDangerousEmailAccountLinking: true,
             authorization: {
               params: {
                 scope: "openid profile email User.Read",
@@ -115,19 +114,19 @@ export const authOptions: NextAuthOptions = {
 
         if (user.authProvider === "AZURE_AD") throw new Error("USE_AZURE_LOGIN")
 
-        // Check lockout before doing any expensive work
-        if (user.lockedUntil && user.lockedUntil > new Date()) {
+        // Always perform bcrypt check (constant-time) to prevent timing attacks
+        // Use dummy hash if no password set to maintain consistent timing
+        const hashToCheck = user.passwordHash || "$2a$12$invalidhashinvalidhashinvalidhashinvalidhashinvalidhash"
+        const passwordValid = await bcrypt.compare(credentials.password, hashToCheck)
+
+        // Check lockout AFTER password verification (constant-time check)
+        const isLocked = user.lockedUntil && user.lockedUntil > new Date()
+
+        if (isLocked) {
           throw new Error("ACCOUNT_LOCKED")
         }
 
-        if (!user.passwordHash) throw new Error("INVALID_CREDENTIALS")
-
-        const passwordValid = await bcrypt.compare(
-          credentials.password,
-          user.passwordHash
-        )
-
-        if (!passwordValid) {
+        if (!user.passwordHash || !passwordValid) {
           const attempts = user.failedLoginAttempts + 1
           const shouldLock = attempts >= MAX_ATTEMPTS
           await prisma.user.update({
@@ -187,7 +186,7 @@ export const authOptions: NextAuthOptions = {
       // Azure AD — find or create user
       if (account?.provider === "azure-ad") {
         const email = user.email
-        console.log('[signIn azure-ad] email=%s oid=%s', email, user.azureOid)
+        console.log('[signIn azure-ad] email=%s', email)
         if (!email) {
           console.error('[signIn azure-ad] no email on token')
           return false
@@ -205,11 +204,17 @@ export const authOptions: NextAuthOptions = {
             },
           })
         } catch (err) {
-          console.error('[signIn azure-ad] DB lookup failed: %o', err)
+          console.error('[signIn azure-ad] DB lookup failed')
           return false
         }
 
         if (existing) {
+          // Prevent account takeover: only allow Azure AD login if account was created with Azure AD
+          if (existing.authProvider !== "AZURE_AD") {
+            console.error('[signIn azure-ad] Account exists with different provider')
+            return "/auth/error?error=AccountExistsWithDifferentProvider"
+          }
+
           if (
             existing.status === "SUSPENDED" ||
             existing.status === "DEACTIVATED"
@@ -316,7 +321,7 @@ export const authOptions: NextAuthOptions = {
             token.internalProfile = dbUser.internalProfile ?? null
           }
         } catch (err) {
-          console.error('[JWT callback] prisma.user.findUnique failed for id=%s: %o', user.id, err)
+          console.error('[JWT callback] Failed to fetch user profile')
           // Still populate token with basic info so the sign-in doesn't fail completely
           token.userId = user.id
         }
@@ -355,7 +360,7 @@ export const authOptions: NextAuthOptions = {
             token.internalProfile = dbUser.internalProfile ?? null
           }
         } catch (err) {
-          console.error('[JWT callback] prisma.user.findUnique (update trigger) failed: %o', err)
+          console.error('[JWT callback] Failed to update user session')
         }
       }
 

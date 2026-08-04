@@ -6,14 +6,17 @@ const isPreview = process.env.VERCEL_ENV === "preview";
 
 const CSP = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+  // Allow unsafe-inline/eval in dev, but restrict in production
+  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: blob: https: https://graph.microsoft.com https://*.blob.core.windows.net",
-  "connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.azure.com https://*.windows.net https://api.anthropic.com",
+  "connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.azure.com https://*.windows.net https://api.anthropic.com https://va.vercel-analytics.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
+  "object-src 'none'",
+  "upgrade-insecure-requests",
 ].join("; ");
 
 const nextConfig: NextConfig = {
@@ -42,7 +45,7 @@ const nextConfig: NextConfig = {
   },
   env: {
     NEXT_PUBLIC_APP_NAME: "AIP Platform",
-    NEXT_PUBLIC_APP_URL: process.env.NEXTAUTH_URL ?? "",
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || "https://app.africa-infra.com",
   },
   allowedDevOrigins: [
     "http://localhost:3000",

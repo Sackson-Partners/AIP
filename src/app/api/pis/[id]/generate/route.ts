@@ -5,6 +5,7 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit-log'
 import Anthropic from '@anthropic-ai/sdk'
+import { applyRateLimit, rateLimiters } from '@/middleware/rateLimit'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -118,7 +119,11 @@ Return JSON with exactly these keys:
   return updated
 }
 
-export async function POST(_req: NextRequest, { params }: Ctx) {
+export async function POST(req: NextRequest, { params }: Ctx) {
+  // Apply rate limiting (5 requests per hour)
+  const rateLimitResponse = await applyRateLimit(req, rateLimiters.generate)
+  if (rateLimitResponse) return rateLimitResponse
+
   const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

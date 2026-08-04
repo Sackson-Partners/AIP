@@ -52,8 +52,11 @@ export async function GET(req: NextRequest) {
 
   console.log(`[GET /api/projects] User: ${session.user.email}, Role: ${userRole}, Internal: ${isInternal}`);
 
-  // Generate cache key based on query parameters
-  const cacheKey = `projects:list:${userRole}:p${page}:l${limit}:s${status || 'all'}:q${search || 'none'}`
+  // Generate cache key based on query parameters + user ID for internal users
+  // Internal users may see different data (drafts, private projects) so cache per user
+  const cacheKey = isInternal
+    ? `projects:list:${userRole}:${session.user.id}:p${page}:l${limit}:s${status || 'all'}:q${search || 'none'}`
+    : `projects:list:${userRole}:p${page}:l${limit}:s${status || 'all'}:q${search || 'none'}`
 
   // Try to get from cache first (only if no search query - search results shouldn't be cached)
   if (!search) {
