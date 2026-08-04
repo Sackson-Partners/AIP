@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import AdminGuard from '@/components/AdminGuard';
 import Link from 'next/link';
 
@@ -36,18 +36,96 @@ const EMAIL_TEMPLATES = [
   },
 ];
 
-const SYSTEM_CHECKS = [
-  { label: 'Supabase Auth',     status: 'ok',      detail: 'Email/password + confirmation active' },
-  { label: 'API Connection',    status: 'unknown',  detail: 'Check /health endpoint' },
-  { label: 'CORS Origins',      status: 'ok',      detail: 'www.app.africa-infra.com + www.africa-infra.com allowed' },
-  { label: 'Auth Callback',     status: 'ok',      detail: '/auth/callback route active' },
-  { label: 'RLS Policies',      status: 'warning', detail: 'Verify enabled on all tables in Supabase' },
-];
+interface SystemCheck {
+  label: string;
+  status: 'ok' | 'warning' | 'unknown' | 'degraded' | 'unhealthy';
+  detail: string;
+}
+
+interface HealthCheckResponse {
+  status: 'healthy' | 'degraded' | 'unhealthy';
+  timestamp: string;
+  checks: Array<{
+    service: string;
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    latency?: number;
+    error?: string;
+    details?: Record<string, unknown>;
+  }>;
+}
 
 function AdminSettingsContent() {
   const [selectedTemplate, setSelectedTemplate] = useState(0);
   const [migrationStatus, setMigrationStatus] = useState<string | null>(null);
   const [isMigrating, setIsMigrating] = useState(false);
+  const [systemChecks, setSystemChecks] = useState<SystemCheck[]>([
+    { label: 'NextAuth',          status: 'ok',      detail: 'Azure AD + Credentials providers active' },
+    { label: 'API Connection',    status: 'unknown', detail: 'Loading...' },
+    { label: 'Database',          status: 'unknown', detail: 'Loading...' },
+    { label: 'Redis Cache',       status: 'unknown', detail: 'Loading...' },
+    { label: 'AI Services',       status: 'unknown', detail: 'Loading...' },
+  ]);
+
+  useEffect(() => {
+    const fetchHealthStatus = async () => {
+      try {
+        const response = await fetch('/api/health');
+        const data: HealthCheckResponse = await response.json();
+
+        const newChecks: SystemCheck[] = [
+          { label: 'NextAuth', status: 'ok', detail: 'Azure AD + Credentials providers active' },
+          {
+            label: 'API Connection',
+            status: data.status === 'healthy' ? 'ok' : data.status === 'degraded' ? 'warning' : 'unhealthy',
+            detail: `Status: ${data.status}`
+          },
+        ];
+
+        // Add individual service checks
+        data.checks.forEach(check => {
+          if (check.service === 'database') {
+            newChecks.push({
+              label: 'Database',
+              status: check.status === 'healthy' ? 'ok' : check.status === 'degraded' ? 'warning' : 'unhealthy',
+              detail: check.latency ? `Latency: ${check.latency}ms` : check.error || 'Connected',
+            });
+          } else if (check.service === 'redis') {
+            newChecks.push({
+              label: 'Redis Cache',
+              status: check.status === 'healthy' ? 'ok' : check.status === 'degraded' ? 'warning' : 'unhealthy',
+              detail: check.details?.available ? 'Available' : 'Optional service',
+            });
+          } else if (check.service === 'ai') {
+            const details = check.details as { anthropic?: string; openai?: string } | undefined;
+            newChecks.push({
+              label: 'AI Services',
+              status: 'ok',
+              detail: `Claude: ${details?.anthropic || 'not configured'}, OpenAI: ${details?.openai || 'not configured'}`,
+            });
+          }
+        });
+
+        setSystemChecks(newChecks);
+      } catch (error) {
+        setSystemChecks([
+          { label: 'NextAuth', status: 'ok', detail: 'Azure AD + Credentials providers active' },
+          {
+            label: 'API Connection',
+            status: 'unhealthy',
+            detail: error instanceof Error ? error.message : 'Failed to fetch health status'
+          },
+          { label: 'Database', status: 'unknown', detail: 'Could not check' },
+          { label: 'Redis Cache', status: 'unknown', detail: 'Could not check' },
+          { label: 'AI Services', status: 'unknown', detail: 'Could not check' },
+        ]);
+      }
+    };
+
+    fetchHealthStatus();
+    // Refresh health status every 30 seconds
+    const interval = setInterval(fetchHealthStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const runDataRoomAccessMigration = async () => {
     if (!confirm('Run DataRoomAccess table migration? This will create the table if it doesn\'t exist.')) {
@@ -173,19 +251,21 @@ function AdminSettingsContent() {
           </Link>
         </div>
         <div className="space-y-3">
-          {SYSTEM_CHECKS.map((c) => (
+          {systemChecks.map((c) => (
             <div key={c.label} className="flex items-center gap-3">
               <div className={`w-2 h-2 rounded-full shrink-0 ${
-                c.status === 'ok'      ? 'bg-green-500' :
-                c.status === 'warning' ? 'bg-yellow-500' : 'bg-gray-500'
+                c.status === 'ok'        ? 'bg-green-500' :
+                c.status === 'warning' || c.status === 'degraded' ? 'bg-yellow-500' :
+                c.status === 'unhealthy' ? 'bg-red-500' : 'bg-gray-500'
               }`} />
               <div className="flex-1">
                 <span className="text-sm text-white">{c.label}</span>
                 <span className="text-xs text-gray-500 ml-2">{c.detail}</span>
               </div>
               <span className={`text-xs capitalize ${
-                c.status === 'ok'      ? 'text-green-400' :
-                c.status === 'warning' ? 'text-yellow-400' : 'text-gray-500'
+                c.status === 'ok'        ? 'text-green-400' :
+                c.status === 'warning' || c.status === 'degraded' ? 'text-yellow-400' :
+                c.status === 'unhealthy' ? 'text-red-400' : 'text-gray-500'
               }`}>
                 {c.status}
               </span>
