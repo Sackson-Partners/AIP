@@ -33,7 +33,7 @@ export default function AccessRequestsPage() {
   const load = async () => {
     setIsLoading(true)
     try {
-      const res = await api.get<{ data: AccessRequest[] }>('/access-requests?status=PENDING')
+      const res = await api.get<{ data: AccessRequest[] }>('/admin/access-requests?status=PENDING')
       setRequests(res.data.data ?? [])
     } catch {
       setError('Failed to load access requests.')
