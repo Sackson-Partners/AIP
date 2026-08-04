@@ -4,6 +4,8 @@ import { ICVoteRequestEmail } from '@/emails/ICVoteRequestEmail'
 import { ContactRequestEmail } from '@/emails/ContactRequestEmail'
 import { ContactApprovedEmail } from '@/emails/ContactApprovedEmail'
 import { ProjectPublishedEmail } from '@/emails/ProjectPublishedEmail'
+import { AccessRequestConfirmationEmail } from '@/emails/AccessRequestConfirmationEmail'
+import { AdminAccessRequestEmail } from '@/emails/AdminAccessRequestEmail'
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'AIP Platform <noreply@africa-infra.com>'
@@ -259,19 +261,25 @@ export async function sendAccessRequestRejection(params: {
 }
 
 /**
- * Send access request confirmation email (placeholder for existing code compatibility)
+ * Send access request confirmation email
  */
 export async function sendAccessRequestConfirmation(params: {
   email: string
   name: string
   role?: string
 }) {
-  console.log('[sendAccessRequestConfirmation] Placeholder - not yet implemented')
-  return { success: true }
+  return sendEmail({
+    to: params.email,
+    subject: 'Access Request Received - AIP Platform',
+    react: AccessRequestConfirmationEmail({
+      name: params.name,
+      role: params.role || 'Partner',
+    }),
+  })
 }
 
 /**
- * Notify admins of access request (placeholder for existing code compatibility)
+ * Notify admins of access request
  */
 export async function notifyAdminsOfAccessRequest(params: {
   applicantEmail: string
@@ -282,6 +290,20 @@ export async function notifyAdminsOfAccessRequest(params: {
   organization?: string
   message?: string
 }) {
-  console.log('[notifyAdminsOfAccessRequest] Placeholder - not yet implemented')
-  return { success: true }
+  const reviewUrl = params.requestId
+    ? `https://app.africa-infra.com/admin/access-requests?highlight=${params.requestId}`
+    : 'https://app.africa-infra.com/admin/access-requests'
+
+  return sendEmail({
+    to: params.adminEmails || [],
+    subject: `New Access Request: ${params.applicantName}`,
+    react: AdminAccessRequestEmail({
+      applicantName: params.applicantName,
+      applicantEmail: params.applicantEmail,
+      role: params.role,
+      organization: params.organization,
+      message: params.message,
+      reviewUrl,
+    }),
+  })
 }
