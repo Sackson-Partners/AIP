@@ -5,12 +5,6 @@ import { SessionProvider } from "@/providers/SessionProvider"
 import { ToastProvider } from "@/context/ToastContext"
 import { SearchProvider } from "@/components/search/SearchProvider"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
-import { assertValidConfig } from "@/lib/config-validator"
-
-// Run config validation at startup (server-side only)
-if (typeof window === 'undefined') {
-  assertValidConfig()
-}
 
 const inter = Inter({ subsets: ["latin"] })
 
