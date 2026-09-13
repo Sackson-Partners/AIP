@@ -1,170 +1,202 @@
 import { withAuth } from "next-auth/middleware"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import type { JWT } from "next-auth/jwt"
+import { prisma } from "@/lib/prisma"
+import { logger } from "@/lib/logger"
 
-// ── Admin-only dashboard routes ────────────────────────────────────────────────
-const ADMIN_ONLY_ROUTES = [
-  '/dashboard/admin',
-  '/dashboard/users',
-  '/dashboard/integrations',
-]
-
-// ── Feature route → required permission ───────────────────────────────────────
-const ROUTE_PERMISSIONS: Array<{ prefix: string; permission: string }> = [
-  { prefix: '/dashboard/verifications',  permission: 'view_verifications'        },
-  { prefix: '/dashboard/deal-rooms',     permission: 'view_deal_room'            },
-  { prefix: '/dashboard/data-rooms',     permission: 'view_data_room'            },
-  { prefix: '/dashboard/ein',            permission: 'view_ein_reports'          },
-  { prefix: '/dashboard/analytics',      permission: 'view_analytic_reports'     },
-  { prefix: '/dashboard/investors',      permission: 'view_partners'             },
-  { prefix: '/dashboard/pipeline',       permission: 'view_pipeline'             },
-  { prefix: '/dashboard/ic',             permission: 'vote_ic'                   },
-  { prefix: '/dashboard/petfel',         permission: 'run_petfel'                },
-  { prefix: '/dashboard/pestel',         permission: 'run_petfel'                },
-  { prefix: '/dashboard/events',         permission: 'view_events'               },
-  { prefix: '/dashboard/messages',       permission: 'message_partners_internal' },
-]
-
-// ── Permissions per role (dashboard route guards only) ─────────────────────────
-const ROLE_ROUTE_PERMISSIONS: Record<string, Set<string>> = {
-  SUPER_ADMIN: new Set([
-    'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
-    'view_analytic_reports', 'view_partners', 'view_pipeline', 'vote_ic',
-    'run_petfel', 'view_events', 'manage_users', 'message_partners_internal',
-  ]),
-  ADMIN: new Set([
-    'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
-    'view_analytic_reports', 'view_partners', 'view_pipeline', 'vote_ic',
-    'run_petfel', 'view_events', 'manage_users', 'message_partners_internal',
-  ]),
-  ANALYST: new Set([
-    'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
-    'view_analytic_reports', 'view_partners', 'view_pipeline', 'vote_ic',
-    'run_petfel', 'view_events', 'message_partners_internal',
-  ]),
-  GOVERNMENT: new Set([
-    'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
-    'view_analytic_reports', 'view_partners', 'view_pipeline', 'view_events',
-    'message_partners_internal',
-  ]),
-  SPONSOR_DEVELOPER: new Set([
-    'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
-    'view_analytic_reports', 'view_partners', 'view_pipeline', 'view_events',
-    'message_partners_internal',
-  ]),
-  EPC_OPERATOR: new Set([
-    'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
-    'view_analytic_reports', 'view_partners', 'view_pipeline', 'view_events',
-    'message_partners_internal',
-  ]),
-  INSTITUTIONAL_INVESTOR: new Set([
-    'view_verifications', 'view_deal_room', 'view_data_room', 'view_ein_reports',
-    'view_analytic_reports', 'view_partners', 'view_pipeline', 'view_events',
-    'message_partners_internal',
-  ]),
-}
-
-const ADMIN_ROLES = new Set(['SUPER_ADMIN', 'ADMIN'])
-
-// ── Legacy top-level role routes ───────────────────────────────────────────────
-const ROLE_ROUTES: Record<string, string[]> = {
-  "/admin":   ["SUPER_ADMIN"],
-  "/analyst": ["ANALYST", "SUPER_ADMIN"],
-}
-
-function addSecurityHeaders(response: NextResponse): NextResponse {
-  response.headers.set("X-Frame-Options", "DENY")
-  response.headers.set("X-Content-Type-Options", "nosniff")
-  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
-  response.headers.set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-  return response
-}
+/**
+ * Global middleware for authentication and authorization
+ * Runs at the edge before any page or API route handler
+ *
+ * This middleware:
+ * 1. Checks authentication on all protected routes
+ * 2. Validates session version (forces logout on password/role change)
+ * 3. Blocks PENDING users from accessing the platform
+ * 4. Blocks SUSPENDED/DEACTIVATED users
+ * 5. Enforces role-based access to admin routes
+ * 6. Adds security headers to all responses
+ */
 
 export default withAuth(
-  function middleware(req: NextRequest & { nextauth: { token: JWT | null } }) {
-    const { pathname } = req.nextUrl
+  async function middleware(req) {
     const token = req.nextauth.token
-    const role  = (token?.role as string | undefined) ?? ''
+    const path = req.nextUrl.pathname
 
-    // ── Block SUSPENDED/DEACTIVATED users ──────────────────────────────────────
-    if (
-      token?.status &&
-      ["SUSPENDED", "DEACTIVATED"].includes(token.status as string) &&
-      !pathname.startsWith("/auth/error")
-    ) {
-      return addSecurityHeaders(
-        NextResponse.redirect(new URL("/auth/error?error=AccountBlocked", req.url))
-      )
+    // Allow access to auth pages without restrictions
+    if (path.startsWith("/auth/")) {
+      return NextResponse.next()
     }
 
-    // ── Pending users ──────────────────────────────────────────────────────────
-    if (token?.status === "PENDING" && pathname !== "/auth/pending" && !pathname.startsWith("/api/")) {
-      const url = req.nextUrl.clone()
-      url.pathname = "/auth/pending"
-      return addSecurityHeaders(NextResponse.redirect(url))
-    }
+    // Validate session version - force logout if token is stale
+    if (token?.userId && token?.sessionVersion !== undefined) {
+      try {
+        const user = await prisma.user.findUnique({
+          where: { id: token.userId as string },
+          select: { sessionVersion: true },
+        })
 
-    // ── Force password change ──────────────────────────────────────────────────
-    if (
-      token?.mustChangePass === true &&
-      pathname !== "/auth/change-password" &&
-      !pathname.startsWith("/api/") &&
-      !pathname.startsWith("/auth/")
-    ) {
-      const url = req.nextUrl.clone()
-      url.pathname = "/auth/change-password"
-      return addSecurityHeaders(NextResponse.redirect(url))
-    }
-
-    // ── Dashboard: admin-only routes ───────────────────────────────────────────
-    if (ADMIN_ONLY_ROUTES.some(r => pathname.startsWith(r))) {
-      if (!ADMIN_ROLES.has(role)) {
-        return addSecurityHeaders(NextResponse.redirect(new URL('/unauthorized', req.url)))
-      }
-      return addSecurityHeaders(NextResponse.next())
-    }
-
-    // ── Dashboard: feature-level route guards ──────────────────────────────────
-    if (pathname.startsWith('/dashboard/')) {
-      const routeRule = ROUTE_PERMISSIONS.find(r => pathname.startsWith(r.prefix))
-      if (routeRule) {
-        const allowed = ROLE_ROUTE_PERMISSIONS[role]?.has(routeRule.permission) ?? false
-        if (!allowed) {
-          return addSecurityHeaders(NextResponse.redirect(new URL('/unauthorized', req.url)))
+        if (user && user.sessionVersion !== token.sessionVersion) {
+          logger.warn('Session version mismatch - forcing logout', {
+            userId: token.userId,
+            tokenVersion: token.sessionVersion,
+            dbVersion: user.sessionVersion,
+          })
+          return NextResponse.redirect(new URL("/auth/signin?error=SessionExpired", req.url))
         }
+      } catch (error) {
+        logger.error('Failed to validate session version', error)
+        // Continue on DB error - don't block all requests
       }
     }
 
-    // ── Legacy role-based prefixes ─────────────────────────────────────────────
-    for (const [prefix, allowedRoles] of Object.entries(ROLE_ROUTES)) {
-      if (pathname.startsWith(prefix)) {
-        if (!role || !allowedRoles.includes(role)) {
-          const url = req.nextUrl.clone()
-          url.pathname = "/unauthorized"
-          return addSecurityHeaders(NextResponse.redirect(url))
-        }
-        break
+    // Block PENDING users - redirect to waiting page
+    if (token?.status === "PENDING") {
+      logger.info('Blocked PENDING user from accessing platform', {
+        userId: token.userId,
+        path,
+      })
+      return NextResponse.redirect(new URL("/auth/pending", req.url))
+    }
+
+    // Block SUSPENDED/DEACTIVATED users
+    if (["SUSPENDED", "DEACTIVATED"].includes(token?.status as string)) {
+      logger.warn('Blocked suspended/deactivated user', {
+        userId: token.userId,
+        status: token.status,
+        path,
+      })
+      return NextResponse.redirect(new URL("/auth/error?error=AccountBlocked", req.url))
+    }
+
+    // Admin routes require SUPER_ADMIN role
+    if (path.startsWith("/admin")) {
+      if (token?.role !== "SUPER_ADMIN") {
+        logger.warn('Unauthorized admin access attempt', {
+          userId: token?.userId,
+          role: token?.role,
+          path,
+        })
+        return NextResponse.redirect(new URL("/unauthorized", req.url))
       }
     }
 
-    return addSecurityHeaders(NextResponse.next())
+    // Analyst routes require ADMIN or ANALYST
+    if (path.startsWith("/analytics") || path.startsWith("/reports")) {
+      const allowedRoles = ["SUPER_ADMIN", "ADMIN", "ANALYST"]
+      if (!allowedRoles.includes(token?.role as string)) {
+        logger.warn('Unauthorized analytics access attempt', {
+          userId: token?.userId,
+          role: token?.role,
+          path,
+        })
+        return NextResponse.redirect(new URL("/unauthorized", req.url))
+      }
+    }
+
+    // API routes - add CORS and security headers
+    if (path.startsWith("/api")) {
+      const response = NextResponse.next()
+
+      // Add security headers to all API responses
+      response.headers.set("X-Content-Type-Options", "nosniff")
+      response.headers.set("X-Frame-Options", "DENY")
+      response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin")
+
+      // CORS headers for allowed origins
+      const origin = req.headers.get("origin")
+      const allowedOrigins = [
+        "https://app.africa-infra.com",
+        "https://www.africa-infra.com",
+        ...(process.env.NODE_ENV === "development"
+          ? ["http://localhost:3000", "http://localhost:3005"]
+          : []
+        ),
+      ]
+
+      if (origin && allowedOrigins.includes(origin)) {
+        response.headers.set("Access-Control-Allow-Origin", origin)
+        response.headers.set("Access-Control-Allow-Credentials", "true")
+        response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+        response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+      }
+
+      return response
+    }
+
+    return NextResponse.next()
   },
   {
     callbacks: {
-      authorized({ token }) {
+      // Require authentication for all routes except public pages
+      authorized: ({ token, req }) => {
+        const path = req.nextUrl.pathname
+
+        // Public routes that don't require auth
+        const publicRoutes = [
+          "/",
+          "/auth/signin",
+          "/auth/signup",
+          "/auth/error",
+          "/auth/pending",
+          "/unauthorized",
+        ]
+
+        // Allow public routes without token
+        if (publicRoutes.includes(path)) {
+          return true
+        }
+
+        // All other routes require authentication
         return !!token
       },
-    },
-    pages: {
-      signIn: "/auth/signin",
-      error:  "/auth/error",
     },
   }
 )
 
+// Configure which routes this middleware protects
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon\\.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|woff2?)$|api/auth|api/debug|api/health|auth/pending|auth/signin|auth/error|request-access|unauthorized).*)",
+    /*
+     * Match all request paths except:
+     * - _next/static (static files)
+     * - _next/image (image optimization files)
+     * - favicon.ico (favicon file)
+     * - public folder
+     */
+    "/((?!_next/static|_next/image|favicon.ico|public/).*)",
   ],
+}
+
+/**
+ * Handle preflight OPTIONS requests for CORS
+ * This is a separate export because withAuth doesn't handle OPTIONS
+ */
+export function middleware(req: NextRequest) {
+  // Handle preflight requests
+  if (req.method === "OPTIONS") {
+    const response = new NextResponse(null, { status: 204 })
+
+    const origin = req.headers.get("origin")
+    const allowedOrigins = [
+      "https://app.africa-infra.com",
+      "https://www.africa-infra.com",
+      ...(process.env.NODE_ENV === "development"
+        ? ["http://localhost:3000", "http://localhost:3005"]
+        : []
+      ),
+    ]
+
+    if (origin && allowedOrigins.includes(origin)) {
+      response.headers.set("Access-Control-Allow-Origin", origin)
+      response.headers.set("Access-Control-Allow-Credentials", "true")
+      response.headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+      response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With")
+      response.headers.set("Access-Control-Max-Age", "86400")
+    }
+
+    return response
+  }
+
+  // All other requests go through withAuth
+  return NextResponse.next()
 }
