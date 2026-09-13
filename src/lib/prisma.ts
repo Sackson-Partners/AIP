@@ -35,8 +35,8 @@ function createPrismaClient(): PrismaClient {
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()
 
-// Add query timeout middleware (skip during build phase)
-if (typeof prisma.$use === 'function' && process.env.NEXT_PHASE !== 'phase-production-build') {
+// Add query timeout middleware
+if (typeof prisma.$use === 'function') {
   prisma.$use(async (params, next) => {
     const before = Date.now()
     const result = await next(params)

@@ -18,48 +18,30 @@ const KNOWN_ACCOUNT_FIELDS = new Set([
 // PrismaAdapter returns @auth/core's Adapter; next-auth v4 expects next-auth/adapters Adapter.
 // These are structurally incompatible (different AdapterAccount types across packages).
 // Bridge via unknown — this is intentional, not a lazy cast.
-//
-// CRITICAL: Skip adapter during build phase to avoid Prisma initialization
-function getAdapter(): Adapter | undefined {
-  // Skip during Next.js build - adapter not needed for static analysis
-  // Return undefined to disable database adapter during build
-  if (process.env.NEXT_PHASE === 'phase-production-build') {
-    return undefined as any
-  }
-
-  const baseAdapter = PrismaAdapter(prisma) as unknown as Adapter
-
-  return {
-    ...baseAdapter,
-    async linkAccount(account: Record<string, unknown>) {
-      if (!account) return
-      const clean = Object.fromEntries(
-        Object.entries(account).filter(([k]) => KNOWN_ACCOUNT_FIELDS.has(k))
-      )
-      const fn = baseAdapter?.linkAccount as unknown as (a: Record<string, unknown>) => Promise<unknown>
-      try {
-        return await fn?.(clean)
-      } catch (err) {
-        console.error('[linkAccount] failed to link Azure AD account: %o', err)
-        // Don't block sign-in if account linking fails — user row already exists
-        return
-      }
-    },
-  } as Adapter
+const baseAdapter = PrismaAdapter(prisma) as unknown as Adapter
+const safeAdapter = {
+  ...baseAdapter,
+  async linkAccount(account: Record<string, unknown>) {
+    const clean = Object.fromEntries(
+      Object.entries(account).filter(([k]) => KNOWN_ACCOUNT_FIELDS.has(k))
+    )
+    const fn = baseAdapter.linkAccount as unknown as (a: Record<string, unknown>) => Promise<unknown>
+    try {
+      return await fn?.(clean)
+    } catch (err) {
+      console.error('[linkAccount] failed to link Azure AD account: %o', err)
+      // Don't block sign-in if account linking fails — user row already exists
+      return
+    }
+  },
 }
 
-export const authOptions: NextAuthOptions = process.env.NEXT_PHASE === 'phase-production-build'
-  ? {
-      // Minimal config for build phase - prevents Prisma initialization
-      providers: [],
-      secret: 'build-time-placeholder',
-    }
-  : {
-      adapter: getAdapter() as Adapter,
+export const authOptions: NextAuthOptions = {
+  adapter: safeAdapter as unknown as Adapter,
 
-      // Explicit cookie config required for Next.js 15+ async cookies() API on localhost
-      useSecureCookies: process.env.NODE_ENV === 'production',
-      cookies: {
+  // Explicit cookie config required for Next.js 15+ async cookies() API on localhost
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  cookies: {
     pkceCodeVerifier: {
       name: 'next-auth.pkce.code_verifier',
       options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production', maxAge: 900 },
