@@ -1,19 +1,36 @@
-// @ts-nocheck - Prisma generated types need refresh after migration
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
-import { Prisma, UserRole, ProjectStatus } from '@prisma/client'
+import { Prisma, UserRole } from '@prisma/client'
+import { z } from 'zod'
 import { deleteCached, getCached, setCached, CacheKeys, CacheTTL } from '@/lib/redis'
-import { getProjectPatchSchema, validateFinancialStructure } from '@/lib/schemas/project'
-import { validateTransition } from '@/lib/project-state-machine'
-import { sanitizeProject } from '@/lib/response-sanitizer'
 
 const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
 const INTERNAL_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 const PUBLISHED_STATUSES = ['ACTIVE', 'FUNDED', 'CLOSED']
+
+const PatchSchema = z.object({
+  name:            z.string().min(1).optional(),
+  project_name:    z.string().min(1).optional(),
+  description:     z.string().optional(),
+  status:          z.string().optional(),
+  dealStage:       z.string().optional(),
+  targetAmount:    z.number().optional(),
+  estimated_cost:  z.number().optional(),
+  sector:          z.string().optional(),
+  country:         z.string().optional(),
+  region:          z.string().optional(),
+  stage:           z.string().optional(),
+  project_type:    z.string().optional(),
+  projectType:     z.string().optional(),
+  riskRating:      z.string().optional(),
+  strategic_notes: z.string().optional(),
+  source_url:      z.string().optional(),
+  currency:        z.string().optional(),
+})
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -43,26 +60,14 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
 
     // External partners can only view published projects
     if (!isInternal && !PUBLISHED_STATUSES.includes(project.status)) {
-      logger.warn('External user attempted to access non-published project', {
-        userId: session.user.id,
-        userEmail: session.user.email,
-        userRole,
-        projectId: id,
-        projectStatus: project.status,
-      })
+      console.log(`[GET /api/projects/${id}] Access denied: ${session.user.email} (${userRole}) tried to access ${project.status} project`);
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
 
-    // Sanitize based on viewer role
-    const sanitizedProject = sanitizeProject(
-      project as Record<string, any>,
-      userRole as UserRole
-    )
-
     // Cache the project details
-    await setCached(cacheKey, sanitizedProject, CacheTTL.MEDIUM) // 5 minutes
+    await setCached(cacheKey, project, CacheTTL.MEDIUM) // 5 minutes
 
-    return NextResponse.json({ data: sanitizedProject })
+    return NextResponse.json({ data: project })
   } catch (error: unknown) {
     logger.error('[GET /api/projects/[id]]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -77,138 +82,90 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
   const { id } = await params
 
-  // Fetch project and check ownership
-  const project = await prisma.project.findUnique({
-    where: { id },
-    select: { id: true, ownerId: true, status: true },
-  })
-
-  if (!project) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
-
-  // Authorization check
-  const isOwner = project.ownerId === session.user.id
-  const isAdmin = ADMIN_ROLES.includes(session.user.role as UserRole)
-
-  if (!isOwner && !isAdmin) {
-    return NextResponse.json({ error: 'Forbidden - you can only edit your own projects' }, { status: 403 })
-  }
-
   let body: unknown
   try { body = await req.json() } catch { body = {} }
 
-  logger.info('Project update request', {
-    projectId: id,
-    userId: session.user.id,
-    userEmail: session.user.email,
-    userRole: session.user.role,
-    isOwner,
-  })
+  console.log('[PATCH /api/projects/[id]] Received body:', JSON.stringify(body, null, 2));
+  console.log('[PATCH /api/projects/[id]] User:', session.user.email, 'Role:', session.user.role);
 
-  // Use role-based schema validation (prevents mass assignment)
-  const schema = getProjectPatchSchema(session.user.role as UserRole)
-  const parsed = schema.safeParse(body)
-
+  const parsed = PatchSchema.safeParse(body)
   if (!parsed.success) {
-    logger.warn('Project update validation failed', {
-      projectId: id,
-      userId: session.user.id,
-      errors: parsed.error.flatten(),
-    })
+    console.error('[PATCH /api/projects/[id]] Validation failed:', parsed.error.flatten());
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 })
   }
 
-  const d = parsed.data as Record<string, any>
+  const d = parsed.data
+  const resolvedName = d.name || d.project_name
+  const resolvedAmount = d.targetAmount ?? d.estimated_cost
+  const resolvedProjectType = d.projectType || d.project_type
 
-  // Validate status transition if status is being changed
-  if (d.status && d.status !== project.status) {
-    const transitionValidation = validateTransition(
-      project.status as ProjectStatus,
-      d.status as ProjectStatus,
-      session.user.role as UserRole
-    )
-
-    if (!transitionValidation.valid) {
-      logger.warn('Invalid project status transition attempt', {
-        projectId: id,
-        userId: session.user.id,
-        fromStatus: project.status,
-        toStatus: d.status,
-        userRole: session.user.role,
-        error: transitionValidation.error,
-      })
-      return NextResponse.json(
-        { error: transitionValidation.error },
-        { status: 422 }
-      )
-    }
-
-    logger.info('Valid project status transition', {
-      projectId: id,
-      userId: session.user.id,
-      fromStatus: project.status,
-      toStatus: d.status,
-      userRole: session.user.role,
-    })
+  // Map project_type values to ProjectType enum (must match Prisma schema)
+  const typeMap: Record<string, string> = {
+    EPC: 'SERVICE_CONTRACT',  // EPC contracts are service contracts
+    EPC_F: 'BOT',             // EPC+F includes financing = BOT
+    'EPC+F': 'BOT',
+    PPP: 'PPP',
+    PRIVATE: 'CONCESSION',
+    OTHER: 'OTHER',
+    IPP: 'IPP',               // Independent Power Producer
+    BOT: 'BOT',               // Build-Operate-Transfer
+    BOO: 'BOO',               // Build-Own-Operate
+    CONCESSION: 'CONCESSION',
+    DBFOM: 'DBFOM',
+    SERVICE_CONTRACT: 'SERVICE_CONTRACT',
   }
+  const mappedProjectType = resolvedProjectType
+    ? (typeMap[resolvedProjectType.toUpperCase().replace(/\+/g, '_')] || 'OTHER')
+    : undefined
 
-  // Validate financial structure if any financial fields are being updated
-  if (d.totalCost || d.equityRequired || d.debtRequired || d.grantRequired) {
-    const validation = validateFinancialStructure({
-      totalCost: d.totalCost,
-      equityRequired: d.equityRequired,
-      debtRequired: d.debtRequired,
-      grantRequired: d.grantRequired,
-    })
-    if (!validation.valid) {
-      return NextResponse.json({ error: validation.error }, { status: 422 })
-    }
+  // Auto-calculate risk rating from projectType if riskRating not explicitly provided
+  const riskMap: Record<string, string> = {
+    SERVICE_CONTRACT: 'Medium',  // EPC
+    BOT: 'High',                  // EPC+F, BOT
+    BOO: 'High',
+    PPP: 'Medium-High',
+    IPP: 'Medium-High',
+    CONCESSION: 'Variable',
+    DBFOM: 'High',
+    OTHER: 'Variable',
   }
+  const calculatedRisk = mappedProjectType && !d.riskRating ? riskMap[mappedProjectType] : d.riskRating
+
+  // Map sector
+  const sectorMap: Record<string, string> = {
+    energy: 'ENERGY', transport: 'TRANSPORT', water: 'WATER',
+    digital: 'DIGITAL', healthcare: 'HEALTHCARE', health: 'HEALTHCARE',
+    education: 'EDUCATION', agriculture: 'AGRICULTURE', housing: 'HOUSING',
+    waste_management: 'WASTE_MANAGEMENT', mining: 'OTHER', ports: 'OTHER',
+    rail: 'OTHER', roads: 'OTHER', ict: 'DIGITAL', social: 'OTHER',
+  }
+  const mappedSector = d.sector ? (sectorMap[d.sector.toLowerCase()] || d.sector.toUpperCase()) : undefined
+
+  // Map dealStage from legacy stage field
+  const stageMap: Record<string, string> = {
+    planned: 'CONCEPT', concept: 'CONCEPT',
+    'pre-feasibility': 'PREFEASIBILITY', prefeasibility: 'PREFEASIBILITY',
+    feasibility: 'FEASIBILITY', structuring: 'STRUCTURING',
+    procurement: 'PROCUREMENT', financial_close: 'FINANCIAL_CLOSE',
+    construction: 'CONSTRUCTION', operational: 'OPERATIONS', operations: 'OPERATIONS',
+  }
+  const resolvedDealStage = d.dealStage || (d.stage ? stageMap[d.stage.toLowerCase()] : undefined)
 
   try {
-    // Build update data from validated schema (only include defined fields)
-    const updateData: Prisma.ProjectUpdateInput = {}
-
-    if (d.title) updateData.title = d.title
-    if (d.description !== undefined) updateData.description = d.description
-    if (d.country !== undefined) updateData.country = d.country
-    if (d.region !== undefined) updateData.region = d.region
-    if (d.sector) updateData.sector = d.sector
-    if (d.dealStage) updateData.dealStage = d.dealStage
-    if (d.projectType) updateData.projectType = d.projectType
-    if (d.totalCost !== undefined) updateData.totalCost = d.totalCost
-    if (d.equityRequired !== undefined) updateData.equityRequired = d.equityRequired
-    if (d.debtRequired !== undefined) updateData.debtRequired = d.debtRequired
-    if (d.grantRequired !== undefined) updateData.grantRequired = d.grantRequired
-    if (d.location !== undefined) updateData.location = d.location
-    if (d.latitude !== undefined) updateData.latitude = d.latitude
-    if (d.longitude !== undefined) updateData.longitude = d.longitude
-    if (d.startDate) updateData.startDate = d.startDate
-    if (d.estimatedCompletionDate) updateData.estimatedCompletionDate = d.estimatedCompletionDate
-    if (d.irr !== undefined) updateData.irr = d.irr
-    if (d.paybackPeriod !== undefined) updateData.paybackPeriod = d.paybackPeriod
-    if (d.esgRating !== undefined) updateData.esgRating = d.esgRating
-    if (d.carbonFootprint !== undefined) updateData.carbonFootprint = d.carbonFootprint
-    if (d.jobsCreated !== undefined) updateData.jobsCreated = d.jobsCreated
-    if (d.strategicNotes !== undefined) updateData.strategicNotes = d.strategicNotes
-
-    // Admin-only fields (only applied if user is admin and field is present)
-    if (isAdmin) {
-      if (d.status) updateData.status = d.status
-      if (d.reviewerId) updateData.reviewerId = d.reviewerId
-      if (d.ownerId) updateData.ownerId = d.ownerId
-      if (d.publishedAt) updateData.publishedAt = d.publishedAt
-      if (d.archived !== undefined) updateData.archived = d.archived
-      if (d.archivedAt) updateData.archivedAt = d.archivedAt
-      if (d.archivedById) updateData.archivedById = d.archivedById
-      if (d.code) updateData.code = d.code
-      if (d.riskRating) updateData.riskRating = d.riskRating
-    }
-
-    const updatedProject = await prisma.project.update({
+    const project = await prisma.project.update({
       where: { id },
-      data: updateData,
+      data: {
+        ...(resolvedName       !== undefined ? { title:       resolvedName }       : {}),
+        ...(d.description      !== undefined ? { description: d.description }      : {}),
+        ...(d.status           !== undefined ? { status:      d.status as Prisma.ProjectUpdateInput['status'] } : {}),
+        ...(resolvedDealStage  !== undefined ? { dealStage:   resolvedDealStage as Prisma.ProjectUpdateInput['dealStage'] } : {}),
+        ...(resolvedAmount     !== undefined ? { totalCost:   resolvedAmount }     : {}),
+        ...(mappedSector       !== undefined ? { sector:      mappedSector as Prisma.ProjectUpdateInput['sector'] } : {}),
+        ...(d.country          !== undefined ? { country:     d.country }          : {}),
+        ...(d.region           !== undefined ? { region:      d.region }           : {}),
+        ...(mappedProjectType  !== undefined ? { projectType: mappedProjectType as Prisma.ProjectUpdateInput['projectType'] } : {}),
+        ...(calculatedRisk     !== undefined ? { riskRating:  calculatedRisk }     : {}),
+      },
     })
 
     await createAuditLog({
@@ -217,7 +174,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       action:    'PROJECT_UPDATED',
       tableName: 'Project',
       recordId:  id,
-      newValues: d as Record<string, unknown>,
+      newValues: parsed.data as Record<string, unknown>,
     })
 
     // Invalidate caches
@@ -225,24 +182,15 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       deleteCached('projects:list:*'),
       deleteCached(CacheKeys.projects.detail(id)),
     ])
+    console.log('[PATCH /api/projects/[id]] Cache invalidated after project update')
 
-    logger.info('Project updated successfully', {
-      projectId: id,
-      userId: session.user.id,
-    })
-
-    // Sanitize response
-    const sanitizedProject = sanitizeProject(
-      updatedProject as Record<string, any>,
-      session.user.role as UserRole
-    )
-
-    return NextResponse.json({ data: sanitizedProject })
+    return NextResponse.json({ data: project })
   } catch (error: unknown) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
     }
-    logger.error('Project update failed', error, { projectId: id, userId: session.user.id })
+    console.error('[PATCH /api/projects/[id]] Database error:', error);
+    logger.error('[PATCH /api/projects/[id]]', error)
 
     // Return detailed error in development
     const errorMessage = error instanceof Error ? error.message : 'Internal server error';

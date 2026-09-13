@@ -5,10 +5,6 @@ import { authOptions } from "@/lib/auth/auth.config"
 import { prisma } from "@/lib/prisma"
 import { createAuditLog } from "@/lib/audit"
 import { sendActivationEmail, sendSuspensionEmail } from "@/lib/email"
-import { getUserPatchSchema } from "@/lib/schemas/user"
-import { UserRole } from "@prisma/client"
-import { invalidateAllSessions, SessionInvalidationReason } from "@/lib/session-utils"
-import { sanitizeUser } from "@/lib/response-sanitizer"
 
 const userInclude = {
   internalProfile: true,
@@ -38,15 +34,11 @@ export async function GET(
 
   if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  // Sanitize user response based on viewer role
-  const isSelf = session.user.id === id
-  const sanitizedUser = sanitizeUser(
-    user as Record<string, any>,
-    session.user.role as UserRole,
-    isSelf
-  )
-
-  return NextResponse.json({ user: sanitizedUser })
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash: _passwordHash, ...safeUser } = user as Record<string, unknown> & {
+    passwordHash?: string
+  }
+  return NextResponse.json({ user: safeUser })
 }
 
 // ─── PATCH /api/admin/users/[id] ──────────────────────────────────────────────
@@ -56,9 +48,12 @@ export async function PATCH(
 ) {
   const { id } = await params
   const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  if (!session?.user || session.user.role !== "SUPER_ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
+
+  const body = await req.json().catch(() => null)
+  if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 })
 
   const existing = await prisma.user.findUnique({
     where: { id },
@@ -66,28 +61,11 @@ export async function PATCH(
   })
   if (!existing) return NextResponse.json({ error: "Not found" }, { status: 404 })
 
-  // Determine if user is editing their own profile
-  const isSelf = session.user.id === id
-
-  // Get appropriate schema based on role and context
-  const schema = getUserPatchSchema(session.user.role as UserRole, isSelf)
-  if (!schema) {
-    return NextResponse.json({ error: "Forbidden - you cannot edit other users" }, { status: 403 })
+  const allowed = ["role", "status", "organization", "country", "jobTitle"]
+  const userUpdate: Record<string, unknown> = {}
+  for (const key of allowed) {
+    if (body[key] !== undefined) userUpdate[key] = body[key]
   }
-
-  const body = await req.json().catch(() => null)
-  if (!body) return NextResponse.json({ error: "Invalid body" }, { status: 400 })
-
-  // Validate with role-based schema (prevents mass assignment)
-  const parsed = schema.safeParse(body)
-  if (!parsed.success) {
-    return NextResponse.json(
-      { error: "Validation failed", details: parsed.error.flatten() },
-      { status: 422 }
-    )
-  }
-
-  const userUpdate = parsed.data
 
   const updated = await prisma.user.update({
     where: { id: id },
@@ -114,26 +92,8 @@ export async function PATCH(
     })
   }
 
-  // Side effects on role change - invalidate all sessions
-  if (body.role && body.role !== existing.role) {
-    await invalidateAllSessions(
-      id,
-      SessionInvalidationReason.ROLE_CHANGE,
-      session.user.id
-    )
-  }
-
   // Side effects on status change
   if (body.status && body.status !== existing.status) {
-    // Invalidate sessions for security-relevant status changes
-    if (body.status === "SUSPENDED" || body.status === "DEACTIVATED") {
-      await invalidateAllSessions(
-        id,
-        SessionInvalidationReason.SUSPENSION,
-        session.user.id
-      )
-    }
-
     if (body.status === "ACTIVE" && existing.email) {
       await sendActivationEmail({
         email: existing.email,
@@ -168,14 +128,11 @@ export async function PATCH(
       req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? undefined,
   })
 
-  // Sanitize updated user response
-  const sanitizedUser = sanitizeUser(
-    updated as Record<string, any>,
-    session.user.role as UserRole,
-    isSelf
-  )
-
-  return NextResponse.json({ user: sanitizedUser })
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { passwordHash: _passwordHash2, ...safeUser } = updated as Record<string, unknown> & {
+    passwordHash?: string
+  }
+  return NextResponse.json({ user: safeUser })
 }
 
 // ─── DELETE /api/admin/users/[id] — soft delete ───────────────────────────────
