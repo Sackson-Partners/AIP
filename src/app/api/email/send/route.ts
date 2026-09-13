@@ -20,8 +20,8 @@ const SendEmailSchema = z.object({
  * Send email via Resend (admin only)
  */
 export async function POST(req: NextRequest) {
-  // Apply rate limiting (10 emails per hour)
-  const rateLimitResponse = await applyRateLimit(req, rateLimiters.post)
+  // Apply rate limiting (use write limiter for email sending)
+  const rateLimitResponse = await applyRateLimit(req, rateLimiters.write)
   if (rateLimitResponse) return rateLimitResponse
 
   const session = await getServerSession(authOptions)
