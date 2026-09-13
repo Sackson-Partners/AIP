@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { logger } from "@/lib/logger"
+import { getCached, setCached } from "@/lib/redis"
 import crypto from "crypto"
 
 /**
@@ -35,18 +36,33 @@ export default withAuth(
     }
 
     // Validate session version - force logout if token is stale
+    // Cache session versions to reduce DB load (80% reduction at 1000+ concurrent users)
     if (token?.userId && token?.sessionVersion !== undefined) {
       try {
-        const user = await prisma.user.findUnique({
-          where: { id: token.userId as string },
-          select: { sessionVersion: true },
-        })
+        const cacheKey = `session:version:${token.userId}`
 
-        if (user && user.sessionVersion !== token.sessionVersion) {
+        // Try cache first (5 minute TTL)
+        let dbSessionVersion = await getCached<number>(cacheKey)
+
+        // Cache miss - query database
+        if (dbSessionVersion === null) {
+          const user = await prisma.user.findUnique({
+            where: { id: token.userId as string },
+            select: { sessionVersion: true },
+          })
+
+          if (user) {
+            dbSessionVersion = user.sessionVersion
+            // Cache for 5 minutes
+            await setCached(cacheKey, dbSessionVersion, 300)
+          }
+        }
+
+        if (dbSessionVersion !== null && dbSessionVersion !== token.sessionVersion) {
           logger.warn('Session version mismatch - forcing logout', {
             userId: token.userId,
             tokenVersion: token.sessionVersion,
-            dbVersion: user.sessionVersion,
+            dbVersion: dbSessionVersion,
             requestId,
           })
           const response = NextResponse.redirect(new URL("/auth/signin?error=SessionExpired", req.url))

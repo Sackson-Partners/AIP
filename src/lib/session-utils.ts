@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { deleteCached } from '@/lib/redis'
 
 /**
  * Session Versioning Utilities
@@ -17,6 +18,11 @@ export async function incrementSessionVersion(userId: string): Promise<void> {
       where: { id: userId },
       data: { sessionVersion: { increment: 1 } },
     })
+
+    // Clear cached session version to force fresh DB lookup
+    const cacheKey = `session:version:${userId}`
+    await deleteCached(cacheKey)
+
     console.log(`[Session] Incremented session version for user ${userId}`)
   } catch (error) {
     console.error(`[Session] Failed to increment session version for user ${userId}:`, error)
@@ -33,6 +39,11 @@ export async function resetSessionVersion(userId: string): Promise<void> {
       where: { id: userId },
       data: { sessionVersion: 1 },
     })
+
+    // Clear cached session version
+    const cacheKey = `session:version:${userId}`
+    await deleteCached(cacheKey)
+
     console.log(`[Session] Reset session version for user ${userId}`)
   } catch (error) {
     console.error(`[Session] Failed to reset session version for user ${userId}:`, error)
