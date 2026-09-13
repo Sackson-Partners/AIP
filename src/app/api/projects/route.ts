@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { Prisma, UserRole, ProjectStatus, ProjectSector } from '@prisma/client'
 import { z } from 'zod'
 import { getCached, setCached, deleteCached, CacheKeys, CacheTTL } from '@/lib/redis'
+import crypto from 'crypto'
 
 const WRITE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
@@ -32,7 +33,8 @@ const CreateSchema = z.object({
 }).refine(d => d.name || d.project_name, { message: 'name is required' })
 
 function generateCode(): string {
-  return `AIP-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+  const randomBytes = crypto.randomBytes(3).toString('hex').slice(0, 4).toUpperCase()
+  return `AIP-${Date.now()}-${randomBytes}`
 }
 
 export async function GET(req: NextRequest) {
