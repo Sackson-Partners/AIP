@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger'
 import { Prisma, UserRole } from '@prisma/client'
 import { z } from 'zod'
 import { buildPartnerProfile, profileCompleteness } from '@/lib/matching'
+import { sanitizeInvestor, sanitizeList } from '@/lib/response-sanitizer'
 
 const WRITE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
@@ -42,6 +43,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { searchParams } = new URL(req.url)
+  const cursor = searchParams.get('cursor') // Cursor-based pagination
   const page   = Math.max(1, parseInt(searchParams.get('page')  ?? '1',  10))
   const limit  = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10)))
   const search = searchParams.get('search') ?? ''
@@ -54,10 +56,37 @@ export async function GET(req: NextRequest) {
   } : {}
 
   try {
-    const [rows, total] = await Promise.all([
-      prisma.investor.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
-      prisma.investor.count({ where }),
-    ])
+    // Support both cursor-based and offset-based pagination
+    let rows: Awaited<ReturnType<typeof prisma.investor.findMany>>
+    let total: number | undefined
+
+    if (cursor) {
+      // Cursor-based pagination (more efficient for large datasets)
+      rows = await prisma.investor.findMany({
+        where,
+        take: limit + 1, // Fetch one extra to determine if there's a next page
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+        orderBy: { createdAt: 'desc' },
+      })
+    } else {
+      // Offset-based pagination (backward compatible)
+      [rows, total] = await Promise.all([
+        prisma.investor.findMany({ where, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+        prisma.investor.count({ where }),
+      ])
+    }
+    // Handle cursor pagination response
+    let hasMore = false
+    let nextCursor: string | null = null
+
+    if (cursor) {
+      hasMore = rows.length > limit
+      if (hasMore) {
+        rows = rows.slice(0, -1) // Remove extra item
+        nextCursor = rows[rows.length - 1]?.id ?? null
+      }
+    }
+
     const data = rows.map(inv => {
       const profile = buildPartnerProfile({
         id:               inv.id,
@@ -70,6 +99,7 @@ export async function GET(req: NextRequest) {
       })
       return {
         id:                  inv.id,
+        // userId:              inv.userId, // Not in current schema
         fund_name:           inv.name,
         name:                inv.name,
         email:               inv.email,
@@ -77,25 +107,55 @@ export async function GET(req: NextRequest) {
         investor_type:       inv.type,
         type:                inv.type,
         organization_type:   inv.organizationType,
+        organizationType:    inv.organizationType,
         status:              inv.status,
         country_of_origin:   inv.countryOfOrigin,
+        countryOfOrigin:     inv.countryOfOrigin,
         instruments:         inv.instruments ? (() => { try { return JSON.parse(inv.instruments!) as string[] } catch { return [] } })() : [],
         sector_focus:        profile.sectorFocus,
+        sectorFocus:         profile.sectorFocus,
         country_focus:       profile.countryFocus,
+        countryFocus:        profile.countryFocus,
         stage_focus:         profile.stageFocus,
+        stageFocus:          profile.stageFocus,
         aum:                 inv.aum,
         ticket_size_min:     inv.minTicket ?? 0,
+        minTicket:           inv.minTicket,
         ticket_size_max:     inv.maxTicket ?? 0,
+        maxTicket:           inv.maxTicket,
         target_irr:          inv.targetIRR,
+        targetIRR:           inv.targetIRR,
         esg_constraints:     inv.esgConstraints,
+        esgConstraints:      inv.esgConstraints,
         description:         inv.description,
         website:             inv.website,
         languages:           JSON.parse(inv.languages ?? '[]') as string[],
         profile_complete:    Math.round(inv.profileComplete),
+        profileComplete:     inv.profileComplete,
         created_at:          inv.createdAt.toISOString(),
+        createdAt:           inv.createdAt,
+        updatedAt:           inv.updatedAt,
+        // verified:            inv.verified, // Not in current schema
+        // verifiedAt:          inv.verifiedAt,
       }
     })
-    return NextResponse.json({ data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } })
+
+    // Sanitize all investors based on viewer role
+    const sanitizedData = sanitizeList(
+      data as Record<string, any>[],
+      (investor) => sanitizeInvestor(
+        investor,
+        session.user.role as UserRole,
+        false // investor.userId === session.user.id // userId not in schema
+      )
+    )
+
+    // Return appropriate pagination metadata
+    if (cursor) {
+      return NextResponse.json({ data: sanitizedData, pagination: { limit, hasMore, nextCursor } })
+    } else {
+      return NextResponse.json({ data: sanitizedData, pagination: { page, limit, total, pages: Math.ceil(total! / limit) } })
+    }
   } catch (error: unknown) {
     logger.error('[GET /api/investors]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -183,26 +243,44 @@ export async function POST(req: NextRequest) {
       newValues: { name: investor.name },
     })
 
-    return NextResponse.json({
-      data: {
-        id:               investor.id,
-        fund_name:        investor.name,
-        name:             investor.name,
-        email:            investor.email,
-        investor_type:    investor.type,
-        type:             investor.type,
-        organization_type: investor.organizationType,
-        status:           investor.status,
-        sector_focus:     d.sector_focus ?? [],
-        country_focus:    Array.isArray(d.country_focus) ? d.country_focus : [],
-        stage_focus:      d.stage_focus ?? [],
-        instruments:      Array.isArray(d.instruments) ? d.instruments : [],
-        ticket_size_min:  minTicket ?? 0,
-        ticket_size_max:  maxTicket ?? 0,
-        profile_complete: completeness,
-        created_at:       investor.createdAt.toISOString(),
-      },
-    }, { status: 201 })
+    const responseData = {
+      id:                  investor.id,
+      // userId:              investor.userId, // Not in current schema
+      fund_name:           investor.name,
+      name:                investor.name,
+      email:               investor.email,
+      investor_type:       investor.type,
+      type:                investor.type,
+      organization_type:   investor.organizationType,
+      organizationType:    investor.organizationType,
+      status:              investor.status,
+      sector_focus:        d.sector_focus ?? [],
+      sectorFocus:         invData.sectorFocus,
+      country_focus:       Array.isArray(d.country_focus) ? d.country_focus : [],
+      countryFocus:        invData.countryFocus,
+      stage_focus:         d.stage_focus ?? [],
+      stageFocus:          invData.stageFocus,
+      instruments:         Array.isArray(d.instruments) ? d.instruments : [],
+      ticket_size_min:     minTicket ?? 0,
+      minTicket:           minTicket,
+      ticket_size_max:     maxTicket ?? 0,
+      maxTicket:           maxTicket,
+      profile_complete:    completeness,
+      profileComplete:     completeness,
+      created_at:          investor.createdAt.toISOString(),
+      createdAt:           investor.createdAt,
+      updatedAt:           investor.updatedAt,
+    }
+
+    // Sanitize created investor
+    const isOwn = false // investor.userId === session.user.id // userId not in schema
+    const sanitizedInvestor = sanitizeInvestor(
+      responseData as Record<string, any>,
+      session.user.role as UserRole,
+      isOwn
+    )
+
+    return NextResponse.json({ data: sanitizedInvestor }, { status: 201 })
   } catch (error: unknown) {
     logger.error('[POST /api/investors]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

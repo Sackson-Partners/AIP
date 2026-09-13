@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
-import { applyRateLimit, rateLimiters } from '@/middleware/rateLimit'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 const ChatSchema = z.object({
   message: z.string().min(1).max(2000),
@@ -14,14 +15,14 @@ const ChatSchema = z.object({
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
-  // Apply rate limiting (10 requests per hour per user)
-  const rateLimitResponse = await applyRateLimit(req, rateLimiters.ai)
-  if (rateLimitResponse) return rateLimitResponse
-
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Apply rate limiting (20 requests per hour per user)
+  const rateLimitResponse = await applyRateLimit(req, rateLimiters.chat, session.user.id)
+  if (rateLimitResponse) return rateLimitResponse
 
   let body: unknown
   try {
@@ -144,7 +145,10 @@ User question: ${message}`
       tokensUsed,
     })
   } catch (error) {
-    console.error('[POST /api/chat] Error:', error)
+    logger.error('Chat generation failed', {
+      error: error instanceof Error ? error.message : String(error),
+      userId: session.user.id
+    })
     return NextResponse.json(
       { error: 'Failed to generate response' },
       { status: 500 }

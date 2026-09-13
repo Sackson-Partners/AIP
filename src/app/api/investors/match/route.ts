@@ -6,6 +6,7 @@ import { logger } from '@/lib/logger'
 import { scoreMatch, buildPartnerProfile, MatchResult } from '@/lib/matching'
 import { generateMatchExplanation } from '@/lib/matching-ai'
 import { getCached, setCached, CacheKeys, CacheTTL } from '@/lib/redis'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
 
 /**
  * POST /api/investors/match
@@ -17,6 +18,10 @@ export async function POST(req: NextRequest) {
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Apply rate limiting (5 requests per hour for expensive AI matching)
+  const rateLimitResponse = await applyRateLimit(req, rateLimiters.generate, session.user.id)
+  if (rateLimitResponse) return rateLimitResponse
 
   let body: { investorId?: string }
   try { body = await req.json() } catch { body = {} }

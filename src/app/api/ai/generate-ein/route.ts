@@ -5,6 +5,8 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import Anthropic from '@anthropic-ai/sdk'
 import { v4 as uuidv4 } from 'uuid'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60 // seconds — AI calls need more than the 10s default
 
@@ -20,6 +22,10 @@ const SECTION_FIELD_MAP: Record<string, string> = {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Apply rate limiting (5 requests per hour per user)
+  const rateLimitResponse = await applyRateLimit(req, rateLimiters.generate, session.user.id)
+  if (rateLimitResponse) return rateLimitResponse
 
   const body = await req.json().catch(() => ({}))
   const projectId = body.project_id as string
@@ -51,7 +57,7 @@ ${petfel ? `PETFEL: ${petfel.overallScore?.toFixed(1) ?? 'N/A'}/5 ${petfel.ratin
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
-    console.error('[generate-ein] Anthropic API error:', msg)
+    logger.error('Anthropic API error during EIN generation', { error: msg, projectId })
     return NextResponse.json({ error: 'AI service error', detail: msg }, { status: 502 })
   }
 
@@ -61,8 +67,12 @@ ${petfel ? `PETFEL: ${petfel.overallScore?.toFixed(1) ?? 'N/A'}/5 ${petfel.ratin
   try {
     const cleaned = text.replace(/^```json\s*/i, '').replace(/\s*```$/i, '').trim()
     result = JSON.parse(cleaned)
-  } catch {
-    console.error('[generate-ein] JSON parse failed, raw:', text.slice(0, 300))
+  } catch (err) {
+    logger.error('JSON parse failed for AI EIN response', {
+      error: err instanceof Error ? err.message : String(err),
+      rawPreview: text.slice(0, 300),
+      projectId
+    })
     return NextResponse.json({ error: 'AI response was not valid JSON', raw: text.slice(0, 300) }, { status: 502 })
   }
 

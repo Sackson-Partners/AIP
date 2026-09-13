@@ -159,25 +159,20 @@ export default function ProjectsPage() {
       if (debouncedFilter.sector)  params.sector  = debouncedFilter.sector;
       if (debouncedFilter.country) params.country = debouncedFilter.country;
       if (debouncedFilter.status)  params.status  = debouncedFilter.status;
-      const [projectsData, verificationsData] = await Promise.allSettled([
-        projectsApi.list(params),
-        verificationsApi.list(),
-      ]);
-      if (projectsData.status === 'fulfilled') setProjects(projectsData.value);
-      if (verificationsData.status === 'fulfilled') {
-        // Build map: projectId → highest verification level
-        const vMap: Record<string, string> = {};
-        const LEVEL_ORDER = ['V3', 'V2', 'V1', 'V0'];
-        for (const v of verificationsData.value) {
-          const pid = String(v.project_id);
-          const cur = vMap[pid];
-          const newLvl = String(v.level ?? '').substring(0, 2);
-          if (!cur || LEVEL_ORDER.indexOf(newLvl) < LEVEL_ORDER.indexOf(cur.substring(0, 2))) {
-            vMap[pid] = String(v.level ?? '');
-          }
+
+      // Single API call - verifications are now included in projects response
+      const projectsData = await projectsApi.list(params);
+      setProjects(projectsData);
+
+      // Build verification map from included data
+      const vMap: Record<string, string> = {};
+      for (const p of projectsData) {
+        if ((p as any).verifications && (p as any).verifications.length > 0) {
+          vMap[String(p.id)] = (p as any).verifications[0].level || '';
         }
-        setVerificationMap(vMap);
       }
+      setVerificationMap(vMap);
+
       setFetchError(null);
     } catch {
       setFetchError('Failed to load projects. Please try again.');

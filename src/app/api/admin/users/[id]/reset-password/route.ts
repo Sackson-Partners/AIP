@@ -7,6 +7,7 @@ import { authOptions } from "@/lib/auth/auth.config"
 import { prisma } from "@/lib/prisma"
 import { createAuditLog } from "@/lib/audit"
 import { sendPasswordResetEmail } from "@/lib/email"
+import { invalidateAllSessions, SessionInvalidationReason } from "@/lib/session-utils"
 
 function generateTempPassword(): string {
   const chars =
@@ -48,6 +49,13 @@ export async function POST(
     data: { passwordHash, mustChangePass: true },
   })
 
+  // Invalidate all existing sessions to force immediate logout
+  await invalidateAllSessions(
+    id,
+    SessionInvalidationReason.PASSWORD_CHANGE,
+    session.user.id
+  )
+
   if (user.email) {
     await sendPasswordResetEmail({
       email: user.email,
@@ -66,5 +74,5 @@ export async function POST(
       req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? undefined,
   })
 
-  return NextResponse.json({ success: true })
+  return NextResponse.json({ success: true, message: "Password reset. All sessions invalidated." })
 }

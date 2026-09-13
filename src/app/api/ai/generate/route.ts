@@ -3,12 +3,17 @@ import type { NextRequest } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import Anthropic from '@anthropic-ai/sdk'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
 
 export const maxDuration = 60
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Apply rate limiting (5 requests per hour per user)
+  const rateLimitResponse = await applyRateLimit(req, rateLimiters.generate, session.user.id)
+  if (rateLimitResponse) return rateLimitResponse
 
   const body = await req.json().catch(() => ({}))
   const { type, context, prompt: userPrompt } = body as {

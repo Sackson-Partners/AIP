@@ -5,7 +5,7 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit-log'
 import Anthropic from '@anthropic-ai/sdk'
-import { applyRateLimit, rateLimiters } from '@/middleware/rateLimit'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
 
 type Ctx = { params: Promise<{ id: string }> }
 

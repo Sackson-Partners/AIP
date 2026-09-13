@@ -209,3 +209,190 @@ export function sanitizeBoolean(input: unknown): boolean {
   if (typeof input === 'number') return input !== 0
   return false
 }
+
+/**
+ * Sanitize markdown content
+ * Allows safe markdown but blocks XSS vectors
+ *
+ * @param markdown - User-supplied markdown
+ * @returns Sanitized markdown
+ */
+export function sanitizeMarkdown(markdown: string | null | undefined): string {
+  if (!markdown) return ''
+
+  let sanitized = markdown
+    // Remove null bytes
+    .replace(/\x00/g, '')
+    // Remove javascript: and data: URLs from links
+    .replace(/\[([^\]]+)\]\((javascript|data|vbscript):[^\)]+\)/gi, '[$1](#)')
+    // Remove HTML script tags
+    .replace(/<script[^>]*>.*?<\/script>/gis, '')
+    // Remove onclick and other event handlers
+    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
+
+  return sanitized
+}
+
+/**
+ * Sanitize object properties recursively
+ * Removes dangerous properties and sanitizes string values
+ *
+ * @param obj - User-supplied object
+ * @returns Sanitized object
+ */
+export function sanitizeObject<T extends Record<string, unknown>>(obj: T): T {
+  const sanitized: Record<string, unknown> = {}
+
+  // Dangerous property names to exclude
+  const dangerousProps = ['__proto__', 'constructor', 'prototype']
+
+  for (const [key, value] of Object.entries(obj)) {
+    // Skip dangerous properties (prototype pollution)
+    if (dangerousProps.includes(key)) {
+      continue
+    }
+
+    // Sanitize based on type
+    if (typeof value === 'string') {
+      sanitized[key] = sanitizeText(value)
+    } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+      sanitized[key] = sanitizeObject(value as Record<string, unknown>)
+    } else if (Array.isArray(value)) {
+      sanitized[key] = value.map(item =>
+        typeof item === 'string'
+          ? sanitizeText(item)
+          : typeof item === 'object' && item !== null
+          ? sanitizeObject(item as Record<string, unknown>)
+          : item
+      )
+    } else {
+      sanitized[key] = value
+    }
+  }
+
+  return sanitized as T
+}
+
+/**
+ * Sanitize search query
+ * Removes dangerous characters, limits length
+ *
+ * @param query - User-supplied search query
+ * @returns Sanitized query
+ */
+export function sanitizeSearchQuery(query: string | null | undefined): string {
+  if (!query) return ''
+
+  return sanitizeText(query)
+    // Remove SQL wildcards (use parameterized queries anyway)
+    .replace(/[%_]/g, '')
+    // Limit length
+    .slice(0, 200)
+}
+
+/**
+ * Sanitize project code
+ * Format: AIP-YYYY-NNNN or custom format
+ *
+ * @param code - User-supplied project code
+ * @returns Sanitized code or null if invalid
+ */
+export function sanitizeProjectCode(code: string | null | undefined): string | null {
+  if (!code) return null
+
+  // Remove whitespace and convert to uppercase
+  const sanitized = code.trim().toUpperCase()
+
+  // Validate format (letters, numbers, hyphens only)
+  if (!/^[A-Z0-9-]+$/.test(sanitized)) {
+    return null
+  }
+
+  // Limit length
+  if (sanitized.length > 50) {
+    return null
+  }
+
+  return sanitized
+}
+
+/**
+ * Sanitize array of strings
+ *
+ * @param inputs - Array of user-supplied strings
+ * @param maxLength - Maximum length per string
+ * @returns Array of sanitized strings
+ */
+export function sanitizeTextArray(
+  inputs: string[] | null | undefined,
+  maxLength = 1000
+): string[] {
+  if (!inputs || !Array.isArray(inputs)) return []
+
+  return inputs
+    .filter(input => typeof input === 'string')
+    .map(input => sanitizeText(input).slice(0, maxLength))
+    .filter(input => input.length > 0)
+}
+
+/**
+ * Sanitize SQL identifier (table name, column name)
+ * Prevents SQL injection in dynamic queries
+ *
+ * @param identifier - User-supplied SQL identifier
+ * @returns Sanitized identifier or null if invalid
+ */
+export function sanitizeSqlIdentifier(identifier: string | null | undefined): string | null {
+  if (!identifier) return null
+
+  // Only allow alphanumeric and underscore
+  const sanitized = identifier.replace(/[^a-zA-Z0-9_]/g, '')
+
+  // Must start with letter or underscore
+  if (!/^[a-zA-Z_]/.test(sanitized)) {
+    return null
+  }
+
+  // Limit length
+  if (sanitized.length === 0 || sanitized.length > 64) {
+    return null
+  }
+
+  return sanitized
+}
+
+/**
+ * Sanitize rich text/HTML content for storage
+ * Allows safe subset of HTML tags
+ *
+ * @param html - User-supplied HTML content
+ * @returns Sanitized HTML
+ */
+export function sanitizeRichText(html: string | null | undefined): string {
+  if (!html) return ''
+
+  // For now, use basic HTML sanitization
+  // TODO: Install and use isomorphic-dompurify for production-grade sanitization
+  // npm install isomorphic-dompurify
+
+  let sanitized = html
+    // Remove script tags
+    .replace(/<script[^>]*>.*?<\/script>/gis, '')
+    // Remove event handlers
+    .replace(/\son\w+\s*=\s*["'][^"']*["']/gi, '')
+    // Remove javascript: and data: URLs
+    .replace(/(href|src)\s*=\s*["'](javascript|data|vbscript):[^"']*["']/gi, '$1="#"')
+
+  return sanitized
+}
+
+/**
+ * Batch sanitize API request body
+ * Comprehensive sanitization for common use cases
+ *
+ * @param input - User-supplied input object
+ * @returns Sanitized input
+ */
+export function sanitizeApiInput<T extends Record<string, unknown>>(input: T): T {
+  return sanitizeObject(input)
+}

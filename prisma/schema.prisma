@@ -190,6 +190,7 @@ model User {
   loginCount           Int          @default(0)
   failedLoginAttempts  Int          @default(0)
   lockedUntil          DateTime?
+  sessionVersion       Int          @default(1)  // Incremented on password change, role change, or suspension
   emailNotifications Boolean      @default(true)
   dashboardLayout    String?
   createdAt          DateTime     @default(now())
@@ -212,6 +213,12 @@ model User {
   createdCommittees IcCommittee[]
   createdEvents     Event[]
   dataRoomAccess    DataRoomAccess[]
+
+  // ─── Performance indexes (added 2026-09-10) ───────────────────────────
+  @@index([role, status])                // Admin queries (list by role/status)
+  @@index([status, lastLoginAt])         // Active users by last login
+  @@index([email, status])               // Login queries
+  @@index([createdAt])                   // User growth analytics
 }
 
 model InternalProfile {
@@ -344,6 +351,12 @@ model Project {
   @@index([reviewerId])
   @@index([status])
   @@index([sector])
+  // ─── Performance indexes (added 2026-09-10) ───────────────────────────
+  @@index([status, createdAt])           // List queries with status filter
+  @@index([ownerId, status])             // User's projects by status
+  @@index([country, sector])             // Geographic + sector filtering
+  @@index([archived, status])            // Active projects only
+  @@index([dealStage, status])           // Pipeline views
 }
 
 // PETFEL = Political, Economic, Technical, Financial, Environmental, Legal
@@ -404,6 +417,8 @@ model Milestone {
   dueDate     DateTime?
   completedAt DateTime?
   status      MilestoneStatus @default(PENDING)
+  archived    Boolean   @default(false)
+  archivedAt  DateTime?
 
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 }
@@ -598,6 +613,10 @@ model Document {
   @@index([folderId])
   @@index([uploaderId])
   @@index([summarizationStatus])
+  // ─── Performance indexes (added 2026-09-10) ───────────────────────────
+  @@index([projectId, published])        // Published docs per project
+  @@index([uploaderId, createdAt])       // User's uploads timeline
+  @@index([type, published])             // Documents by type
 }
 
 model Notification {
@@ -617,6 +636,9 @@ model Notification {
   @@index([userId])
   @@index([userId, read])
   @@index([createdAt])
+  // ─── Performance indexes (added 2026-09-10) ───────────────────────────
+  @@index([userId, read, createdAt])     // Unread notifications query (most common)
+  @@index([type, createdAt])             // Notifications by type
 }
 
 model ActivityLog {
@@ -690,6 +712,10 @@ model Investor {
 
   @@index([status])
   @@index([organizationType])
+  // ─── Performance indexes (added 2026-09-10) ───────────────────────────
+  @@index([status, createdAt])           // Active investors list
+  @@index([organizationType, status])    // Filter by type
+  @@index([countryOfOrigin])             // Geographic queries
 }
 
 model PartnerMatch {
@@ -1001,4 +1027,14 @@ model ProjectTemplate {
   @@index([createdById])
   @@index([isPublic])
   @@index([sector])
+}
+
+model IdempotencyRecord {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  response  String   @db.Text
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
 }

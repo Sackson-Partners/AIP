@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { sendEmail } from '@/lib/email'
 import { UserRole } from '@prisma/client'
 import { z } from 'zod'
-import { applyRateLimit, rateLimiters } from '@/middleware/rateLimit'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
 
 const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
 

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { summarizeDocument } from '@/lib/document-intelligence'
 import { UserRole } from '@prisma/client'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
 
 const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
@@ -19,6 +20,10 @@ export async function POST(
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Apply rate limiting (5 requests per hour)
+  const rateLimitResponse = await applyRateLimit(req, rateLimiters.generate, session.user.id)
+  if (rateLimitResponse) return rateLimitResponse
 
   // Only admins/analysts can trigger summarization
   if (!ADMIN_ROLES.includes(session.user.role as UserRole)) {

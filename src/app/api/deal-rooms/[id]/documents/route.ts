@@ -5,20 +5,30 @@ import { prisma } from '@/lib/prisma'
 
 type Ctx = { params: Promise<{ id: string }> }
 
-export async function GET(_req: NextRequest, { params }: Ctx) {
+export async function GET(req: NextRequest, { params }: Ctx) {
   const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
+  const { searchParams } = new URL(req.url)
+  const cursor = searchParams.get('cursor')
+  const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') ?? '50', 10)))
+
   const documents = await prisma.document.findMany({
     where: { dealRoomId: id },
     orderBy: { createdAt: 'desc' },
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
     include: {
       uploader: { select: { id: true, name: true, email: true } },
     },
   })
 
-  const data = documents.map(d => ({
+  const hasMore = documents.length > limit
+  const results = hasMore ? documents.slice(0, -1) : documents
+  const nextCursor = hasMore ? results[results.length - 1]?.id ?? null : null
+
+  const data = results.map(d => ({
     id:                d.id,
     title:             d.name,
     description:       null,
@@ -36,7 +46,14 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     uploaded_at:       d.createdAt.toISOString(),
   }))
 
-  return NextResponse.json({ data })
+  return NextResponse.json({
+    data,
+    pagination: {
+      limit,
+      hasMore,
+      nextCursor,
+    },
+  })
 }
 
 export async function POST(req: NextRequest, { params }: Ctx) {

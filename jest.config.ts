@@ -5,7 +5,11 @@ const config: Config = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
+    '^@auth/prisma-adapter$': '<rootDir>/node_modules/@auth/prisma-adapter/index.js',
   },
+  transformIgnorePatterns: [
+    'node_modules/(?!(@auth/prisma-adapter)/)',
+  ],
   transform: {
     '^.+\\.tsx?$': ['ts-jest', {
       tsconfig: {

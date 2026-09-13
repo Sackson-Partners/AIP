@@ -16,24 +16,44 @@ const CreateSchema = z.object({
   link:    z.string().optional(),
 })
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const { searchParams } = new URL(req.url)
+  const cursor = searchParams.get('cursor')
+  const limit = Math.min(50, Math.max(1, parseInt(searchParams.get('limit') ?? '20', 10)))
+
   try {
-    const [notifications, unreadCount] = await Promise.all([
-      prisma.notification.findMany({
-        where:   { userId: session.user.id },
-        orderBy: { createdAt: 'desc' },
-        take:    20,
-      }),
-      prisma.notification.count({
-        where: { userId: session.user.id, read: false },
-      }),
-    ])
-    return NextResponse.json({ notifications, unreadCount })
+    // Fetch notifications with cursor-based pagination
+    const notifications = await prisma.notification.findMany({
+      where: { userId: session.user.id },
+      orderBy: { createdAt: 'desc' },
+      take: limit + 1, // Fetch one extra to check if there's more
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+    })
+
+    // Determine if there are more notifications
+    const hasMore = notifications.length > limit
+    const results = hasMore ? notifications.slice(0, -1) : notifications
+    const nextCursor = hasMore ? results[results.length - 1]?.id ?? null : null
+
+    // Get unread count separately
+    const unreadCount = await prisma.notification.count({
+      where: { userId: session.user.id, read: false },
+    })
+
+    return NextResponse.json({
+      notifications: results,
+      unreadCount,
+      pagination: {
+        limit,
+        hasMore,
+        nextCursor,
+      },
+    })
   } catch (error: unknown) {
     logger.error('[GET /api/notifications]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

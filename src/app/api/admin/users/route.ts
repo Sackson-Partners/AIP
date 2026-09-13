@@ -8,6 +8,9 @@ import { prisma } from "@/lib/prisma"
 import { createAuditLog } from "@/lib/audit"
 import { sendWelcomeEmail } from "@/lib/email"
 import { generateEmployeeId } from "@/lib/utils/ids"
+import { sanitizeUser, sanitizeList } from "@/lib/response-sanitizer"
+import { UserRole } from "@prisma/client"
+import { logger } from "@/lib/logger"
 
 const createSchema = z.object({
   email: z.string().email("Invalid email address"),
@@ -59,26 +62,22 @@ export async function GET(req: NextRequest) {
       skip: (page - 1) * limit,
       take: limit,
       orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        status: true,
-        authProvider: true,
-        organization: true,
-        lastLoginAt: true,
-        createdAt: true,
-        internalProfile: { select: { employeeId: true, accessLevel: true } },
-      },
     }),
     prisma.user.count({ where }),
   ])
 
+  // Sanitize all users (admin viewing other users)
+  const sanitizedUsers = sanitizeList(
+    users as Record<string, any>[],
+    (user) => sanitizeUser(
+      user,
+      session.user.role as UserRole,
+      user.id === session.user.id
+    )
+  )
+
   return NextResponse.json({
-    users,
+    users: sanitizedUsers,
     pagination: { page, limit, total, pages: Math.ceil(total / limit) },
   })
 }
@@ -135,7 +134,10 @@ export async function POST(req: NextRequest) {
       generateEmployeeId(),
     ])
   } catch (err) {
-    console.error('[POST /api/admin/users] Failed to generate password/ID:', err)
+    logger.error('Failed to generate password hash or employee ID', err, {
+      adminId: session.user.id,
+      targetEmail: email,
+    })
     return NextResponse.json(
       { error: "Failed to process user data" },
       { status: 500 }
@@ -172,8 +174,20 @@ export async function POST(req: NextRequest) {
       })
       return u
     })
+
+    logger.info('Internal user created successfully', {
+      adminId: session.user.id,
+      newUserId: user.id,
+      newUserEmail: email,
+      newUserRole: role,
+      employeeId,
+    })
   } catch (err) {
-    console.error('[POST /api/admin/users] Database transaction failed:', err)
+    logger.error('User creation transaction failed', err, {
+      adminId: session.user.id,
+      targetEmail: email,
+      targetRole: role,
+    })
     return NextResponse.json(
       { error: "Failed to create user in database", details: err instanceof Error ? err.message : 'Unknown error' },
       { status: 500 }
@@ -200,9 +214,12 @@ export async function POST(req: NextRequest) {
       req.headers.get("x-forwarded-for")?.split(",")[0].trim() ?? undefined,
   })
 
-  // Return without passwordHash
-  const { ...safeUser } = user as Record<string, unknown>
-  delete safeUser.passwordHash
+  // Sanitize created user
+  const sanitizedUser = sanitizeUser(
+    user as Record<string, any>,
+    session.user.role as UserRole,
+    false
+  )
 
-  return NextResponse.json({ user: safeUser }, { status: 201 })
+  return NextResponse.json({ user: sanitizedUser }, { status: 201 })
 }

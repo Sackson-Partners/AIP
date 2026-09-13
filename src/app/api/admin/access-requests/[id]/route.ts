@@ -6,6 +6,7 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { sendAccessRequestApproval, sendAccessRequestRejection } from '@/lib/email'
 import { logger } from '@/lib/logger'
+import { UserRole } from '@prisma/client'
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -27,45 +28,70 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
   const request = await prisma.accessRequest.findUnique({ where: { id } })
   if (!request) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await prisma.accessRequest.update({
-    where: { id },
-    data:  { status: status!, reviewedBy: session.user.id, reviewedAt: new Date() },
-  })
-
   let tempPassword: string | undefined
-  if (status === 'APPROVED') {
-    // Check if user already exists (shouldn't, but guard)
-    const existing = await prisma.user.findUnique({ where: { email: request.email } })
-    if (!existing) {
-      tempPassword = crypto.randomBytes(8).toString('hex') // 16-char hex
-      await prisma.user.create({
-        data: {
-          email:         request.email,
-          name:          request.fullName,
-          role:          request.roleRequested as never,
-          status:        'ACTIVE',
-          authProvider:  'INTERNAL',
-          passwordHash:  await bcrypt.hash(tempPassword, 12),
-          mustChangePass: true,
-          organization:  request.organization ?? undefined,
-        },
-      })
 
-      // Send approval email with temporary password
-      try {
-        await sendAccessRequestApproval({
-          email: request.email,
-          name: request.fullName,
-          role: request.roleRequested,
-          temporaryPassword: tempPassword,
+  // Wrap in transaction to ensure atomicity
+  const result = await prisma.$transaction(async (tx) => {
+    // Update access request status
+    const updatedRequest = await tx.accessRequest.update({
+      where: { id },
+      data: { status: status!, reviewedBy: session.user.id, reviewedAt: new Date() },
+    })
+
+    if (status === 'APPROVED') {
+      // Check if user already exists (shouldn't, but guard)
+      const existing = await tx.user.findUnique({ where: { email: request.email } })
+      if (!existing) {
+        tempPassword = crypto.randomBytes(8).toString('hex') // 16-char hex
+        await tx.user.create({
+          data: {
+            email: request.email,
+            name: request.fullName,
+            role: request.roleRequested as UserRole,
+            status: 'ACTIVE',
+            authProvider: 'INTERNAL',
+            passwordHash: await bcrypt.hash(tempPassword, 12),
+            mustChangePass: true,
+            organization: request.organization ?? undefined,
+          },
         })
-      } catch (err) {
-        logger.error('[access-request-approval] Failed to send approval email', err)
-        // Continue - user is created, admin can manually share password
+
+        // Create audit log entry
+        await tx.auditLog.create({
+          data: {
+            action: 'ACCESS_REQUEST_APPROVED',
+            userId: session.user.id,
+            recordId: id,
+            newValues: JSON.stringify({
+              email: request.email,
+              role: request.roleRequested,
+              approvedBy: session.user.id,
+            }),
+          },
+        })
       }
     }
+
+    return { updatedRequest, tempPassword }
+  }, {
+    timeout: 10000, // 10 second timeout
+    maxWait: 5000   // 5 second max wait for connection
+  })
+
+  // Send emails outside transaction (non-critical, shouldn't block)
+  if (status === 'APPROVED' && tempPassword) {
+    try {
+      await sendAccessRequestApproval({
+        email: request.email,
+        name: request.fullName,
+        role: request.roleRequested,
+        temporaryPassword: tempPassword,
+      })
+    } catch (err) {
+      logger.error('[access-request-approval] Failed to send approval email', err)
+      // Continue - user is created, admin can manually share password
+    }
   } else if (status === 'REJECTED') {
-    // Send rejection email
     try {
       await sendAccessRequestRejection({
         email: request.email,

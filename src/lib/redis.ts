@@ -7,6 +7,9 @@ import { Redis } from '@upstash/redis'
 
 let redis: Redis | null = null
 
+// Export singleton instance for direct access
+export { redis }
+
 export function getRedis(): Redis | null {
   // Return null if not configured (graceful degradation)
   if (!process.env.UPSTASH_REDIS_REST_URL || !process.env.UPSTASH_REDIS_REST_TOKEN) {

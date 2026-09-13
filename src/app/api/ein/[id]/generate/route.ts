@@ -5,7 +5,8 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit-log'
 import Anthropic from '@anthropic-ai/sdk'
-import { applyRateLimit, rateLimiters } from '@/middleware/rateLimit'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
+import { logger } from '@/lib/logger'
 
 export const maxDuration = 60 // AI generation needs extended timeout
 
@@ -109,7 +110,7 @@ Return JSON with exactly these keys:
   }
 
   const generated = JSON.parse(jsonText) as Record<string, string>
-  console.log('[EIN] Generated with AWS Anthropic Claude')
+  logger.info('EIN generated successfully', { einId, projectId, fieldsGenerated: Object.keys(generated).length })
 
   // Save results
   const updated = await prisma.eINReport.update({
@@ -168,7 +169,7 @@ export async function POST(req: NextRequest, { params }: Ctx) {
   }
 
   try {
-    console.log(`[EIN generate] Running synchronous generation for EIN ${id}`)
+    logger.info('Starting EIN generation', { einId: id, projectId: einReport.projectId, userId: session.user.id })
     const updated = await generateEINSync(id, einReport.projectId, session.user.id)
 
     return NextResponse.json({
@@ -178,7 +179,11 @@ export async function POST(req: NextRequest, { params }: Ctx) {
       data: updated,
     })
   } catch (err) {
-    console.error('[EIN generate] Failed:', err)
+    logger.error('EIN generation failed', {
+      error: err instanceof Error ? err.message : String(err),
+      einId: id,
+      userId: session.user.id
+    })
     return NextResponse.json({
       error: 'Failed to generate EIN',
       details: err instanceof Error ? err.message : 'Unknown error',

@@ -7,6 +7,9 @@ import { logger } from '@/lib/logger'
 import { Prisma, UserRole, ProjectStatus, ProjectSector } from '@prisma/client'
 import { z } from 'zod'
 import { getCached, setCached, deleteCached, CacheKeys, CacheTTL } from '@/lib/redis'
+import { sanitizeProject, sanitizeList } from '@/lib/response-sanitizer'
+import { detectDuplicates, formatDuplicateMatches, getDuplicateWarning } from '@/lib/duplicate-detection'
+import crypto from 'crypto'
 
 const WRITE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
@@ -32,7 +35,14 @@ const CreateSchema = z.object({
 }).refine(d => d.name || d.project_name, { message: 'name is required' })
 
 function generateCode(): string {
-  return `AIP-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+  // Use cryptographically secure random bytes
+  // Generates 4-char alphanumeric code (A-Z, 0-9, excluding ambiguous chars I, O, 0, 1)
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+  const randomBytes = crypto.randomBytes(4)
+  const code = Array.from(randomBytes)
+    .map(byte => chars[byte % chars.length])
+    .join('')
+  return `AIP-${Date.now()}-${code}`
 }
 
 export async function GET(req: NextRequest) {
@@ -50,7 +60,16 @@ export async function GET(req: NextRequest) {
   const userRole = session.user.role as UserRole
   const isInternal = INTERNAL_ROLES.includes(userRole)
 
-  console.log(`[GET /api/projects] User: ${session.user.email}, Role: ${userRole}, Internal: ${isInternal}`);
+  logger.info('Fetching projects list', {
+    userId: session.user.id,
+    userEmail: session.user.email,
+    userRole,
+    isInternal,
+    page,
+    limit,
+    status,
+    search,
+  })
 
   // Generate cache key based on query parameters + user ID for internal users
   // Internal users may see different data (drafts, private projects) so cache per user
@@ -87,11 +106,47 @@ export async function GET(req: NextRequest) {
         skip:    (page - 1) * limit,
         take:    limit,
         orderBy: { createdAt: 'desc' },
+        include: {
+          verifications: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            select: {
+              id: true,
+              level: true,
+              status: true,
+              overallScore: true,
+            },
+          },
+          milestones: {
+            where: { status: 'COMPLETED' },
+            select: {
+              id: true,
+              title: true,
+              dueDate: true,
+            },
+            take: 3,
+          },
+          documents: {
+            where: { published: true },
+            select: {
+              id: true,
+              name: true,
+              type: true,
+            },
+            take: 5,
+          },
+        },
       }),
       prisma.project.count({ where }),
     ])
 
-    const response = { data, pagination: { page, limit, total, pages: Math.ceil(total / limit) } }
+    // Sanitize all projects based on viewer role
+    const sanitizedData = sanitizeList(
+      data as Record<string, any>[],
+      (project) => sanitizeProject(project, userRole)
+    )
+
+    const response = { data: sanitizedData, pagination: { page, limit, total, pages: Math.ceil(total / limit) } }
 
     // Cache the response (only if no search query)
     if (!search) {
@@ -169,6 +224,24 @@ export async function POST(req: NextRequest) {
     ? d.dealStage.toUpperCase()
     : 'CONCEPT'
 
+  // Check for potential duplicates before creating
+  const duplicateMatches = await detectDuplicates({
+    title: resolvedName,
+    country: d.country,
+    sector: resolvedSector,
+    totalCost: d.targetAmount ?? d.estimated_cost,
+  })
+
+  // Log duplicate detection results
+  if (duplicateMatches.length > 0) {
+    logger.warn('Potential duplicate project detected during creation', {
+      userId: session.user.id,
+      newProjectTitle: resolvedName,
+      duplicateCount: duplicateMatches.length,
+      topMatch: duplicateMatches[0]?.projectCode,
+    })
+  }
+
   try {
     const project = await prisma.project.create({
       data: {
@@ -198,9 +271,31 @@ export async function POST(req: NextRequest) {
 
     // Invalidate project list caches for all users
     await deleteCached('projects:list:*')
-    console.log('[POST /api/projects] Cache invalidated after project creation')
+    logger.info('Project created - cache invalidated', {
+      projectId: project.id,
+      projectTitle: resolvedName,
+      userId: session.user.id,
+    })
 
-    return NextResponse.json({ data: project }, { status: 201 })
+    // Sanitize created project
+    const sanitizedProject = sanitizeProject(
+      project as Record<string, any>,
+      session.user.role as UserRole
+    )
+
+    // Include duplicate warning in response if matches found
+    const duplicateWarning = getDuplicateWarning(duplicateMatches)
+    const formattedDuplicates = duplicateMatches.length > 0
+      ? formatDuplicateMatches(duplicateMatches.slice(0, 5)) // Top 5 matches
+      : undefined
+
+    return NextResponse.json({
+      data: sanitizedProject,
+      ...(duplicateWarning && {
+        warning: duplicateWarning,
+        potentialDuplicates: formattedDuplicates,
+      }),
+    }, { status: 201 })
   } catch (error: unknown) {
     logger.error('[POST /api/projects]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })

@@ -3,7 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { z } from 'zod'
-import { applyRateLimit, rateLimiters } from '@/middleware/rateLimit'
+import { applyRateLimit, rateLimiters } from '@/lib/rate-limit'
 
 const CreateSchema = z.object({
   targetType: z.enum(['PROJECT', 'INVESTOR', 'PARTNER']),

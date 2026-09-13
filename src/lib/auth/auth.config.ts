@@ -298,6 +298,7 @@ export const authOptions: NextAuthOptions = {
               firstName: true,
               lastName: true,
               organization: true,
+              sessionVersion: true,
               internalProfile: {
                 select: {
                   employeeId: true,
@@ -318,6 +319,7 @@ export const authOptions: NextAuthOptions = {
             token.firstName = dbUser.firstName
             token.lastName = dbUser.lastName
             token.organization = dbUser.organization
+            token.sessionVersion = dbUser.sessionVersion
             token.internalProfile = dbUser.internalProfile ?? null
           }
         } catch (err) {
@@ -339,6 +341,7 @@ export const authOptions: NextAuthOptions = {
               firstName: true,
               lastName: true,
               organization: true,
+              sessionVersion: true,
               internalProfile: {
                 select: {
                   employeeId: true,
@@ -352,6 +355,7 @@ export const authOptions: NextAuthOptions = {
           })
           if (dbUser) {
             token.role = dbUser.role as unknown as never
+            token.sessionVersion = dbUser.sessionVersion
             token.status = dbUser.status as unknown as never
             token.mustChangePass = dbUser.mustChangePass
             token.firstName = dbUser.firstName
