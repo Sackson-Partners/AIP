@@ -19,8 +19,13 @@ const KNOWN_ACCOUNT_FIELDS = new Set([
 // These are structurally incompatible (different AdapterAccount types across packages).
 // Bridge via unknown — this is intentional, not a lazy cast.
 //
-// CRITICAL: Lazy initialization to avoid module evaluation issues during Next.js build phase
-function getAdapter(): Adapter {
+// CRITICAL: Skip adapter during build phase to avoid Prisma initialization
+function getAdapter(): Adapter | undefined {
+  // Skip during Next.js build - adapter not needed for static analysis
+  if (process.env.NEXT_PHASE === 'phase-production-build') {
+    return undefined
+  }
+
   const baseAdapter = PrismaAdapter(prisma) as unknown as Adapter
 
   return {
@@ -43,7 +48,7 @@ function getAdapter(): Adapter {
 }
 
 export const authOptions: NextAuthOptions = {
-  adapter: getAdapter(),
+  adapter: getAdapter() as Adapter,
 
   // Explicit cookie config required for Next.js 15+ async cookies() API on localhost
   useSecureCookies: process.env.NODE_ENV === 'production',
