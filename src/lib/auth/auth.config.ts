@@ -1,21 +1,12 @@
 import type { NextAuthOptions } from "next-auth"
 import type { Adapter } from "next-auth/adapters"
-
-// CRITICAL BUILD FIX: Export minimal config during build phase to avoid Prisma initialization
-if (process.env.NEXT_PHASE === 'phase-production-build') {
-  export const authOptions: NextAuthOptions = {
-    providers: [],
-    secret: 'build-time-placeholder',
-  }
-} else {
-  // Runtime imports - only load when not in build phase
-  const AzureADProvider = require("next-auth/providers/azure-ad").default
-  const CredentialsProvider = require("next-auth/providers/credentials").default
-  const { PrismaAdapter } = require("@auth/prisma-adapter")
-  const bcrypt = require("bcryptjs")
-  const { prisma } = require("@/lib/prisma")
-  const { verifyTOTP } = require("@/lib/auth/totp")
-  const { logActivity } = require("@/lib/audit")
+import AzureADProvider from "next-auth/providers/azure-ad"
+import CredentialsProvider from "next-auth/providers/credentials"
+import { PrismaAdapter } from "@auth/prisma-adapter"
+import bcrypt from "bcryptjs"
+import { prisma } from "@/lib/prisma"
+import { verifyTOTP } from "@/lib/auth/totp"
+import { logActivity } from "@/lib/audit"
 
 // Known Account schema fields — strips any extra Azure AD token fields (e.g. not_before, client_info, foci)
 const KNOWN_ACCOUNT_FIELDS = new Set([
@@ -57,12 +48,18 @@ function getAdapter(): Adapter | undefined {
   } as Adapter
 }
 
-export const authOptions: NextAuthOptions = {
-  adapter: getAdapter() as Adapter,
+export const authOptions: NextAuthOptions = process.env.NEXT_PHASE === 'phase-production-build'
+  ? {
+      // Minimal config for build phase - prevents Prisma initialization
+      providers: [],
+      secret: 'build-time-placeholder',
+    }
+  : {
+      adapter: getAdapter() as Adapter,
 
-  // Explicit cookie config required for Next.js 15+ async cookies() API on localhost
-  useSecureCookies: process.env.NODE_ENV === 'production',
-  cookies: {
+      // Explicit cookie config required for Next.js 15+ async cookies() API on localhost
+      useSecureCookies: process.env.NODE_ENV === 'production',
+      cookies: {
     pkceCodeVerifier: {
       name: 'next-auth.pkce.code_verifier',
       options: { httpOnly: true, sameSite: 'lax', path: '/', secure: process.env.NODE_ENV === 'production', maxAge: 900 },
@@ -431,5 +428,4 @@ export const authOptions: NextAuthOptions = {
     maxAge: 8 * 60 * 60,   // 8 hours
     updateAge: 60 * 60,    // 1 hour
   },
-}
 }
