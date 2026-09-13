@@ -110,8 +110,9 @@ export function validateConfig(): ConfigValidationResult {
 }
 
 export function assertValidConfig(): void {
-  // Skip in test environment
+  // Skip in test environment or during build (Vercel injects env vars at runtime)
   if (process.env.NODE_ENV === 'test') return
+  if (process.env.NEXT_PHASE === 'phase-production-build') return
 
   const result = validateConfig()
 
