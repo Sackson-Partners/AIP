@@ -3,6 +3,7 @@ import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { logger } from "@/lib/logger"
+import crypto from "crypto"
 
 /**
  * Global middleware for authentication and authorization
@@ -22,9 +23,15 @@ export default withAuth(
     const token = req.nextauth.token
     const path = req.nextUrl.pathname
 
+    // Generate unique request ID for distributed tracing
+    const requestId = req.headers.get('x-request-id') ||
+      crypto.randomBytes(16).toString('hex')
+
     // Allow access to auth pages without restrictions
     if (path.startsWith("/auth/")) {
-      return NextResponse.next()
+      const response = NextResponse.next()
+      response.headers.set('x-request-id', requestId)
+      return response
     }
 
     // Validate session version - force logout if token is stale
@@ -40,11 +47,14 @@ export default withAuth(
             userId: token.userId,
             tokenVersion: token.sessionVersion,
             dbVersion: user.sessionVersion,
+            requestId,
           })
-          return NextResponse.redirect(new URL("/auth/signin?error=SessionExpired", req.url))
+          const response = NextResponse.redirect(new URL("/auth/signin?error=SessionExpired", req.url))
+          response.headers.set('x-request-id', requestId)
+          return response
         }
       } catch (error) {
-        logger.error('Failed to validate session version', error)
+        logger.error('Failed to validate session version', error, { requestId })
         // Continue on DB error - don't block all requests
       }
     }
@@ -54,8 +64,11 @@ export default withAuth(
       logger.info('Blocked PENDING user from accessing platform', {
         userId: token.userId,
         path,
+        requestId,
       })
-      return NextResponse.redirect(new URL("/auth/pending", req.url))
+      const response = NextResponse.redirect(new URL("/auth/pending", req.url))
+      response.headers.set('x-request-id', requestId)
+      return response
     }
 
     // Block SUSPENDED/DEACTIVATED users
@@ -64,8 +77,11 @@ export default withAuth(
         userId: token.userId,
         status: token.status,
         path,
+        requestId,
       })
-      return NextResponse.redirect(new URL("/auth/error?error=AccountBlocked", req.url))
+      const response = NextResponse.redirect(new URL("/auth/error?error=AccountBlocked", req.url))
+      response.headers.set('x-request-id', requestId)
+      return response
     }
 
     // Admin routes require SUPER_ADMIN role
@@ -75,8 +91,11 @@ export default withAuth(
           userId: token?.userId,
           role: token?.role,
           path,
+          requestId,
         })
-        return NextResponse.redirect(new URL("/unauthorized", req.url))
+        const response = NextResponse.redirect(new URL("/unauthorized", req.url))
+        response.headers.set('x-request-id', requestId)
+        return response
       }
     }
 
@@ -88,14 +107,20 @@ export default withAuth(
           userId: token?.userId,
           role: token?.role,
           path,
+          requestId,
         })
-        return NextResponse.redirect(new URL("/unauthorized", req.url))
+        const response = NextResponse.redirect(new URL("/unauthorized", req.url))
+        response.headers.set('x-request-id', requestId)
+        return response
       }
     }
 
     // API routes - add CORS and security headers
     if (path.startsWith("/api")) {
       const response = NextResponse.next()
+
+      // Add request ID for distributed tracing
+      response.headers.set('x-request-id', requestId)
 
       // Add security headers to all API responses
       response.headers.set("X-Content-Type-Options", "nosniff")
@@ -123,7 +148,10 @@ export default withAuth(
       return response
     }
 
-    return NextResponse.next()
+    // All other routes - add request ID
+    const response = NextResponse.next()
+    response.headers.set('x-request-id', requestId)
+    return response
   },
   {
     callbacks: {
