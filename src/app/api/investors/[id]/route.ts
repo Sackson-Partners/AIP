@@ -5,11 +5,18 @@ import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { logger } from '@/lib/logger'
 import { Prisma, UserRole } from '@prisma/client'
+import { z } from 'zod'
 import { buildPartnerProfile } from '@/lib/matching'
-import { getInvestorPatchSchema } from '@/lib/schemas/investor'
-import { sanitizeInvestor } from '@/lib/response-sanitizer'
 
-const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
+const ADMIN_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN]
+
+const PatchSchema = z.object({
+  name:   z.string().min(1).optional(),
+  email:  z.string().email().optional().or(z.literal('')),
+  phone:  z.string().optional(),
+  type:   z.string().optional(),
+  status: z.string().optional(),
+})
 
 type Ctx = { params: Promise<{ id: string }> }
 
@@ -35,58 +42,34 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       organizationType: investor.organizationType,
     })
 
-    // Build full response object
-    const fullInvestor = {
-      id:                  investor.id,
-      fund_name:           investor.name,
-      name:                investor.name,
-      email:               investor.email,
-      phone:               investor.phone,
-      investor_type:       investor.type,
-      type:                investor.type,
-      organization_type:   investor.organizationType,
-      organizationType:    investor.organizationType,
-      status:              investor.status,
-      country_of_origin:   investor.countryOfOrigin,
-      countryOfOrigin:     investor.countryOfOrigin,
-      instruments:         investor.instruments ? (() => { try { return JSON.parse(investor.instruments!) as string[] } catch { return [] } })() : [],
-      sector_focus:        profile.sectorFocus,
-      sectorFocus:         profile.sectorFocus,
-      country_focus:       profile.countryFocus,
-      countryFocus:        profile.countryFocus,
-      stage_focus:         profile.stageFocus,
-      stageFocus:          profile.stageFocus,
-      aum:                 investor.aum,
-      ticket_size_min:     investor.minTicket ?? 0,
-      minTicket:           investor.minTicket,
-      ticket_size_max:     investor.maxTicket ?? 0,
-      maxTicket:           investor.maxTicket,
-      target_irr:          investor.targetIRR,
-      targetIRR:           investor.targetIRR,
-      esg_constraints:     investor.esgConstraints,
-      esgConstraints:      investor.esgConstraints,
-      description:         investor.description,
-      website:             investor.website,
-      languages:           JSON.parse(investor.languages ?? '[]') as string[],
-      profile_complete:    Math.round(investor.profileComplete),
-      profileComplete:     investor.profileComplete,
-      created_at:          investor.createdAt.toISOString(),
-      createdAt:           investor.createdAt,
-      updatedAt:           investor.updatedAt,
-      // Note: verified/verifiedAt/userId not in current Investor schema
-    }
-
-    // Determine ownership (Investor model has no userId currently)
-    const isOwn = false // investor.userId === session.user.id
-
-    // Sanitize based on viewer role and ownership
-    const sanitizedInvestor = sanitizeInvestor(
-      fullInvestor as Record<string, any>,
-      session.user.role as UserRole,
-      isOwn
-    )
-
-    return NextResponse.json({ data: sanitizedInvestor })
+    return NextResponse.json({
+      data: {
+        id:                  investor.id,
+        fund_name:           investor.name,
+        name:                investor.name,
+        email:               investor.email,
+        phone:               investor.phone,
+        investor_type:       investor.type,
+        type:                investor.type,
+        organization_type:   investor.organizationType,
+        status:              investor.status,
+        country_of_origin:   investor.countryOfOrigin,
+        instruments:         investor.instruments ? (() => { try { return JSON.parse(investor.instruments!) as string[] } catch { return [] } })() : [],
+        sector_focus:        profile.sectorFocus,
+        country_focus:       profile.countryFocus,
+        stage_focus:         profile.stageFocus,
+        aum:                 investor.aum,
+        ticket_size_min:     investor.minTicket ?? 0,
+        ticket_size_max:     investor.maxTicket ?? 0,
+        target_irr:          investor.targetIRR,
+        esg_constraints:     investor.esgConstraints,
+        description:         investor.description,
+        website:             investor.website,
+        languages:           JSON.parse(investor.languages ?? '[]') as string[],
+        profile_complete:    Math.round(investor.profileComplete),
+        created_at:          investor.createdAt.toISOString(),
+      },
+    })
   } catch (error: unknown) {
     logger.error('[GET /api/investors/[id]]', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -101,40 +84,24 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
 
   const { id } = await params
 
-  // Fetch investor and check ownership
-  const investor = await prisma.investor.findUnique({
-    where: { id },
-    select: { id: true },
-  })
-
-  if (!investor) {
-    return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  }
-
-  // Determine ownership (Investor model has no userId currently)
-  const isOwn = false // investor.userId === session.user.id
-
-  // Get appropriate schema
-  const schema = getInvestorPatchSchema(session.user.role as UserRole, isOwn)
-  if (!schema) {
-    return NextResponse.json({ error: 'Forbidden - you cannot edit this investor' }, { status: 403 })
-  }
-
   let body: unknown
   try { body = await req.json() } catch { body = {} }
 
-  // Validate with role-based schema (prevents mass assignment)
-  const parsed = schema.safeParse(body)
+  const parsed = PatchSchema.safeParse(body)
   if (!parsed.success) {
     return NextResponse.json({ error: 'Validation failed', details: parsed.error.flatten() }, { status: 422 })
   }
 
-  const d = parsed.data
-
   try {
-    const updatedInvestor = await prisma.investor.update({
+    const investor = await prisma.investor.update({
       where: { id },
-      data: d as Prisma.InvestorUpdateInput,
+      data: {
+        ...(parsed.data.name   !== undefined ? { name:  parsed.data.name }          : {}),
+        ...(parsed.data.email  !== undefined ? { email: parsed.data.email || null } : {}),
+        ...(parsed.data.phone  !== undefined ? { phone: parsed.data.phone }         : {}),
+        ...(parsed.data.type   !== undefined ? { type:  parsed.data.type }          : {}),
+        ...(parsed.data.status !== undefined ? { status: parsed.data.status }       : {}),
+      },
     })
 
     await createAuditLog({
@@ -143,17 +110,10 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
       action:    'INVESTOR_UPDATED',
       tableName: 'Investor',
       recordId:  id,
-      newValues: d as Record<string, unknown>,
+      newValues: parsed.data as Record<string, unknown>,
     })
 
-    // Sanitize response
-    const sanitizedInvestor = sanitizeInvestor(
-      updatedInvestor as Record<string, any>,
-      session.user.role as UserRole,
-      isOwn
-    )
-
-    return NextResponse.json({ data: sanitizedInvestor })
+    return NextResponse.json({ data: investor })
   } catch (error: unknown) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2025') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 })
