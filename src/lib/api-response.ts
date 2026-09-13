@@ -127,17 +127,20 @@ export function apiError(
   const message = typeof error === 'string' ? error : error.message
   const code = options?.code ?? inferErrorCode(status)
 
+  const errorObj: Record<string, any> = {
+    code,
+    message,
+  }
+
+  if (options?.details) errorObj.details = options.details
+  if (options?.field) errorObj.field = options.field
+  if (process.env.NODE_ENV === 'development' && error instanceof Error && error.stack) {
+    errorObj.stack = error.stack
+  }
+
   const response: ApiErrorResponse = {
     success: false,
-    error: {
-      code,
-      message,
-      ...(options?.details && { details: options.details }),
-      ...(options?.field && { field: options.field }),
-      ...(process.env.NODE_ENV === 'development' && error instanceof Error && {
-        stack: error.stack,
-      }),
-    },
+    error: errorObj,
     meta: {
       timestamp: new Date().toISOString(),
       ...options?.meta,
