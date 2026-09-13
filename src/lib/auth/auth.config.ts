@@ -20,12 +20,13 @@ const KNOWN_ACCOUNT_FIELDS = new Set([
 // Bridge via unknown — this is intentional, not a lazy cast.
 const baseAdapter = PrismaAdapter(prisma) as unknown as Adapter
 const safeAdapter = {
-  ...baseAdapter,
+  ...(baseAdapter || {}),
   async linkAccount(account: Record<string, unknown>) {
+    if (!account) return
     const clean = Object.fromEntries(
       Object.entries(account).filter(([k]) => KNOWN_ACCOUNT_FIELDS.has(k))
     )
-    const fn = baseAdapter.linkAccount as unknown as (a: Record<string, unknown>) => Promise<unknown>
+    const fn = baseAdapter?.linkAccount as unknown as (a: Record<string, unknown>) => Promise<unknown>
     try {
       return await fn?.(clean)
     } catch (err) {
