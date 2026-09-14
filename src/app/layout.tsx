@@ -5,7 +5,8 @@ import { SessionProvider } from "@/providers/SessionProvider"
 import { ToastProvider } from "@/context/ToastContext"
 import { SearchProvider } from "@/components/search/SearchProvider"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
-import { getNonce, NonceProvider } from "@/lib/csp-nonce"
+import { NonceProvider } from "@/lib/csp-nonce"
+import { getNonce } from "@/lib/csp-nonce.server"
 
 const inter = Inter({ subsets: ["latin"] })
 
