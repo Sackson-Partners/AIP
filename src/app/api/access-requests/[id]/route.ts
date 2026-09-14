@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit-log'
 import { sendAccessRequestApproval, sendAccessRequestRejection } from '@/lib/email'
 import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 import { z } from 'zod'
 
 type Ctx = { params: Promise<{ id: string }> }
@@ -92,7 +93,7 @@ export async function PATCH(req: NextRequest, { params }: Ctx) {
     // Handle approval
     if (action === 'approve') {
       // Generate temporary password
-      const tempPassword = Math.random().toString(36).slice(-12) + 'Aa1!'
+      const tempPassword = crypto.randomBytes(8).toString('hex') + 'Aa1!'
       const hashedPassword = await bcrypt.hash(tempPassword, 10)
 
       // Create user account

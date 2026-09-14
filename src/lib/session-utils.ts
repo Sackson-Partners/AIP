@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { deleteCached } from '@/lib/redis'
+import { logger } from '@/lib/logger'
 
 /**
  * Session Versioning Utilities
@@ -23,9 +24,9 @@ export async function incrementSessionVersion(userId: string): Promise<void> {
     const cacheKey = `session:version:${userId}`
     await deleteCached(cacheKey)
 
-    console.log(`[Session] Incremented session version for user ${userId}`)
+    logger.info('Session version incremented', { userId })
   } catch (error) {
-    console.error(`[Session] Failed to increment session version for user ${userId}:`, error)
+    logger.error('Failed to increment session version', error, { userId })
     throw error
   }
 }
@@ -44,9 +45,9 @@ export async function resetSessionVersion(userId: string): Promise<void> {
     const cacheKey = `session:version:${userId}`
     await deleteCached(cacheKey)
 
-    console.log(`[Session] Reset session version for user ${userId}`)
+    logger.info('Session version reset', { userId })
   } catch (error) {
-    console.error(`[Session] Failed to reset session version for user ${userId}:`, error)
+    logger.error('Failed to reset session version', error, { userId })
     throw error
   }
 }
@@ -62,7 +63,7 @@ export async function getSessionVersion(userId: string): Promise<number | null> 
     })
     return user?.sessionVersion ?? null
   } catch (error) {
-    console.error(`[Session] Failed to get session version for user ${userId}:`, error)
+    logger.error('Failed to get session version', error, { userId })
     return null
   }
 }
@@ -90,12 +91,12 @@ export async function invalidateAllSessions(
   try {
     await incrementSessionVersion(userId)
 
-    console.log(`[Session] Invalidated all sessions for user ${userId}. Reason: ${reason}${performedBy ? `, Performed by: ${performedBy}` : ''}`)
+    logger.info('All sessions invalidated', { userId, reason, performedBy })
 
     // Optionally, you could log this to audit log
     // await createAuditLog({ ... })
   } catch (error) {
-    console.error(`[Session] Failed to invalidate sessions for user ${userId}:`, error)
+    logger.error('Failed to invalidate sessions', error, { userId })
     throw error
   }
 }

@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth/auth.config'
 import { prisma } from '@/lib/prisma'
 import { createAuditLog } from '@/lib/audit'
 import { UserRole, ProjectStatus, Prisma } from '@prisma/client'
+import crypto from 'crypto'
 import { z } from 'zod'
 import { deleteCached } from '@/lib/redis'
 
@@ -18,7 +19,8 @@ const CreateFromTemplateSchema = z.object({
 })
 
 function generateCode(): string {
-  return `AIP-${Date.now()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+  const randomBytes = crypto.randomBytes(2).toString('hex').toUpperCase()
+  return `AIP-${Date.now()}-${randomBytes}`
 }
 
 export async function POST(

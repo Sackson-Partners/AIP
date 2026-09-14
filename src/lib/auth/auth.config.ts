@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 import { verifyTOTP } from "@/lib/auth/totp"
 import { logActivity } from "@/lib/audit"
+import { logger } from "@/lib/logger"
 
 // Known Account schema fields — strips any extra Azure AD token fields (e.g. not_before, client_info, foci)
 const KNOWN_ACCOUNT_FIELDS = new Set([
@@ -29,7 +30,7 @@ const safeAdapter = {
     try {
       return await fn?.(clean)
     } catch (err) {
-      console.error('[linkAccount] failed to link Azure AD account: %o', err)
+      logger.error('Failed to link Azure AD account', err)
       // Don't block sign-in if account linking fails — user row already exists
       return
     }
@@ -186,9 +187,9 @@ export const authOptions: NextAuthOptions = {
       // Azure AD — find or create user
       if (account?.provider === "azure-ad") {
         const email = user.email
-        console.log('[signIn azure-ad] email=%s', email)
+        logger.info('Azure AD sign-in attempt', { email })
         if (!email) {
-          console.error('[signIn azure-ad] no email on token')
+          logger.error('Azure AD sign-in failed: no email on token')
           return false
         }
 
@@ -204,14 +205,14 @@ export const authOptions: NextAuthOptions = {
             },
           })
         } catch (err) {
-          console.error('[signIn azure-ad] DB lookup failed')
+          logger.error('Azure AD sign-in: DB lookup failed', err)
           return false
         }
 
         if (existing) {
           // Prevent account takeover: only allow Azure AD login if account was created with Azure AD
           if (existing.authProvider !== "AZURE_AD") {
-            console.error('[signIn azure-ad] Account exists with different provider')
+            logger.error('Azure AD sign-in failed: account exists with different provider', { email })
             return "/auth/error?error=AccountExistsWithDifferentProvider"
           }
 
@@ -323,7 +324,7 @@ export const authOptions: NextAuthOptions = {
             token.internalProfile = dbUser.internalProfile ?? null
           }
         } catch (err) {
-          console.error('[JWT callback] Failed to fetch user profile')
+          logger.error('JWT callback: failed to fetch user profile', err, { userId: user.id })
           // Still populate token with basic info so the sign-in doesn't fail completely
           token.userId = user.id
         }
@@ -364,7 +365,7 @@ export const authOptions: NextAuthOptions = {
             token.internalProfile = dbUser.internalProfile ?? null
           }
         } catch (err) {
-          console.error('[JWT callback] Failed to update user session')
+          logger.error('JWT callback: failed to update user session', err, { userId: token.userId })
         }
       }
 
