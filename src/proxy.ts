@@ -229,6 +229,16 @@ export default withAuth(
           return true
         }
 
+        // Allow NextAuth API routes (required for authentication flow)
+        if (path.startsWith("/api/auth/")) {
+          return true
+        }
+
+        // Allow public API endpoints
+        if (path === "/api/access-requests" || path === "/api/contact-requests") {
+          return true
+        }
+
         // All other routes require authentication
         return !!token
       },
