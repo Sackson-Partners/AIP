@@ -5,6 +5,7 @@ import { SessionProvider } from "@/providers/SessionProvider"
 import { ToastProvider } from "@/context/ToastContext"
 import { SearchProvider } from "@/components/search/SearchProvider"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
+import { getNonce, NonceProvider } from "@/lib/csp-nonce"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -29,19 +30,23 @@ export const metadata: Metadata = {
   icons: { icon: "/logo.png", apple: "/logo.png" },
 }
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = await getNonce()
+
   return (
     <html lang="en">
       <body className={inter.className}>
-        <ErrorBoundary>
-          <SessionProvider>
-            <ToastProvider>
-              <SearchProvider>
-                {children}
-              </SearchProvider>
-            </ToastProvider>
-          </SessionProvider>
-        </ErrorBoundary>
+        <NonceProvider nonce={nonce}>
+          <ErrorBoundary>
+            <SessionProvider>
+              <ToastProvider>
+                <SearchProvider>
+                  {children}
+                </SearchProvider>
+              </ToastProvider>
+            </SessionProvider>
+          </ErrorBoundary>
+        </NonceProvider>
       </body>
     </html>
   )

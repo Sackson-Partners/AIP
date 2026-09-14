@@ -6,23 +6,10 @@ const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
 });
 
-const isDev = process.env.NODE_ENV === "development";
 const isPreview = process.env.VERCEL_ENV === "preview";
 
-const CSP = [
-  "default-src 'self'",
-  // Allow unsafe-inline/eval in dev, but restrict in production
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com`,
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: blob: https: https://graph.microsoft.com https://*.blob.core.windows.net",
-  "connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.azure.com https://*.windows.net https://api.anthropic.com https://va.vercel-analytics.com",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "object-src 'none'",
-  "upgrade-insecure-requests",
-].join("; ");
+// CSP is now handled dynamically in middleware with nonces (see src/proxy.ts)
+// This eliminates unsafe-inline and closes XSS vulnerability
 
 const nextConfig: NextConfig = {
   outputFileTracingRoot: process.cwd(),
@@ -65,7 +52,7 @@ const nextConfig: NextConfig = {
       {
         source: "/(.*)",
         headers: [
-          { key: "Content-Security-Policy", value: CSP },
+          // CSP removed - now handled dynamically in middleware with nonces
           { key: "X-Content-Type-Options",  value: "nosniff" },
           { key: "X-Frame-Options",          value: "DENY" },
           { key: "Referrer-Policy",          value: "strict-origin-when-cross-origin" },

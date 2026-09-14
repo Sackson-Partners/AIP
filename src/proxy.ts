@@ -16,8 +16,15 @@ import crypto from "crypto"
  * 3. Blocks PENDING users from accessing the platform
  * 4. Blocks SUSPENDED/DEACTIVATED users
  * 5. Enforces role-based access to admin routes
- * 6. Adds security headers to all responses
+ * 6. Adds security headers to all responses (including nonce-based CSP)
  */
+
+// Helper to add security headers to response
+function addSecurityHeaders(response: NextResponse, requestId: string, nonce: string, csp: string): void {
+  response.headers.set('x-request-id', requestId)
+  response.headers.set('x-nonce', nonce)
+  response.headers.set('Content-Security-Policy', csp)
+}
 
 export default withAuth(
   async function middleware(req) {
@@ -28,10 +35,38 @@ export default withAuth(
     const requestId = req.headers.get('x-request-id') ||
       crypto.randomBytes(16).toString('hex')
 
+    // Generate cryptographically secure nonce for CSP
+    const nonce = crypto.randomBytes(16).toString('base64')
+
+    // Store nonce in request headers for pages to access
+    const requestHeaders = new Headers(req.headers)
+    requestHeaders.set('x-nonce', nonce)
+    requestHeaders.set('x-request-id', requestId)
+
+    // Build dynamic CSP with nonce (removes unsafe-inline)
+    const isDev = process.env.NODE_ENV === 'development'
+    const csp = [
+      "default-src 'self'",
+      `script-src 'self' 'nonce-${nonce}'${isDev ? " 'unsafe-eval'" : ""} https://va.vercel-scripts.com`,
+      `style-src 'self' 'nonce-${nonce}' https://fonts.googleapis.com`,
+      "font-src 'self' https://fonts.gstatic.com",
+      "img-src 'self' data: blob: https: https://graph.microsoft.com https://*.blob.core.windows.net",
+      "connect-src 'self' https://login.microsoftonline.com https://graph.microsoft.com https://*.azure.com https://*.windows.net https://api.anthropic.com https://va.vercel-analytics.com",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "object-src 'none'",
+      "upgrade-insecure-requests",
+    ].join("; ")
+
     // Allow access to auth pages without restrictions
     if (path.startsWith("/auth/")) {
-      const response = NextResponse.next()
+      const response = NextResponse.next({
+        request: { headers: requestHeaders }
+      })
       response.headers.set('x-request-id', requestId)
+      response.headers.set('x-nonce', nonce)
+      response.headers.set('Content-Security-Policy', csp)
       return response
     }
 
@@ -66,7 +101,7 @@ export default withAuth(
             requestId,
           })
           const response = NextResponse.redirect(new URL("/auth/signin?error=SessionExpired", req.url))
-          response.headers.set('x-request-id', requestId)
+          addSecurityHeaders(response, requestId, nonce, csp)
           return response
         }
       } catch (error) {
@@ -83,7 +118,7 @@ export default withAuth(
         requestId,
       })
       const response = NextResponse.redirect(new URL("/auth/pending", req.url))
-      response.headers.set('x-request-id', requestId)
+      addSecurityHeaders(response, requestId, nonce, csp)
       return response
     }
 
@@ -96,7 +131,7 @@ export default withAuth(
         requestId,
       })
       const response = NextResponse.redirect(new URL("/auth/error?error=AccountBlocked", req.url))
-      response.headers.set('x-request-id', requestId)
+      addSecurityHeaders(response, requestId, nonce, csp)
       return response
     }
 
@@ -110,7 +145,7 @@ export default withAuth(
           requestId,
         })
         const response = NextResponse.redirect(new URL("/unauthorized", req.url))
-        response.headers.set('x-request-id', requestId)
+        addSecurityHeaders(response, requestId, nonce, csp)
         return response
       }
     }
@@ -126,17 +161,19 @@ export default withAuth(
           requestId,
         })
         const response = NextResponse.redirect(new URL("/unauthorized", req.url))
-        response.headers.set('x-request-id', requestId)
+        addSecurityHeaders(response, requestId, nonce, csp)
         return response
       }
     }
 
     // API routes - add CORS and security headers
     if (path.startsWith("/api")) {
-      const response = NextResponse.next()
+      const response = NextResponse.next({
+        request: { headers: requestHeaders }
+      })
 
-      // Add request ID for distributed tracing
-      response.headers.set('x-request-id', requestId)
+      // Add security headers including CSP
+      addSecurityHeaders(response, requestId, nonce, csp)
 
       // Add security headers to all API responses
       response.headers.set("X-Content-Type-Options", "nosniff")
@@ -164,9 +201,11 @@ export default withAuth(
       return response
     }
 
-    // All other routes - add request ID
-    const response = NextResponse.next()
-    response.headers.set('x-request-id', requestId)
+    // All other routes - add security headers including CSP
+    const response = NextResponse.next({
+      request: { headers: requestHeaders }
+    })
+    addSecurityHeaders(response, requestId, nonce, csp)
     return response
   },
   {
