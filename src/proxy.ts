@@ -222,6 +222,8 @@ export default withAuth(
           "/auth/error",
           "/auth/pending",
           "/unauthorized",
+          "/request-access",
+          "/forgot-password",
         ]
 
         // Allow public routes without token
