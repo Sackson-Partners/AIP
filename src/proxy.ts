@@ -241,6 +241,11 @@ export default withAuth(
           return true
         }
 
+        // Allow emergency migration endpoint (temporary for schema fix)
+        if (path === "/api/admin/run-migration") {
+          return true
+        }
+
         // All other routes require authentication
         return !!token
       },
