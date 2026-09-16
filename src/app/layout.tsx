@@ -7,6 +7,7 @@ import { SearchProvider } from "@/components/search/SearchProvider"
 import { ErrorBoundary } from "@/components/ErrorBoundary"
 import { NonceProvider } from "@/lib/csp-nonce"
 import { getNonce } from "@/lib/csp-nonce.server"
+import { Analytics } from "@vercel/analytics/next"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -48,6 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             </SessionProvider>
           </ErrorBoundary>
         </NonceProvider>
+        <Analytics />
       </body>
     </html>
   )
