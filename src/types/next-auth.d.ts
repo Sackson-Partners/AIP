@@ -33,6 +33,7 @@ declare module "next-auth" {
       organization: string | null
       internalProfile: InternalProfile | null
     } & DefaultSession["user"]
+    csrfToken?: string
   }
 
   interface User extends DefaultUser {
@@ -58,6 +59,8 @@ declare module "next-auth/jwt" {
     firstName: string | null
     lastName: string | null
     organization: string | null
+    csrfToken?: string
+    sessionVersion?: number
     internalProfile: InternalProfile | null
   }
 }

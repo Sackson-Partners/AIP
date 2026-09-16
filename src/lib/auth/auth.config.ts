@@ -7,6 +7,7 @@ import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 import { verifyTOTP } from "@/lib/auth/totp"
 import { logActivity } from "@/lib/audit"
+import { generateCsrfToken } from "@/lib/csrf"
 
 // Known Account schema fields — strips any extra Azure AD token fields (e.g. not_before, client_info, foci)
 const KNOWN_ACCOUNT_FIELDS = new Set([
@@ -284,6 +285,11 @@ export const authOptions: NextAuthOptions = {
     },
 
     async jwt({ token, user, trigger }) {
+      // Generate CSRF token on first sign-in
+      if (!token.csrfToken) {
+        token.csrfToken = generateCsrfToken()
+      }
+
       // On every sign-in, fetch fresh data from DB
       if (user?.id) {
         try {
@@ -383,6 +389,8 @@ export const authOptions: NextAuthOptions = {
         session.user.organization = token.organization as string | null
         session.user.internalProfile = token.internalProfile as never
       }
+      // Add CSRF token to session
+      (session as any).csrfToken = token.csrfToken
       return session
     },
   },

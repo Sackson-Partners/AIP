@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client'
+import { dealRoomPasswordMiddleware } from './prisma-middleware/dealroom-password'
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
@@ -41,6 +42,11 @@ function createPrismaClient(): PrismaClient {
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient()
+
+// Add DealRoom password hashing middleware (defense-in-depth)
+if (typeof prisma.$use === 'function') {
+  prisma.$use(dealRoomPasswordMiddleware())
+}
 
 // Add query timeout middleware
 if (typeof prisma.$use === 'function') {
