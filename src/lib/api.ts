@@ -13,7 +13,7 @@ export const api: AxiosInstance = axios.create({
 })
 
 // ─── Request interceptor ─────────────────────────────────────────
-// Injects NextAuth JWT token into every outgoing request
+// Injects NextAuth JWT token and CSRF token into every outgoing request
 api.interceptors.request.use(
   async (config) => {
     try {
@@ -22,8 +22,14 @@ api.interceptors.request.use(
         // Send user context headers for backend consumers
         config.headers['X-User-Id'] = session.user.id
         config.headers['X-User-Role'] = session.user.role
+
+        // Include CSRF token for write operations
+        const s = session as typeof session & { accessToken?: string; idToken?: string; csrfToken?: string }
+        if (s.csrfToken && config.method && ['post', 'put', 'patch', 'delete'].includes(config.method.toLowerCase())) {
+          config.headers['X-CSRF-Token'] = s.csrfToken
+        }
+
         // accessToken is forwarded if present (e.g. Azure AD id_token)
-        const s = session as typeof session & { accessToken?: string; idToken?: string }
         const token = s.accessToken ?? s.idToken ?? null
         if (token) {
           config.headers.Authorization = `Bearer ${token}`
