@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import bcrypt from 'bcryptjs'
 import { prisma } from '@/lib/prisma'
 import { authOptions } from '@/lib/auth/auth.config'
+import { withCsrf } from '@/lib/csrf'
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ data })
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
@@ -142,3 +143,5 @@ export async function POST(req: NextRequest) {
     },
   }, { status: 201 })
 }
+
+export const POST = withCsrf(handlePOST)

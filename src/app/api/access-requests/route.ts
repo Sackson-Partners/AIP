@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { logAudit } from '@/lib/audit-log'
 import { inngest } from '@/lib/inngest/client'
 import { z } from 'zod'
+import { withCsrf } from '@/lib/csrf'
 
 // Validation schema
 const AccessRequestSchema = z.object({

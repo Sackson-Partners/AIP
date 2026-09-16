@@ -8,6 +8,7 @@ import { Prisma, UserRole, ProjectStatus, ProjectSector } from '@prisma/client'
 import { z } from 'zod'
 import { getCached, setCached, deleteCached, CacheKeys, CacheTTL } from '@/lib/redis'
 import crypto from 'crypto'
+import { withCsrf } from '@/lib/csrf'
 
 const WRITE_ROLES: UserRole[] = [UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.ANALYST]
 
@@ -107,7 +108,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function handlePOST(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -208,3 +209,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
+
+export const POST = withCsrf(handlePOST)
